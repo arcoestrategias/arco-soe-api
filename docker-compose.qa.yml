@@ -1,0 +1,46 @@
+services:
+  postgres-soe-qa:
+    image: postgres:16
+    container_name: postgres-soe-qa
+    restart: unless-stopped
+    ports:
+      - '${DB_PORT}:5432'
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - postgres-soe-qa-data:/var/lib/postgresql/data
+    networks:
+      - soe-qa-network
+
+  backend-qa:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: backend-qa
+    restart: unless-stopped
+    ports:
+      - '${PORT}:${PORT}'
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      NODE_ENV: development
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN}
+      PORT: ${PORT}
+    depends_on:
+      - postgres-soe-qa
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    networks:
+      - soe-qa-network
+
+volumes:
+  postgres-soe-qa-data:
+
+networks:
+  soe-qa-network:
+    driver: bridge
