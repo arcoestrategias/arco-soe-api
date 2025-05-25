@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                      String    @id @default(uuid())
+  email                   String    @unique
+  username                String?   @unique
+  ide                     String    @unique
+  telephone               String?
+  firstName               String
+  lastName                String
+  password                String
+  isActive                Boolean   @default(true)
+
+  // Relación con Rol (un usuario solo tiene un rol)
+  roleId                  String
+  role                    Role      @relation(fields: [roleId], references: [id])
+
+  // Permisos especiales (relación uno a muchos)
+  userPermissions         UserPermission[]
+
+  // Recuperación y confirmación de cuenta
+  resetToken              String?   @db.VarChar(255)
+  resetTokenExpiresAt     DateTime?
+  isEmailConfirmed        Boolean   @default(false)
+  emailConfirmToken       String?   @db.VarChar(255)
+  emailConfirmExpiresAt   DateTime?
+
+  // Seguridad del login
+  lastLoginAt             DateTime?           //Última vez que inició sesión
+  loginAttempts           Int       @default(0) //Intentos fallidos acumulados
+  lockedUntil             DateTime?           //Si está temporalmente bloqueado
+
+  // Auditoría
+  createdBy               DateTime  @default(now())
+  updatedBy               DateTime  @updatedAt
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique             // Ej: "CEO", "ROOT", "CLIENTE_SOE"
+  description String?
+  permissions RolePermission[]
+  users       User[]
+}
+
+model Permission {
+  id          String        @id @default(uuid())
+  name        String        @unique             // Ej: "crear", "ver", "editar", "eliminar"
+  description String?
+  moduleId    String
+  module      Module        @relation(fields: [moduleId], references: [id])
+  roles       RolePermission[]
+  users       UserPermission[]
+}
+
+
+model RolePermission {
+  id           String      @id @default(uuid())
+  role         Role        @relation(fields: [roleId], references: [id])
+  roleId       String
+  permission   Permission  @relation(fields: [permissionId], references: [id])
+  permissionId String
+}
+
+model UserPermission {
+  id           String      @id @default(uuid())
+  user         User        @relation(fields: [userId], references: [id])
+  userId       String
+  permission   Permission  @relation(fields: [permissionId], references: [id])
+  permissionId String
+  // Opcional: permite denegar explícitamente un permiso si se requiere
+  isAllowed    Boolean     @default(true)
+}
+
+model Module {
+  id          String        @id @default(uuid())
+  name        String        @unique
+  description String?
+  permissions Permission[]
+}
