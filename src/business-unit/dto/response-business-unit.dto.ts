@@ -1,14 +1,12 @@
 export class ResponseBusinessUnitDto {
   id: string;
   name: string;
-  description: string;
-  ide: string;
-  legalRepresentativeName: string;
-  address: string;
-  phone: string;
-  order: number;
-  isPrivate: boolean;
-  isGroup: boolean;
+  description?: string;
+  ide?: string;
+  legalRepresentativeName?: string;
+  address?: string;
+  phone?: string;
+  order?: number;
   isActive: boolean;
   companyId: string;
   createdBy?: string | null;

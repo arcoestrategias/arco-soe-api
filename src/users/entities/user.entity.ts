@@ -6,6 +6,7 @@ export class UserEntity {
   readonly telephone?: string;
   readonly firstName: string;
   readonly lastName: string;
+  readonly isPlatformAdmin: boolean;
   readonly isActive: boolean;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -42,6 +43,7 @@ export class UserEntity {
       firstName: this.firstName,
       lastName: this.lastName,
       fullName: this.fullName,
+      isPlatformAdmin: this.isPlatformAdmin,
       isActive: this.isActive,
       lastLoginAt: this.lastLoginAt,
       createdAt: this.createdAt,

@@ -35,19 +35,33 @@ export class UsersController {
     @BusinessUnitId() businessUnitId: string,
   ) {
     const userId = user.sub;
-
     const userEntity = await this.usersService.findOne(userId);
 
-    const permissions = businessUnitId
-      ? await this.businessUnitService.getUserPermissionsByModule(
-          businessUnitId,
-          userId,
-        )
-      : {};
+    if (!businessUnitId) {
+      console.log(`sin unidad`);
+      const units = await this.usersService.findUnitsForUser(userId);
+
+      if (Array.isArray(units) && units.length > 1) {
+        return {
+          ...userEntity.toResponse(),
+          needsBusinessUnit: true,
+          businessUnits: units,
+        };
+      }
+
+      // si solo tiene una unidad, continuamos con esa
+      businessUnitId = units[0]?.id;
+    }
+
+    const permissions =
+      await this.businessUnitService.getUserPermissionsByModule(
+        businessUnitId,
+        userId,
+      );
 
     return {
       ...userEntity.toResponse(),
-      permissions, // ya alineado con el frontend
+      permissions,
     };
   }
 
@@ -61,8 +75,11 @@ export class UsersController {
 
   @Permissions(PERMISSIONS.USERS.READ)
   @Get()
-  async findAll(): Promise<ResponseUserDto[]> {
-    const users = await this.usersService.findAll();
+  async findAll(
+    @CurrentUser() user: CurrentUserPayload,
+  ): Promise<ResponseUserDto[]> {
+    const userId = user.sub;
+    const users = await this.usersService.findAll(userId);
     return users.map((user) => new ResponseUserDto(user));
   }
 

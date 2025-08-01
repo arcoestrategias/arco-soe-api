@@ -49,6 +49,27 @@ export class UsersRepository {
     return users.map((user) => new UserEntity(user));
   }
 
+  async findByCompanyIds(companyIds: string[]): Promise<UserEntity[]> {
+    const units = await this.prisma.businessUnit.findMany({
+      where: { companyId: { in: companyIds } },
+      select: { id: true },
+    });
+
+    const unitIds = units.map((u) => u.id);
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        userBusinessUnits: {
+          some: {
+            businessUnitId: { in: unitIds },
+          },
+        },
+      },
+    });
+
+    return users.map((user) => new UserEntity(user));
+  }
+
   async update(id: string, data: UpdateUserDto): Promise<UserEntity> {
     try {
       const user = await this.prisma.user.update({ where: { id }, data });
@@ -89,5 +110,23 @@ export class UsersRepository {
       id: userUnit.user.id,
       roleId: userUnit.roleId ?? null,
     };
+  }
+
+  async findUnitsForUser(
+    userId: string,
+  ): Promise<{ id: string; name: string }[]> {
+    const links = await this.prisma.userBusinessUnit.findMany({
+      where: { userId },
+      select: {
+        businessUnit: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return links.map((l) => l.businessUnit);
   }
 }

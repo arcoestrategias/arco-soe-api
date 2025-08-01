@@ -2,48 +2,47 @@ import {
   IsString,
   IsUUID,
   IsOptional,
-  IsBoolean,
   MaxLength,
   IsNumber,
+  IsNotEmpty,
 } from 'class-validator';
 
 export class CreateBusinessUnitDto {
   @IsString()
   @MaxLength(150)
+  @IsNotEmpty()
   name: string;
 
   @IsString()
   @MaxLength(500)
-  description: string;
+  @IsOptional()
+  description?: string;
 
   @IsString()
   @MaxLength(13)
-  ide: string;
+  @IsOptional()
+  ide?: string;
 
   @IsString()
   @MaxLength(250)
-  legalRepresentativeName: string;
+  @IsOptional()
+  legalRepresentativeName?: string;
 
   @IsString()
   @MaxLength(250)
-  address: string;
+  @IsOptional()
+  address?: string;
 
   @IsString()
   @MaxLength(50)
-  phone: string;
+  @IsOptional()
+  phone?: string;
 
   @IsNumber()
-  order: number;
-
-  @IsBoolean()
-  isPrivate: boolean;
-
-  @IsBoolean()
-  isGroup: boolean;
-
-  @IsBoolean()
-  isActive: boolean;
+  @IsOptional()
+  order?: number;
 
   @IsUUID()
+  @IsNotEmpty()
   companyId: string;
 }

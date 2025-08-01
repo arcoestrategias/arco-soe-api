@@ -1,7 +1,15 @@
 -- CreateTable
 CREATE TABLE "Company" (
     "id" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
+    "name" VARCHAR(150) NOT NULL,
+    "description" VARCHAR(500),
+    "ide" VARCHAR(13) NOT NULL,
+    "legalRepresentativeName" VARCHAR(250),
+    "address" VARCHAR(250),
+    "phone" VARCHAR(50),
+    "order" INTEGER,
+    "isPrivate" BOOLEAN NOT NULL DEFAULT false,
+    "isGroup" BOOLEAN NOT NULL DEFAULT false,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdBy" TEXT,
     "updatedBy" TEXT,
@@ -15,14 +23,12 @@ CREATE TABLE "Company" (
 CREATE TABLE "BusinessUnit" (
     "id" TEXT NOT NULL,
     "name" VARCHAR(150) NOT NULL,
-    "description" VARCHAR(500) NOT NULL,
-    "ide" VARCHAR(13) NOT NULL,
-    "legalRepresentativeName" VARCHAR(250) NOT NULL,
-    "address" VARCHAR(250) NOT NULL,
-    "phone" VARCHAR(50) NOT NULL,
-    "order" INTEGER NOT NULL,
-    "isPrivate" BOOLEAN NOT NULL,
-    "isGroup" BOOLEAN NOT NULL,
+    "description" VARCHAR(500),
+    "ide" VARCHAR(13),
+    "legalRepresentativeName" VARCHAR(250),
+    "address" VARCHAR(250),
+    "phone" VARCHAR(50),
+    "order" INTEGER,
     "companyId" TEXT NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdBy" TEXT,
@@ -115,6 +121,7 @@ CREATE TABLE "User" (
     "firstName" TEXT NOT NULL,
     "lastName" TEXT NOT NULL,
     "password" TEXT NOT NULL,
+    "isPlatformAdmin" BOOLEAN NOT NULL DEFAULT false,
     "resetToken" VARCHAR(255),
     "resetTokenExpiresAt" TIMESTAMP(3),
     "isEmailConfirmed" BOOLEAN NOT NULL DEFAULT false,
@@ -133,10 +140,21 @@ CREATE TABLE "User" (
 );
 
 -- CreateTable
+CREATE TABLE "UserCompany" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "companyId" TEXT NOT NULL,
+    "isManager" BOOLEAN NOT NULL DEFAULT false,
+
+    CONSTRAINT "UserCompany_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "UserBusinessUnit" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "businessUnitId" TEXT NOT NULL,
+    "isResponsible" BOOLEAN NOT NULL DEFAULT false,
     "positionId" TEXT,
     "roleId" TEXT,
     "createdBy" TEXT,
@@ -184,6 +202,9 @@ CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
 CREATE UNIQUE INDEX "User_ide_key" ON "User"("ide");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "UserCompany_userId_companyId_key" ON "UserCompany"("userId", "companyId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "UserBusinessUnit_userId_businessUnitId_key" ON "UserBusinessUnit"("userId", "businessUnitId");
 
 -- CreateIndex
@@ -206,6 +227,12 @@ ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_roleId_fkey" FOREIGN
 
 -- AddForeignKey
 ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_permissionId_fkey" FOREIGN KEY ("permissionId") REFERENCES "Permission"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "UserCompany" ADD CONSTRAINT "UserCompany_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "UserCompany" ADD CONSTRAINT "UserCompany_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "UserBusinessUnit" ADD CONSTRAINT "UserBusinessUnit_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
