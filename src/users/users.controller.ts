@@ -17,18 +17,38 @@ import { PERMISSIONS } from 'src/common/constants/permissions.constant';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { CurrentUserPayload } from 'src/auth/interfaces/current-user.interface';
 import { SuccessMessage } from 'src/core/decorators/success-message.decorator';
+import { BusinessUnitId } from 'src/common/decorators/business-unit-id.decorator';
+import { BusinessUnitsService } from 'src/business-unit/business-unit.service';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly businessUnitService: BusinessUnitsService,
+  ) {}
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  async getProfile(@CurrentUser() user: CurrentUserPayload) {
-    const userId = user.id;
-    const foundUser = await this.usersService.findOne(userId);
-    return foundUser.toResponse();
+  async getProfile(
+    @CurrentUser() user: CurrentUserPayload,
+    @BusinessUnitId() businessUnitId: string,
+  ) {
+    const userId = user.sub;
+
+    const userEntity = await this.usersService.findOne(userId);
+
+    const permissions = businessUnitId
+      ? await this.businessUnitService.getUserPermissionsByModule(
+          businessUnitId,
+          userId,
+        )
+      : {};
+
+    return {
+      ...userEntity.toResponse(),
+      permissions, // ya alineado con el frontend
+    };
   }
 
   @Permissions(PERMISSIONS.USERS.CREATE)

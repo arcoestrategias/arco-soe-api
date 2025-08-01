@@ -42,8 +42,4 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
   @IsOptional()
   @IsBoolean()
   isEmailConfirmed?: boolean;
-
-  @IsOptional()
-  @IsString()
-  roleId?: string;
 }

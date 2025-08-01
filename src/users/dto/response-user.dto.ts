@@ -7,7 +7,6 @@ export class ResponseUserDto {
   firstName: string;
   lastName: string;
   isActive: boolean;
-  roleId: string;
   lastLoginAt?: Date;
   createdAt: Date;
   updatedAt: Date;

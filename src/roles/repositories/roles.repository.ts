@@ -44,47 +44,29 @@ export class RolesRepository {
     }
   }
 
-  async assignPermissions(
-    roleId: string,
-    permissionIds: string[],
-  ): Promise<void> {
-    try {
-      await this.prisma.rolePermission.deleteMany({ where: { roleId } });
+  async setPermissions(roleId: string, permissionIds: string[]) {
+    await this.prisma.rolePermission.deleteMany({ where: { roleId } });
 
+    if (permissionIds.length > 0) {
       await this.prisma.rolePermission.createMany({
-        data: permissionIds.map((permissionId) => ({
+        data: permissionIds.map((pid) => ({
           roleId,
-          permissionId,
+          permissionId: pid,
         })),
-        skipDuplicates: true,
       });
-    } catch (error) {
-      handleDatabaseErrors(error);
     }
   }
 
-  async findWithPermissions(id: string): Promise<{
-    role: RoleEntity;
-    permissions: { id: string; name: string }[];
-  } | null> {
-    const roleWithPerms = await this.prisma.role.findUnique({
-      where: { id },
+  async findRolePermissions(roleId: string) {
+    return this.prisma.rolePermission.findMany({
+      where: { roleId },
       include: {
-        permissions: {
+        permission: {
           include: {
-            permission: {
-              select: { id: true, name: true },
-            },
+            module: true,
           },
         },
       },
     });
-
-    if (!roleWithPerms) return null;
-
-    return {
-      role: new RoleEntity(roleWithPerms),
-      permissions: roleWithPerms.permissions.map((rp) => rp.permission),
-    };
   }
 }

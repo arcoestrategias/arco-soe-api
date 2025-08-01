@@ -7,7 +7,8 @@ import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { ModulesModule } from './modules/modules.module';
-import { DevController } from './dev/dev.controller';
+import { CompaniesModule } from './companies/companies.module';
+import { BusinessUnitsModule } from './business-unit/business-unit.module';
 
 @Module({
   imports: [
@@ -18,7 +19,9 @@ import { DevController } from './dev/dev.controller';
     RolesModule,
     PermissionsModule,
     ModulesModule,
+    CompaniesModule,
+    BusinessUnitsModule,
   ],
-  controllers: [DevController],
+  controllers: [],
 })
 export class AppModule {}

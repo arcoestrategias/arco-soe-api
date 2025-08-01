@@ -1,12 +1,12 @@
 import {
-  Injectable,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 import { PermissionValidatorService } from '../services/permission-validator.service';
+import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -26,30 +26,39 @@ export class PermissionsGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
-    // Si no hay permisos requeridos definidos, permite el acceso
+    // Si no se requiere ningún permiso, se permite el acceso.
     if (!requiredPermissions || requiredPermissions.length === 0) {
       return true;
     }
 
     // 2. Obtiene el usuario autenticado desde la request
-    const { user } = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest();
 
-    // Si no hay usuario o le faltan datos clave, lanza excepción
-    if (!user || !user.id || !user.roleId) {
+    /**
+     * userId proviene del token JWT y se inyecta en req.user.sub por JwtStrategy.
+     * businessUnitId debe ser enviado por el frontend en el header 'x-business-unit-id'.
+     */
+    const userId = request.user?.sub;
+    const businessUnitId = request.headers['x-business-unit-id'];
+    // console.log(userId);
+    // console.log(businessUnitId);
+
+    // Verifica que ambos valores estén presentes.
+    if (!userId || !businessUnitId) {
       throw new ForbiddenException(
-        'Usuario sin contexto de autenticación válido',
+        'Faltan datos de autenticación o unidad de negocio',
       );
     }
 
-    // 3. Verifica que el usuario tenga cada uno de los permisos requeridos
+    // 3. Verifica uno a uno si el usuario tiene los permisos requeridos en esa unidad.
     for (const permission of requiredPermissions) {
       const hasAccess = await this.permissionValidator.hasPermission(
-        user.id,
-        user.roleId,
+        userId,
+        businessUnitId,
         permission,
       );
 
-      // Si falta alguno, lanza excepción
+      // Si no tiene al menos uno, deniega el acceso.
       if (!hasAccess) {
         throw new ForbiddenException(`No tienes permiso para: ${permission}`);
       }

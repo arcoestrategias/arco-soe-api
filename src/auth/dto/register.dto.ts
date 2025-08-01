@@ -31,8 +31,4 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   username?: string;
-
-  @IsOptional()
-  @IsString()
-  roleId?: string;
 }

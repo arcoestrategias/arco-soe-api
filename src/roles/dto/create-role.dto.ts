@@ -1,13 +1,22 @@
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  IsArray,
+} from 'class-validator';
 
 export class CreateRoleDto {
   @IsString()
   @IsNotEmpty()
-  @MaxLength(100)
   name: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(255)
   description?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  permissionIds?: string[];
 }

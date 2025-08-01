@@ -49,44 +49,66 @@ npm run start:dev
 
 ---
 
-## 🌱 Inicialización de Datos del Sistema
+## 🌱 Inicialización de Datos del Sistema (Seed)
 
 Si es la primera vez levantando el proyecto se deben inicializar los datos ejecutando la semilla.
-Este proyecto incluye un endpoint especial de inicialización que permite sembrar toda la estructura base del sistema:
+Este proyecto incluye una semilla automática (`/prisma/seed.ts`) que crea todos los datos base del sistema: usuarios, roles, módulos, permisos y relaciones.
 
-### 🔐 Endpoint de inicialización
+### 🔧 Ejecución del seed
 
-- **URL:** `POST /api/v1/dev/seed/initial`
-- **Header requerido:** `x-seed-token: so3-init-2024`
+```bash
+npx prisma db seed
+```
 
-> El token debe coincidir con la variable `SEED_TOKEN` definida en el archivo `.env`.
+> Asegúrate de tener corriendo la base de datos (`docker-compose up`) y configurado correctamente el archivo `.env`.
+
+---
 
 ### 🧱 ¿Qué incluye este seed?
 
-1. **Módulos base**:
-   - `users`, `roles`, `permissions`
-2. **Permisos por módulo** (4 acciones por cada uno):
-   - `read`, `create`, `update`, `delete`
-   - Ej: `user.read`, `company.update`, etc.
-3. **Roles jerárquicos predefinidos**:
-   - `client`, `specialist`, `manager`, `admin`
-4. **Asignación de permisos a cada rol**, según la siguiente regla:
+1. **Usuarios base:**
 
-| Rol          | Permisos asignados                   |
-| ------------ | ------------------------------------ |
-| `client`     | `read`                               |
-| `specialist` | `read`, `update`                     |
-| `manager`    | `read`, `create`, `update`           |
-| `admin`      | `read`, `create`, `update`, `delete` |
+   - [admin@example.com](mailto:admin@example.com)
+   - [manager@example.com](mailto:manager@example.com)
+   - [specialist@example.com](mailto:specialist@example.com)
+   - [client@example.com](mailto:client@example.com)
 
-> Las relaciones entre roles y permisos se insertan en la tabla `RolePermission` de forma segura.
+2. **Roles base:**
 
-### 🔁 ¿Puedo ejecutarlo varias veces?
+   - `Admin`, `Manager`, `Specialist`, `Client`, `Viewer`, `Operator`
 
-Sí. El seed es **idempotente**:
+3. **Módulos base**:
 
-- No duplica módulos, permisos ni roles si ya existen.
-- Asigna permisos dinámicamente según los disponibles.
+   - `users`, `roles`, `permissions`, `modules`, `companies`, `business-units`
+
+4. **Permisos por módulo:**\
+   Cada módulo incluye 8 acciones:
+
+   ```
+   access, read, create, update, delete, export, approve, assign
+   ```
+
+   Ejemplo: `user.access`, `role.create`, `businessUnit.delete`
+
+5. **Asignación de permisos a roles según matriz jerárquica**
+
+   | Rol        | access | read | create | update | delete | export | approve | assign |
+   | ---------- | ------ | ---- | ------ | ------ | ------ | ------ | ------- | ------ |
+   | Admin      | ✔️     | ✔️   | ✔️     | ✔️     | ✔️     | ✔️     | ✔️      | ✔️     |
+   | Manager    | ✔️     | ✔️   | ✔️     | ✔️     | ✔️     | ✔️     | ✔️      |        |
+   | Specialist | ✔️     | ✔️   | ✔️     | ✔️     |        |        |         |        |
+   | Client     | ✔️     | ✔️   |        |        |        |        |         |        |
+   | Viewer     | ✔️     | ✔️   |        |        |        |        |         |        |
+   | Operator   | ✔️     | ✔️   | ✔️     | ✔️     | ✔️     |        |         |        |
+
+6. **Asignación automática de permisos a los usuarios base, en función de su rol y unidad de negocio.**
+
+---
+
+### 🔄 ¿Se puede ejecutar múltiples veces el SEED?
+
+Sí. El seed es **idempotente**:\
+Detecta y evita duplicados en roles, permisos, módulos, usuarios y relaciones.
 
 ---
 
@@ -141,10 +163,11 @@ El backend utiliza un sistema de autorización dinámico basado en:
 
 - Decorador `@Permissions('modulo.accion')`
 - Guard `PermissionsGuard`, que consulta la base de datos:
-  - Primero `UserPermission` (puede permitir o denegar explícitamente)
-  - Luego `RolePermission` (si no hay configuración personalizada)
+  - `UserPermission` (puede permitir o denegar explícitamente)
 
 Los endpoints protegidos deben declarar el permiso requerido con el decorador correspondiente.
+
+- Los roles actúan como **plantillas de permisos**: al asignar un rol a un usuario dentro de una unidad, se copian automáticamente todos sus permisos al usuario.
 
 ---
 

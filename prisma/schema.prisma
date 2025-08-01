@@ -7,6 +7,123 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Company {
+  id             String         @id @default(uuid())
+  name           String
+  businessUnits  BusinessUnit[]
+
+  // Auditoría
+  isActive       Boolean        @default(true)
+  createdBy      String?
+  updatedBy      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+
+model BusinessUnit {
+  id                       String        @id @default(uuid())
+  name                     String        @db.VarChar(150)
+  description              String        @db.VarChar(500)
+  ide                      String        @db.VarChar(13)
+  legalRepresentativeName  String        @db.VarChar(250)
+  address                  String        @db.VarChar(250)
+  phone                    String        @db.VarChar(50)
+  order                    Int
+  isPrivate                Boolean
+  isGroup                  Boolean
+  companyId                String
+  company                  Company       @relation(fields: [companyId], references: [id])
+  positions                Position[]
+  userLinks                UserBusinessUnit[]
+  userPermissions          UserPermission[]
+
+  // Auditoría
+  isActive       Boolean        @default(true)
+  createdBy      String?
+  updatedBy      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model Position {
+  id              String           @id @default(uuid())
+  name            String
+  businessUnitId  String
+  businessUnit    BusinessUnit     @relation(fields: [businessUnitId], references: [id])
+  userLinks       UserBusinessUnit[]
+
+  // Auditoría
+  isActive       Boolean        @default(true)
+  createdBy      String?
+  updatedBy      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model Role {
+  id           String            @id @default(uuid())
+  name         String            @unique
+  description  String?
+  permissions  RolePermission[]
+
+  userLinks    UserBusinessUnit[]
+
+  // Auditoría
+  isActive       Boolean        @default(true)
+  createdBy      String?
+  updatedBy      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model Module {
+  id          String        @id @default(uuid())
+  name        String        @unique
+  shortCode   String        @unique 
+  description String?
+  permissions Permission[]
+
+  // Auditoría
+  isActive       Boolean        @default(true)
+  createdBy      String?
+  updatedBy      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model Permission {
+  id          String        @id @default(uuid())
+  name        String        @unique
+  description String?
+  moduleId    String
+  module      Module        @relation(fields: [moduleId], references: [id])
+  roleLinks   RolePermission[]
+  userLinks   UserPermission[]
+
+  // Auditoría
+  isActive       Boolean        @default(true)
+  createdBy      String?
+  updatedBy      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  // Auditoría
+  isActive       Boolean        @default(true)
+  createdBy      String?
+  updatedBy      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
 model User {
   id                      String    @id @default(uuid())
   email                   String    @unique
@@ -16,14 +133,8 @@ model User {
   firstName               String
   lastName                String
   password                String
-  isActive                Boolean   @default(true)
-
-  // Relación con Rol (un usuario solo tiene un rol)
-  roleId                  String
-  role                    Role      @relation(fields: [roleId], references: [id])
-
-  // Permisos especiales (relación uno a muchos)
-  userPermissions         UserPermission[]
+  userBusinessUnits UserBusinessUnit[]
+  userPermissions   UserPermission[]
 
   // Recuperación y confirmación de cuenta
   resetToken              String?   @db.VarChar(255)
@@ -38,52 +149,92 @@ model User {
   lockedUntil             DateTime?           //Si está temporalmente bloqueado
 
   // Auditoría
-  createdBy               DateTime  @default(now())
-  updatedBy               DateTime  @updatedAt
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
-}
-
-model Role {
-  id          String           @id @default(uuid())
-  name        String           @unique             // Ej: "CEO", "ROOT", "CLIENTE_SOE"
-  description String?
-  permissions RolePermission[]
-  users       User[]
-}
-
-model Permission {
-  id          String        @id @default(uuid())
-  name        String        @unique             // Ej: "crear", "ver", "editar", "eliminar"
-  description String?
-  moduleId    String
-  module      Module        @relation(fields: [moduleId], references: [id])
-  roles       RolePermission[]
-  users       UserPermission[]
+  isActive       Boolean        @default(true)
+  createdBy      String?
+  updatedBy      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 }
 
 
-model RolePermission {
-  id           String      @id @default(uuid())
-  role         Role        @relation(fields: [roleId], references: [id])
-  roleId       String
-  permission   Permission  @relation(fields: [permissionId], references: [id])
-  permissionId String
+
+model UserBusinessUnit {
+  id              String   @id @default(uuid())
+  userId          String
+  businessUnitId  String
+  positionId      String?
+  roleId          String?
+
+  user            User          @relation(fields: [userId], references: [id])
+  businessUnit    BusinessUnit  @relation(fields: [businessUnitId], references: [id])
+  position        Position?     @relation(fields: [positionId], references: [id])
+  role            Role?         @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, businessUnitId])
+
+  // Auditoría
+  createdBy      String?
+  updatedBy      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 }
 
 model UserPermission {
-  id           String      @id @default(uuid())
-  user         User        @relation(fields: [userId], references: [id])
-  userId       String
-  permission   Permission  @relation(fields: [permissionId], references: [id])
-  permissionId String
-  // Opcional: permite denegar explícitamente un permiso si se requiere
-  isAllowed    Boolean     @default(true)
+  id              String      @id @default(uuid())
+  userId          String
+  businessUnitId  String
+  permissionId    String
+  isAllowed       Boolean     @default(true)
+
+  user            User         @relation(fields: [userId], references: [id])
+  businessUnit    BusinessUnit @relation(fields: [businessUnitId], references: [id])
+  permission      Permission   @relation(fields: [permissionId], references: [id])
+
+  @@unique([userId, businessUnitId, permissionId])
+  @@index([userId, businessUnitId])
+
+  // Auditoría
+  createdBy      String?
+  updatedBy      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 }
 
-model Module {
-  id          String        @id @default(uuid())
-  name        String        @unique
-  description String?
-  permissions Permission[]
-}
+
+/// -----------------------------------------------------------------------------
+/// 📘 CONVENCIONES Y NOMENCLATURA — SOE BACKEND
+/// -----------------------------------------------------------------------------
+
+/// 🔠 Nombres de modelos:
+/// - En inglés, en PascalCase (Company, UserPermission)
+
+/// 🔁 Relaciones y campos inversos:
+/// Prisma requiere que todas las relaciones sean bidireccionales.
+///
+/// - Uno a muchos directo:
+///   - Ejemplo: `Company` → `BusinessUnit[]`
+///   - El campo inverso en el lado "muchos" debe tener `@relation(...)`
+///   - El nombre pluralizado debe reflejar el tipo exacto: `businessUnits`, `users`
+///
+/// - Muchos a muchos con tabla intermedia personalizada:
+///   - Ejemplo: `UserPermission`, `RolePermission`, `UserBusinessUnit`
+///   - En estos casos, el campo inverso suele llamarse `userPermissions`, `roleLinks`, etc.
+///   - Se prefiere usar nombres descriptivos del join (no necesariamente `users`, `roles`) para evitar confusión
+///
+/// - Si un campo apunta a una entidad principal directamente → usar plural natural (`users`, `permissions`)
+/// - Si un campo apunta a una tabla intermedia o relación específica → usar nombres semánticos (`userLinks`, `rolePermissions`, `userBusinessUnits`)
+
+/// 🔐 Control de acceso:
+/// - Los permisos se otorgan por `UserPermission`, con `userId + businessUnitId + permissionId`
+/// - Los `Role` funcionan como plantillas y no se usan en tiempo de ejecución
+/// - La tabla `UserBusinessUnit` define el contexto de acción del usuario en el sistema
+
+/// 🧱 Diseño multiempresa:
+/// - Cada `Company` puede tener varias `BusinessUnit`
+/// - Los usuarios se asocian a una o varias unidades de negocio mediante `UserBusinessUnit`
+/// - Los cargos (`Position`) son estructurales, no de control de acceso
+
+/// 🧼 Estilo:
+/// - Campos: camelCase
+/// - Tablas: PascalCase
+/// - Auditar con campos createdAt, updatedAt, createdBy, updatedBy si aplica

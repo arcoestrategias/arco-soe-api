@@ -7,13 +7,14 @@ export class PermissionValidatorService {
 
   async hasPermission(
     userId: string,
-    roleId: string,
+    businessUnitId: string,
     permissionName: string,
   ): Promise<boolean> {
     // 1. Verificar si el usuario tiene una regla personalizada (UserPermission)
     const userPermission = await this.prisma.userPermission.findFirst({
       where: {
         userId,
+        businessUnitId,
         permission: {
           name: permissionName,
         },
@@ -23,23 +24,6 @@ export class PermissionValidatorService {
       },
     });
 
-    if (userPermission) {
-      return userPermission.isAllowed;
-    }
-
-    // 2. Si no hay regla personalizada, verificar si el rol tiene el permiso asignado
-    const rolePermission = await this.prisma.rolePermission.findFirst({
-      where: {
-        roleId,
-        permission: {
-          name: permissionName,
-        },
-      },
-      select: {
-        permissionId: true,
-      },
-    });
-
-    return !!rolePermission;
+    return userPermission?.isAllowed ?? false;
   }
 }
