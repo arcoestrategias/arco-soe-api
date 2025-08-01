@@ -5,126 +5,11 @@ import { hashPassword } from '../src/common/helpers/hash.helper';
 const prisma = new PrismaClient();
 
 async function main() {
-  // 1. Crear usuarios iniciales con roles asignados por nombre (no por ID directa)
-  const users = [
-    {
-      id: '5174d6dc-1db8-41d5-9927-a22fc2ae4882',
-      email: 'admin@example.com',
-      password: await hashPassword('Admin123'),
-      firstName: 'Admin',
-      lastName: 'Seed',
-      username: 'admin',
-      ide: '0951828455',
-      roleName: 'Admin',
-    },
-    {
-      id: '38936606-cc74-4b29-9514-c9064513757a',
-      email: 'manager@example.com',
-      password: await hashPassword('Manager123'),
-      firstName: 'Manager',
-      lastName: 'Seed',
-      username: 'manager',
-      ide: '0951828456',
-      roleName: 'Manager',
-    },
-    {
-      id: 'dd94d864-7cd1-4150-9aa5-0295d9e17c8d',
-      email: 'specialist@example.com',
-      password: await hashPassword('Special123'),
-      firstName: 'Specialist',
-      lastName: 'Seed',
-      username: 'specialist',
-      ide: '0951828457',
-      roleName: 'Specialist',
-    },
-    {
-      id: '5ec71ea5-4c22-455b-ba0a-fffc02f889c0',
-      email: 'client@example.com',
-      password: await hashPassword('Client123'),
-      firstName: 'Client',
-      lastName: 'Seed',
-      username: 'client',
-      ide: '0951828458',
-      roleName: 'Client',
-    },
+  const companiesData = [
+    { name: 'Empresa Uno', ide: '1234567890001' },
+    { name: 'Empresa Dos', ide: '1234567890002' },
   ];
 
-  // Se insertan los usuarios ignorando el campo `roleName` (que es auxiliar)
-
-  await prisma.user.createMany({
-    data: users.map(({ roleName, ...rest }) => rest),
-  });
-
-  // 2. Crear una empresa y su unidad de negocio principal
-  const companyId = 'b0d89747-92a1-4a5a-a735-c3b4bbf96d2d';
-  const businessUnitId = '36dee978-fde9-4c21-b58d-76577e803755';
-
-  await prisma.company.create({
-    data: {
-      id: companyId,
-      name: 'Empresa Demo',
-      createdBy: users[0].id,
-      updatedBy: users[0].id,
-    },
-  });
-
-  await prisma.businessUnit.create({
-    data: {
-      id: businessUnitId,
-      name: 'Unidad Central',
-      description: 'Unidad de negocio principal',
-      ide: '1234567890001',
-      legalRepresentativeName: 'Representante Legal',
-      address: 'Dirección demo',
-      phone: '0999999999',
-      order: 1,
-      isPrivate: false,
-      isGroup: false,
-      isActive: true,
-      companyId,
-      createdBy: users[0].id,
-      updatedBy: users[0].id,
-    },
-  });
-
-  // 3. Definición de roles y su matriz de permisos (1 = tiene permiso, 0 = no)
-  const roleMatrix = {
-    Admin: [1, 1, 1, 1, 1, 1, 1, 1],
-    Manager: [1, 1, 1, 1, 1, 1, 1, 0],
-    Specialist: [1, 1, 1, 1, 0, 0, 0, 0],
-    Client: [1, 1, 0, 0, 0, 0, 0, 0],
-    Viewer: [1, 1, 0, 0, 0, 0, 0, 0],
-    Operator: [1, 1, 1, 1, 1, 0, 0, 0],
-  };
-
-  // Guardamos los IDs de cada rol para referencia
-  const rolesMap: Record<string, string> = {};
-  for (const role of Object.keys(roleMatrix)) {
-    const created = await prisma.role.create({
-      data: {
-        id: uuidv4(),
-        name: role,
-        createdBy: users[0].id,
-        updatedBy: users[0].id,
-      },
-    });
-    rolesMap[role] = created.id;
-  }
-
-  // 4. Asociar cada usuario a la unidad de negocio con su rol
-  for (const user of users) {
-    await prisma.userBusinessUnit.create({
-      data: {
-        userId: user.id,
-        businessUnitId,
-        roleId: rolesMap[user.roleName],
-        createdBy: user.id,
-        updatedBy: user.id,
-      },
-    });
-  }
-
-  // 5. Definimos las acciones y módulos del sistema
   const actions = [
     'access',
     'read',
@@ -135,6 +20,7 @@ async function main() {
     'approve',
     'assign',
   ];
+
   const modules = [
     { name: 'users', shortCode: 'user' },
     { name: 'roles', shortCode: 'role' },
@@ -144,14 +30,181 @@ async function main() {
     { name: 'business-units', shortCode: 'businessUnit' },
   ];
 
-  // 6. Crear módulos y sus permisos
+  const roleMatrix = {
+    Admin: [1, 1, 1, 1, 1, 1, 1, 1],
+    Manager: [1, 1, 1, 1, 1, 1, 1, 0],
+    Specialist: [1, 1, 1, 1, 0, 0, 0, 0],
+    Client: [1, 1, 0, 0, 0, 0, 0, 0],
+  };
+
+  const adminId = uuidv4();
+  await prisma.user.create({
+    data: {
+      id: adminId,
+      email: 'admin@example.com',
+      password: await hashPassword('Admin123'),
+      firstName: 'Admin',
+      lastName: 'Seed',
+      username: 'admin',
+      ide: '0951828455',
+      isPlatformAdmin: true,
+    },
+  });
+
+  const rolesMap: Record<string, string> = {};
+  for (const role of Object.keys(roleMatrix)) {
+    const r = await prisma.role.create({
+      data: {
+        id: uuidv4(),
+        name: role,
+        createdBy: adminId,
+        updatedBy: adminId,
+      },
+    });
+    rolesMap[role] = r.id;
+  }
+
+  let ideIndex = 0;
+
+  for (const [index, companyData] of companiesData.entries()) {
+    const companyId = uuidv4();
+    const unit1Id = uuidv4();
+    const unit2Id = uuidv4();
+
+    const managerId = uuidv4();
+    const specialist1Id = uuidv4();
+    const client1Id = uuidv4();
+    const specialist2Id = uuidv4();
+    const client2Id = uuidv4();
+
+    await prisma.user.createMany({
+      data: [
+        {
+          id: managerId,
+          email: `manager${index + 1}@example.com`,
+          password: await hashPassword('Manager123'),
+          firstName: `Manager${index + 1}`,
+          lastName: 'Seed',
+          username: `manager${index + 1}`,
+          ide: `100000000${ideIndex++}`,
+        },
+        {
+          id: specialist1Id,
+          email: `specialist${index + 1}a@example.com`,
+          password: await hashPassword('Special123'),
+          firstName: `Specialist${index + 1}A`,
+          lastName: 'Seed',
+          username: `specialist${index + 1}a`,
+          ide: `100000000${ideIndex++}`,
+        },
+        {
+          id: client1Id,
+          email: `client${index + 1}a@example.com`,
+          password: await hashPassword('Client123'),
+          firstName: `Client${index + 1}A`,
+          lastName: 'Seed',
+          username: `client${index + 1}a`,
+          ide: `100000000${ideIndex++}`,
+        },
+        {
+          id: specialist2Id,
+          email: `specialist${index + 1}b@example.com`,
+          password: await hashPassword('Special123'),
+          firstName: `Specialist${index + 1}B`,
+          lastName: 'Seed',
+          username: `specialist${index + 1}b`,
+          ide: `100000000${ideIndex++}`,
+        },
+        {
+          id: client2Id,
+          email: `client${index + 1}b@example.com`,
+          password: await hashPassword('Client123'),
+          firstName: `Client${index + 1}B`,
+          lastName: 'Seed',
+          username: `client${index + 1}b`,
+          ide: `100000000${ideIndex++}`,
+        },
+      ],
+    });
+
+    await prisma.company.create({
+      data: {
+        id: companyId,
+        name: companyData.name,
+        ide: companyData.ide,
+        createdBy: adminId,
+        updatedBy: adminId,
+        userCompanies: {
+          create: {
+            userId: managerId,
+            isManager: true,
+          },
+        },
+      },
+    });
+
+    await prisma.businessUnit.createMany({
+      data: [
+        {
+          id: unit1Id,
+          name: 'Unidad Norte',
+          companyId,
+          createdBy: adminId,
+          updatedBy: adminId,
+        },
+        {
+          id: unit2Id,
+          name: 'Unidad Sur',
+          companyId,
+          createdBy: adminId,
+          updatedBy: adminId,
+        },
+      ],
+    });
+
+    const userUnitAssignments = [
+      {
+        userId: specialist1Id,
+        unitId: unit1Id,
+        roleName: 'Specialist',
+        isResponsible: true,
+      },
+      { userId: client1Id, unitId: unit1Id, roleName: 'Client' },
+      {
+        userId: specialist2Id,
+        unitId: unit2Id,
+        roleName: 'Specialist',
+        isResponsible: true,
+      },
+      { userId: client2Id, unitId: unit2Id, roleName: 'Client' },
+    ];
+
+    for (const {
+      userId,
+      unitId,
+      roleName,
+      isResponsible,
+    } of userUnitAssignments) {
+      await prisma.userBusinessUnit.create({
+        data: {
+          userId,
+          businessUnitId: unitId,
+          roleId: rolesMap[roleName],
+          isResponsible: isResponsible || false,
+          createdBy: userId,
+          updatedBy: userId,
+        },
+      });
+    }
+  }
+
   for (const mod of modules) {
-    const createdModule = await prisma.module.create({
+    const module = await prisma.module.create({
       data: {
         name: mod.name,
         shortCode: mod.shortCode,
-        createdBy: users[0].id,
-        updatedBy: users[0].id,
+        createdBy: adminId,
+        updatedBy: adminId,
       },
     });
 
@@ -159,21 +212,20 @@ async function main() {
       const permission = await prisma.permission.create({
         data: {
           name: `${mod.shortCode}.${action}`,
-          moduleId: createdModule.id,
-          createdBy: users[0].id,
-          updatedBy: users[0].id,
+          moduleId: module.id,
+          createdBy: adminId,
+          updatedBy: adminId,
         },
       });
 
-      // Relacionar el permiso con los roles que tienen acceso según la matriz
       for (const [roleName, flags] of Object.entries(roleMatrix)) {
         if (flags[i] === 1) {
           await prisma.rolePermission.create({
             data: {
               roleId: rolesMap[roleName],
               permissionId: permission.id,
-              createdBy: users[0].id,
-              updatedBy: users[0].id,
+              createdBy: adminId,
+              updatedBy: adminId,
             },
           });
         }
@@ -181,19 +233,24 @@ async function main() {
     }
   }
 
-  // 7. Asignar los permisos de cada rol directamente a los usuarios
-  for (const user of users) {
-    const roleId = rolesMap[user.roleName];
-    const rolePermissions = await prisma.rolePermission.findMany({
+  for (const user of await prisma.user.findMany()) {
+    const userUnit = await prisma.userBusinessUnit.findFirst({
+      where: { userId: user.id },
+    });
+
+    const roleId = userUnit?.roleId;
+    if (!roleId || !userUnit) continue;
+
+    const permissions = await prisma.rolePermission.findMany({
       where: { roleId },
       select: { permissionId: true },
     });
 
-    for (const { permissionId } of rolePermissions) {
+    for (const { permissionId } of permissions) {
       await prisma.userPermission.create({
         data: {
           userId: user.id,
-          businessUnitId,
+          businessUnitId: userUnit.businessUnitId,
           permissionId,
           isAllowed: true,
           createdBy: user.id,

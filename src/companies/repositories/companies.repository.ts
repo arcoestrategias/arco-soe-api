@@ -37,6 +37,22 @@ export class CompaniesRepository {
     return company ? new CompanyEntity(company) : null;
   }
 
+  async findCompaniesWhereUserIsManager(
+    userId: string,
+  ): Promise<{ id: string }[]> {
+    return this.prisma.company.findMany({
+      where: {
+        userCompanies: {
+          some: {
+            userId,
+            isManager: true,
+          },
+        },
+      },
+      select: { id: true },
+    });
+  }
+
   async update(
     id: string,
     data: UpdateCompanyDto,

@@ -8,9 +8,19 @@ datasource db {
 }
 
 model Company {
-  id             String         @id @default(uuid())
-  name           String
+  id             String   @id @default(uuid())
+  name           String   @db.VarChar(150)
+  description    String?  @db.VarChar(500)
+  ide            String   @db.VarChar(13)
+  legalRepresentativeName String? @db.VarChar(250)
+  address        String?  @db.VarChar(250)
+  phone          String?  @db.VarChar(50)
+  order          Int?
+  isPrivate                Boolean       @default(false)
+  isGroup                  Boolean       @default(false)
+
   businessUnits  BusinessUnit[]
+  userCompanies UserCompany[]
 
   // Auditoría
   isActive       Boolean        @default(true)
@@ -22,18 +32,16 @@ model Company {
 
 
 model BusinessUnit {
-  id                       String        @id @default(uuid())
-  name                     String        @db.VarChar(150)
-  description              String        @db.VarChar(500)
-  ide                      String        @db.VarChar(13)
-  legalRepresentativeName  String        @db.VarChar(250)
-  address                  String        @db.VarChar(250)
-  phone                    String        @db.VarChar(50)
-  order                    Int
-  isPrivate                Boolean
-  isGroup                  Boolean
+  id                       String   @id @default(uuid())
+  name                     String   @db.VarChar(150)
+  description              String?  @db.VarChar(500)
+  ide                      String?  @db.VarChar(13)
+  legalRepresentativeName  String?  @db.VarChar(250)
+  address                  String?  @db.VarChar(250)
+  phone                    String?  @db.VarChar(50)
+  order                    Int?
   companyId                String
-  company                  Company       @relation(fields: [companyId], references: [id])
+  company                  Company  @relation(fields: [companyId], references: [id])
   positions                Position[]
   userLinks                UserBusinessUnit[]
   userPermissions          UserPermission[]
@@ -133,8 +141,11 @@ model User {
   firstName               String
   lastName                String
   password                String
+  userCompanies UserCompany[]
   userBusinessUnits UserBusinessUnit[]
   userPermissions   UserPermission[]
+  isPlatformAdmin         Boolean @default(false)
+
 
   // Recuperación y confirmación de cuenta
   resetToken              String?   @db.VarChar(255)
@@ -156,12 +167,23 @@ model User {
   updatedAt      DateTime       @updatedAt
 }
 
+model UserCompany {
+  id         String   @id @default(uuid())
+  userId     String
+  companyId  String
+  isManager  Boolean  @default(false)
 
+  user       User     @relation(fields: [userId], references: [id])
+  company    Company  @relation(fields: [companyId], references: [id])
+
+  @@unique([userId, companyId])
+}
 
 model UserBusinessUnit {
   id              String   @id @default(uuid())
   userId          String
   businessUnitId  String
+  isResponsible   Boolean          @default(false)
   positionId      String?
   roleId          String?
 

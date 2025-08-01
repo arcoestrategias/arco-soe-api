@@ -56,8 +56,8 @@ Este proyecto incluye una semilla automática (`/prisma/seed.ts`) que crea todos
 
 ### 🔧 Ejecución del seed
 
-```bash
-npx prisma db seed
+```
+npx ts-node prisma/seed.ts
 ```
 
 > Asegúrate de tener corriendo la base de datos (`docker-compose up`) y configurado correctamente el archivo `.env`.
