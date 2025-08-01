@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { User } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from '../dto';
 import { UserEntity } from '../entities/user.entity';
@@ -10,15 +9,8 @@ export class UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(data: CreateUserDto): Promise<UserEntity> {
-    const { roleId, ...rest } = data;
-    const prismaData: any = { ...rest };
-
-    if (roleId) {
-      prismaData.role = { connect: { id: roleId } };
-    }
-
     try {
-      const user = await this.prisma.user.create({ data: prismaData });
+      const user = await this.prisma.user.create({ data });
       return new UserEntity(user);
     } catch (error) {
       handleDatabaseErrors(error);
@@ -74,16 +66,28 @@ export class UsersRepository {
     }
   }
 
-  // Este método se utiliza exclusivamente para JwtStrategy: retorna solo id y roleId del usuario
-  async findByIdWithRole(
-    id: string,
-  ): Promise<Pick<User, 'id' | 'roleId'> | null> {
-    return this.prisma.user.findUnique({
-      where: { id },
+  /**
+   * Esta función solo tiene sentido si deseas conocer el rol
+   * asignado a un usuario en una unidad de negocio específica,
+   * por ejemplo para mostrar en UI (no para validación de acceso).
+   */
+  async findByIdWithRoleInUnit(
+    userId: string,
+    businessUnitId: string,
+  ): Promise<{ id: string; roleId: string | null } | null> {
+    const userUnit = await this.prisma.userBusinessUnit.findFirst({
+      where: { userId, businessUnitId },
       select: {
-        id: true,
+        user: { select: { id: true } },
         roleId: true,
       },
     });
+
+    if (!userUnit) return null;
+
+    return {
+      id: userUnit.user.id,
+      roleId: userUnit.roleId ?? null,
+    };
   }
 }

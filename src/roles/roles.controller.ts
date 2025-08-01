@@ -6,6 +6,8 @@ import {
   Patch,
   Param,
   Delete,
+  Put,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { RolesService } from './roles.service';
 import {
@@ -67,19 +69,27 @@ export class RolesController {
     return this.rolesService.remove(id);
   }
 
-  @Patch(':id/permissions')
-  @Permissions(PERMISSIONS.ROLES.ASSIGN)
-  @SuccessMessage('Permisos asignados correctamente')
-  async assignPermissions(
-    @Param('id') id: string,
+  @Permissions(
+    PERMISSIONS.USERS.ASSIGN,
+    PERMISSIONS.PERMISSIONS.UPDATE,
+    PERMISSIONS.ROLES.ASSIGN,
+  )
+  @Put(':id/permissions')
+  async setPermissions(
+    @Param('roleId', ParseUUIDPipe) roleId: string,
     @Body() dto: AssignPermissionsDto,
-  ): Promise<void> {
-    return this.rolesService.assignPermissions({ ...dto, roleId: id });
+  ) {
+    await this.rolesService.setRolePermissions(roleId, dto.permissionIds);
+    return {
+      success: true,
+      message: 'Permisos actualizados correctamente',
+      statusCode: 200,
+    };
   }
 
-  @Get(':id/permissions')
   @Permissions(PERMISSIONS.ROLES.READ)
-  async getPermissions(@Param('id') id: string) {
-    return this.rolesService.findWithPermissions(id);
+  @Get(':id/permissions')
+  async getPermissionsOfRole(@Param('id', ParseUUIDPipe) id: string) {
+    return this.rolesService.getPermissionsOfRole(id);
   }
 }

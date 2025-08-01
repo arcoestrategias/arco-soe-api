@@ -1,4 +1,3 @@
 export interface CurrentUserPayload {
-  id: string;
-  roleId: string;
+  sub: string; // estándar JWT
 }

@@ -6,6 +6,11 @@ export class CreateModuleDto {
   @MaxLength(100)
   name: string;
 
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  shortCode: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(255)

@@ -5,43 +5,82 @@ import { RoleEntity } from './entities/role.entity';
 
 @Injectable()
 export class RolesService {
-  constructor(private readonly rolesRepo: RolesRepository) {}
+  constructor(private readonly rolesRepository: RolesRepository) {}
 
   async create(dto: CreateRoleDto): Promise<RoleEntity> {
-    return this.rolesRepo.create(dto);
+    const role = await this.rolesRepository.create(dto);
+    if (dto.permissionIds?.length) {
+      await this.rolesRepository.setPermissions(role.id, dto.permissionIds);
+    }
+
+    return role;
   }
 
   async findAll(): Promise<RoleEntity[]> {
-    return this.rolesRepo.findAll();
+    return this.rolesRepository.findAll();
   }
 
   async findById(id: string): Promise<RoleEntity> {
-    const role = await this.rolesRepo.findById(id);
+    const role = await this.rolesRepository.findById(id);
     if (!role) throw new NotFoundException('Rol no encontrado');
     return role;
   }
 
   async update(id: string, dto: UpdateRoleDto): Promise<RoleEntity> {
     await this.findById(id);
-    return this.rolesRepo.update(id, dto);
+    return this.rolesRepository.update(id, dto);
   }
 
   async remove(id: string): Promise<void> {
     await this.findById(id);
-    return this.rolesRepo.remove(id);
+    return this.rolesRepository.remove(id);
   }
 
-  async assignPermissions(dto: AssignPermissionsDto): Promise<void> {
-    await this.findById(dto.roleId);
-    return this.rolesRepo.assignPermissions(dto.roleId, dto.permissionIds);
+  async setRolePermissions(roleId: string, permissionIds: string[]) {
+    await this.rolesRepository.setPermissions(roleId, permissionIds);
   }
 
-  async findWithPermissions(id: string): Promise<{
-    role: RoleEntity;
-    permissions: { id: string; name: string }[];
-  }> {
-    const result = await this.rolesRepo.findWithPermissions(id);
-    if (!result) throw new NotFoundException('Rol no encontrado');
-    return result;
+  async getPermissionsOfRole(roleId: string) {
+    const rolePermissions =
+      await this.rolesRepository.findRolePermissions(roleId);
+
+    const result: Record<string, Record<string, boolean>> = {};
+
+    for (const rp of rolePermissions) {
+      const permission = rp.permission;
+      const action = permission.name.split('.')[1];
+      const shortCode = permission.module.shortCode;
+
+      if (
+        ![
+          'access',
+          'create',
+          'read',
+          'update',
+          'delete',
+          'export',
+          'approve',
+          'assign',
+        ].includes(action)
+      )
+        continue;
+
+      if (!result[shortCode]) {
+        result[shortCode] = {
+          access: false,
+          create: false,
+          read: false,
+          update: false,
+          delete: false,
+          export: false,
+          approve: false,
+          assign: false,
+        };
+      }
+
+      result[shortCode][action] = true;
+    }
+
+    return { modules: result };
   }
 }

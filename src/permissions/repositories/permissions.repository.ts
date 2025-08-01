@@ -62,4 +62,51 @@ export class PermissionsRepository {
       handleDatabaseErrors(error);
     }
   }
+
+  async assignUserPermission(data: {
+    userId: string;
+    permissionId: string;
+    businessUnitId: string;
+  }) {
+    return this.prisma.userPermission.create({
+      data: {
+        ...data,
+      },
+    });
+  }
+
+  async updateUserPermissionsBulk(
+    userId: string,
+    businessUnitId: string,
+    permissionMap: Record<string, boolean>,
+  ): Promise<void> {
+    const permissions = await this.prisma.permission.findMany({
+      where: {
+        name: { in: Object.keys(permissionMap) },
+      },
+    });
+
+    const updates = permissions.map((p) =>
+      this.prisma.userPermission.upsert({
+        where: {
+          userId_businessUnitId_permissionId: {
+            userId,
+            businessUnitId,
+            permissionId: p.id,
+          },
+        },
+        update: {
+          isAllowed: permissionMap[p.name],
+        },
+        create: {
+          userId,
+          businessUnitId,
+          permissionId: p.id,
+          isAllowed: permissionMap[p.name],
+        },
+      }),
+    );
+
+    await this.prisma.$transaction(updates);
+  }
 }

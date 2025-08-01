@@ -68,7 +68,6 @@ export class AuthService {
       firstName: dto.firstName,
       lastName: dto.lastName,
       ide: dto.ide,
-      roleId: dto.roleId || process.env.DEFAULT_ROLE_ID,
     });
 
     const tokens = this.generateTokens(newUser.id);

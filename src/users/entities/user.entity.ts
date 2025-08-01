@@ -19,7 +19,6 @@ export class UserEntity {
   readonly emailConfirmToken?: string | null;
   readonly emailConfirmExpiresAt?: Date | null;
   readonly isEmailConfirmed?: boolean;
-  readonly roleId: string;
 
   constructor(user: any) {
     Object.assign(this, user);

@@ -39,8 +39,4 @@ export class CreateUserDto {
     message: 'Password must contain uppercase, lowercase and number',
   })
   password: string;
-
-  @IsOptional()
-  @IsString()
-  roleId?: string;
 }
