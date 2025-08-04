@@ -19,12 +19,6 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
-  @Post('register')
-  @SuccessMessage('Registro exitoso')
-  async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
-  }
-
   @Post('refresh')
   @UseGuards(JwtRefreshGuard)
   @SuccessMessage('Tokens actualizados')

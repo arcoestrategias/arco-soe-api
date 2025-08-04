@@ -41,8 +41,7 @@ export class RolesService {
   }
 
   async getPermissionsOfRole(roleId: string) {
-    const rolePermissions =
-      await this.rolesRepository.findRolePermissions(roleId);
+    const rolePermissions = await this.rolesRepository.findPermissions(roleId);
 
     const result: Record<string, Record<string, boolean>> = {};
 

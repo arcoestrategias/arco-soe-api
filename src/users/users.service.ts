@@ -1,32 +1,29 @@
 import {
+  BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CreateUserDto, UpdateUserDto } from './dto';
+import {
+  CreateUserDto,
+  CreateUserWithRoleAndUnitDto,
+  UpdateUserDto,
+} from './dto';
 import { UsersRepository } from './repositories/users.repository';
 import { UserEntity } from './entities/user.entity';
 import { handleDatabaseErrors } from 'src/common/helpers/database-error.helper';
 import { hashPassword } from 'src/common/helpers/hash.helper';
 import { CompaniesRepository } from 'src/companies/repositories/companies.repository';
+import { RolesRepository } from 'src/roles/repositories/roles.repository';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly usersRepository: UsersRepository,
     private readonly companiesRepository: CompaniesRepository,
+    private readonly rolesRepository: RolesRepository,
   ) {}
-
-  async create(createUserDto: CreateUserDto): Promise<UserEntity> {
-    try {
-      const hashedPassword = await hashPassword(createUserDto.password);
-      createUserDto.password = hashedPassword;
-
-      return await this.usersRepository.create(createUserDto);
-    } catch (error) {
-      handleDatabaseErrors(error);
-    }
-  }
 
   async findAll(userId: string): Promise<UserEntity[]> {
     try {
@@ -93,6 +90,19 @@ export class UsersService {
     }
   }
 
+  async findBusinessUnitInfo(
+    userId: string,
+    businessUnitId: string,
+  ): Promise<{ id: string; name: string }> {
+    const units = await this.findUnitsForUser(userId);
+    const unit = units.find((u) => u.id === businessUnitId);
+    if (!unit)
+      throw new ForbiddenException(
+        'Unidad de negocio no permitida para este usuario',
+      );
+    return unit;
+  }
+
   async findUnitsForUser(
     userId: string,
   ): Promise<{ id: string; name: string }[]> {
@@ -102,5 +112,102 @@ export class UsersService {
     } catch (error) {
       handleDatabaseErrors(error);
     }
+  }
+
+  // async createUserWithRoleAndUnit(
+  //   dto: CreateUserWithRoleAndUnitDto,
+  // ): Promise<UserEntity> {
+  //   // 1. Crear usuario
+  //   const user = await this.usersRepository.create(dto);
+
+  //   // 2. Vincular a unidad y rol
+  //   await this.usersRepository.assignToBusinessUnit(
+  //     user.id,
+  //     dto.businessUnitId,
+  //     dto.roleId,
+  //   );
+
+  //   // 3. Obtener permisos base del rol
+  //   const rolePermissions = await this.rolesRepository.findPermissions(
+  //     dto.roleId,
+  //   );
+
+  //   if (!rolePermissions.length) {
+  //     throw new BadRequestException(
+  //       'El rol seleccionado no tiene permisos asignados',
+  //     );
+  //   }
+
+  //   // 4. Clonar permisos al usuario en esa unidad
+  //   await this.usersRepository.bulkCreatePermissions(
+  //     rolePermissions.map((p) => ({
+  //       userId: user.id,
+  //       businessUnitId: dto.businessUnitId,
+  //       permissionId: p.permissionId,
+  //       isAllowed: true,
+  //     })),
+  //   );
+
+  //   return user;
+  // }
+
+  async createUserWithRoleAndUnit(
+    dto: CreateUserWithRoleAndUnitDto,
+  ): Promise<UserEntity> {
+    // 1. Validaciones únicas
+    const existingEmail = await this.usersRepository.findByEmail(dto.email);
+    if (existingEmail)
+      throw new ConflictException('El email ya está registrado');
+
+    if (dto.ide) {
+      const existingIde = await this.usersRepository.findByIde(dto.ide);
+      if (existingIde)
+        throw new ConflictException('La cédula ya está registrada');
+    }
+
+    if (dto.username) {
+      const existingUsername = await this.usersRepository.findByUsername(
+        dto.username,
+      );
+      if (existingUsername)
+        throw new ConflictException('El nombre de usuario ya está en uso');
+    }
+
+    // 2. Generar contraseña por defecto
+    const rawPassword = `SOE_${dto.ide}`;
+    const hashedPassword = await hashPassword(rawPassword);
+    dto.password = hashedPassword;
+
+    // 3. Crear usuario
+    const user = await this.usersRepository.create(dto);
+
+    // 4. Asignar a unidad y rol
+    await this.usersRepository.assignToBusinessUnit(
+      user.id,
+      dto.businessUnitId,
+      dto.roleId,
+    );
+
+    // 5. Clonar permisos del rol
+    const rolePermissions = await this.rolesRepository.findPermissions(
+      dto.roleId,
+    );
+
+    if (!rolePermissions.length) {
+      throw new BadRequestException(
+        'El rol seleccionado no tiene permisos asignados',
+      );
+    }
+
+    await this.usersRepository.bulkCreatePermissions(
+      rolePermissions.map((p) => ({
+        userId: user.id,
+        businessUnitId: dto.businessUnitId,
+        permissionId: p.permissionId,
+        isAllowed: true,
+      })),
+    );
+
+    return user;
   }
 }

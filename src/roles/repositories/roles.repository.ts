@@ -57,7 +57,7 @@ export class RolesRepository {
     }
   }
 
-  async findRolePermissions(roleId: string) {
+  async findPermissions(roleId: string) {
     return this.prisma.rolePermission.findMany({
       where: { roleId },
       include: {

@@ -9,7 +9,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { CreateUserDto, UpdateUserDto, ResponseUserDto } from './dto';
+import {
+  CreateUserDto,
+  UpdateUserDto,
+  ResponseUserDto,
+  CreateUserWithRoleAndUnitDto,
+} from './dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from 'src/core/guards/permissions.guard';
 import { Permissions } from 'src/core/decorators/permissions.decorator';
@@ -20,7 +25,6 @@ import { SuccessMessage } from 'src/core/decorators/success-message.decorator';
 import { BusinessUnitId } from 'src/common/decorators/business-unit-id.decorator';
 import { BusinessUnitsService } from 'src/business-unit/business-unit.service';
 
-@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('users')
 export class UsersController {
   constructor(
@@ -32,16 +36,16 @@ export class UsersController {
   @Get('me')
   async getProfile(
     @CurrentUser() user: CurrentUserPayload,
-    @BusinessUnitId() businessUnitId: string,
+    @BusinessUnitId() businessUnitId?: string,
   ) {
     const userId = user.sub;
     const userEntity = await this.usersService.findOne(userId);
+    let currentBusinessUnit: { id: string; name: string } | null = null;
 
     if (!businessUnitId) {
-      console.log(`sin unidad`);
       const units = await this.usersService.findUnitsForUser(userId);
 
-      if (Array.isArray(units) && units.length > 1) {
+      if (units.length > 1) {
         return {
           ...userEntity.toResponse(),
           needsBusinessUnit: true,
@@ -49,8 +53,13 @@ export class UsersController {
         };
       }
 
-      // si solo tiene una unidad, continuamos con esa
-      businessUnitId = units[0]?.id;
+      businessUnitId = units[0].id;
+      currentBusinessUnit = units[0];
+    } else {
+      currentBusinessUnit = await this.usersService.findBusinessUnitInfo(
+        userId,
+        businessUnitId,
+      );
     }
 
     const permissions =
@@ -61,18 +70,12 @@ export class UsersController {
 
     return {
       ...userEntity.toResponse(),
+      currentBusinessUnit,
       permissions,
     };
   }
 
-  @Permissions(PERMISSIONS.USERS.CREATE)
-  @SuccessMessage('Usuario creado exitosamente')
-  @Post()
-  async create(@Body() createUserDto: CreateUserDto): Promise<ResponseUserDto> {
-    const user = await this.usersService.create(createUserDto);
-    return new ResponseUserDto(user);
-  }
-
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions(PERMISSIONS.USERS.READ)
   @Get()
   async findAll(
@@ -83,6 +86,7 @@ export class UsersController {
     return users.map((user) => new ResponseUserDto(user));
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions(PERMISSIONS.USERS.READ)
   @Get(':id')
   async findOne(@Param('id') id: string): Promise<ResponseUserDto> {
@@ -90,6 +94,7 @@ export class UsersController {
     return new ResponseUserDto(user);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions(PERMISSIONS.USERS.UPDATE)
   @SuccessMessage('Usuario actualizado correctamente')
   @Patch(':id')
@@ -101,10 +106,22 @@ export class UsersController {
     return new ResponseUserDto(user);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions(PERMISSIONS.USERS.DELETE)
   @SuccessMessage('Usuario eliminado correctamente')
   @Delete(':id')
   async remove(@Param('id') id: string): Promise<void> {
     return await this.usersService.remove(id);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions(PERMISSIONS.USERS.CREATE, PERMISSIONS.ROLES.ASSIGN)
+  @SuccessMessage('Usuario creado y asignado exitosamente')
+  @Post('assign')
+  async createUserWithRoleAndUnit(
+    @Body() dto: CreateUserWithRoleAndUnitDto,
+  ): Promise<ResponseUserDto> {
+    const user = await this.usersService.createUserWithRoleAndUnit(dto);
+    return new ResponseUserDto(user);
   }
 }
