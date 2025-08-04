@@ -7,222 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Company {
-  id             String   @id @default(uuid())
-  name           String   @db.VarChar(150)
-  description    String?  @db.VarChar(500)
-  ide            String   @db.VarChar(13)
-  legalRepresentativeName String? @db.VarChar(250)
-  address        String?  @db.VarChar(250)
-  phone          String?  @db.VarChar(50)
-  order          Int?
-  isPrivate                Boolean       @default(false)
-  isGroup                  Boolean       @default(false)
-
-  businessUnits  BusinessUnit[]
-  userCompanies UserCompany[]
-
-  // Auditoría
-  isActive       Boolean        @default(true)
-  createdBy      String?
-  updatedBy      String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-}
-
-
-model BusinessUnit {
-  id                       String   @id @default(uuid())
-  name                     String   @db.VarChar(150)
-  description              String?  @db.VarChar(500)
-  ide                      String?  @db.VarChar(13)
-  legalRepresentativeName  String?  @db.VarChar(250)
-  address                  String?  @db.VarChar(250)
-  phone                    String?  @db.VarChar(50)
-  order                    Int?
-  companyId                String
-  company                  Company  @relation(fields: [companyId], references: [id])
-  positions                Position[]
-  userLinks                UserBusinessUnit[]
-  userPermissions          UserPermission[]
-
-  // Auditoría
-  isActive       Boolean        @default(true)
-  createdBy      String?
-  updatedBy      String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-}
-
-model Position {
-  id              String           @id @default(uuid())
-  name            String
-  businessUnitId  String
-  businessUnit    BusinessUnit     @relation(fields: [businessUnitId], references: [id])
-  userLinks       UserBusinessUnit[]
-
-  // Auditoría
-  isActive       Boolean        @default(true)
-  createdBy      String?
-  updatedBy      String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-}
-
-model Role {
-  id           String            @id @default(uuid())
-  name         String            @unique
-  description  String?
-  permissions  RolePermission[]
-
-  userLinks    UserBusinessUnit[]
-
-  // Auditoría
-  isActive       Boolean        @default(true)
-  createdBy      String?
-  updatedBy      String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-}
-
-model Module {
-  id          String        @id @default(uuid())
-  name        String        @unique
-  shortCode   String        @unique 
-  description String?
-  permissions Permission[]
-
-  // Auditoría
-  isActive       Boolean        @default(true)
-  createdBy      String?
-  updatedBy      String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-}
-
-model Permission {
-  id          String        @id @default(uuid())
-  name        String        @unique
-  description String?
-  moduleId    String
-  module      Module        @relation(fields: [moduleId], references: [id])
-  roleLinks   RolePermission[]
-  userLinks   UserPermission[]
-
-  // Auditoría
-  isActive       Boolean        @default(true)
-  createdBy      String?
-  updatedBy      String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-}
-
-model RolePermission {
-  id           String     @id @default(uuid())
-  roleId       String
-  permissionId String
-  role         Role       @relation(fields: [roleId], references: [id])
-  permission   Permission @relation(fields: [permissionId], references: [id])
-
-  // Auditoría
-  isActive       Boolean        @default(true)
-  createdBy      String?
-  updatedBy      String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-}
-
-model User {
-  id                      String    @id @default(uuid())
-  email                   String    @unique
-  username                String?   @unique
-  ide                     String    @unique
-  telephone               String?
-  firstName               String
-  lastName                String
-  password                String
-  userCompanies UserCompany[]
-  userBusinessUnits UserBusinessUnit[]
-  userPermissions   UserPermission[]
-  isPlatformAdmin         Boolean @default(false)
-
-
-  // Recuperación y confirmación de cuenta
-  resetToken              String?   @db.VarChar(255)
-  resetTokenExpiresAt     DateTime?
-  isEmailConfirmed        Boolean   @default(false)
-  emailConfirmToken       String?   @db.VarChar(255)
-  emailConfirmExpiresAt   DateTime?
-
-  // Seguridad del login
-  lastLoginAt             DateTime?           //Última vez que inició sesión
-  loginAttempts           Int       @default(0) //Intentos fallidos acumulados
-  lockedUntil             DateTime?           //Si está temporalmente bloqueado
-
-  // Auditoría
-  isActive       Boolean        @default(true)
-  createdBy      String?
-  updatedBy      String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-}
-
-model UserCompany {
-  id         String   @id @default(uuid())
-  userId     String
-  companyId  String
-  isManager  Boolean  @default(false)
-
-  user       User     @relation(fields: [userId], references: [id])
-  company    Company  @relation(fields: [companyId], references: [id])
-
-  @@unique([userId, companyId])
-}
-
-model UserBusinessUnit {
-  id              String   @id @default(uuid())
-  userId          String
-  businessUnitId  String
-  isResponsible   Boolean          @default(false)
-  positionId      String?
-  roleId          String?
-
-  user            User          @relation(fields: [userId], references: [id])
-  businessUnit    BusinessUnit  @relation(fields: [businessUnitId], references: [id])
-  position        Position?     @relation(fields: [positionId], references: [id])
-  role            Role?         @relation(fields: [roleId], references: [id])
-
-  @@unique([userId, businessUnitId])
-
-  // Auditoría
-  createdBy      String?
-  updatedBy      String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-}
-
-model UserPermission {
-  id              String      @id @default(uuid())
-  userId          String
-  businessUnitId  String
-  permissionId    String
-  isAllowed       Boolean     @default(true)
-
-  user            User         @relation(fields: [userId], references: [id])
-  businessUnit    BusinessUnit @relation(fields: [businessUnitId], references: [id])
-  permission      Permission   @relation(fields: [permissionId], references: [id])
-
-  @@unique([userId, businessUnitId, permissionId])
-  @@index([userId, businessUnitId])
-
-  // Auditoría
-  createdBy      String?
-  updatedBy      String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-}
-
-
 /// -----------------------------------------------------------------------------
 /// 📘 CONVENCIONES Y NOMENCLATURA — SOE BACKEND
 /// -----------------------------------------------------------------------------
@@ -260,3 +44,390 @@ model UserPermission {
 /// - Campos: camelCase
 /// - Tablas: PascalCase
 /// - Auditar con campos createdAt, updatedAt, createdBy, updatedBy si aplica
+
+model Company {
+  id                      String  @id @default(uuid())
+  name                    String  @db.VarChar(150)
+  description             String? @db.VarChar(500)
+  ide                     String  @db.VarChar(13)
+  legalRepresentativeName String? @db.VarChar(250)
+  address                 String? @db.VarChar(250)
+  phone                   String? @db.VarChar(50)
+  order                   Int?
+  isPrivate               Boolean @default(false)
+  isGroup                 Boolean @default(false)
+
+  businessUnits BusinessUnit[]
+  userCompanies UserCompany[]
+
+  // Auditoría
+  isActive  Boolean  @default(true)
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BusinessUnit {
+  id                      String             @id @default(uuid())
+  name                    String             @db.VarChar(150)
+  description             String?            @db.VarChar(500)
+  ide                     String?            @db.VarChar(13)
+  legalRepresentativeName String?            @db.VarChar(250)
+  address                 String?            @db.VarChar(250)
+  phone                   String?            @db.VarChar(50)
+  order                   Int?
+  isMain                  Boolean            @default(false)
+  companyId               String
+  company                 Company            @relation(fields: [companyId], references: [id])
+  positions               Position[]
+  userLinks               UserBusinessUnit[]
+  userPermissions         UserPermission[]
+
+  // Auditoría
+  isActive  Boolean  @default(true)
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  strategicPlans StrategicPlan[]
+}
+
+model Position {
+  id   String @id @default(uuid())
+  name String @db.VarChar(150)
+
+  businessUnitId String
+  businessUnit   BusinessUnit @relation(fields: [businessUnitId], references: [id])
+
+  userLinks UserBusinessUnit[]
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  strategicPlanId String?
+  strategicPlan   StrategicPlan? @relation(fields: [strategicPlanId], references: [id])
+
+  mission    String?
+  vision     String?
+  department String?
+  isCeo      Boolean @default(false)
+
+  positionSuperiorId String?
+  superior           Position?  @relation("PositionHierarchy", fields: [positionSuperiorId], references: [id])
+  subordinates       Position[] @relation("PositionHierarchy")
+
+  isActive  Boolean  @default(true)
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  objectives        Objective[]
+  strategicProjects StrategicProject[]
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  permissions RolePermission[]
+
+  userLinks UserBusinessUnit[]
+
+  // Auditoría
+  isActive  Boolean  @default(true)
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Module {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  shortCode   String       @unique
+  description String?
+  permissions Permission[]
+
+  // Auditoría
+  isActive  Boolean  @default(true)
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  moduleId    String
+  module      Module           @relation(fields: [moduleId], references: [id])
+  roleLinks   RolePermission[]
+  userLinks   UserPermission[]
+
+  // Auditoría
+  isActive  Boolean  @default(true)
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  // Auditoría
+  isActive  Boolean  @default(true)
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id                String             @id @default(uuid())
+  email             String             @unique
+  username          String?            @unique
+  ide               String             @unique
+  telephone         String?
+  firstName         String
+  lastName          String
+  password          String
+  userCompanies     UserCompany[]
+  userBusinessUnits UserBusinessUnit[]
+  userPermissions   UserPermission[]
+  isPlatformAdmin   Boolean            @default(false)
+
+  // Recuperación y confirmación de cuenta
+  resetToken            String?   @db.VarChar(255)
+  resetTokenExpiresAt   DateTime?
+  isEmailConfirmed      Boolean   @default(false)
+  emailConfirmToken     String?   @db.VarChar(255)
+  emailConfirmExpiresAt DateTime?
+
+  // Seguridad del login
+  lastLoginAt   DateTime? //Última vez que inició sesión
+  loginAttempts Int       @default(0) //Intentos fallidos acumulados
+  lockedUntil   DateTime? //Si está temporalmente bloqueado
+
+  // Auditoría
+  isActive  Boolean  @default(true)
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  positions Position[]
+}
+
+model UserCompany {
+  id        String  @id @default(uuid())
+  userId    String
+  companyId String
+  isManager Boolean @default(false)
+
+  user    User    @relation(fields: [userId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([userId, companyId])
+}
+
+model UserBusinessUnit {
+  id             String  @id @default(uuid())
+  userId         String
+  businessUnitId String
+  isResponsible  Boolean @default(false)
+  positionId     String?
+  roleId         String?
+
+  user         User         @relation(fields: [userId], references: [id])
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id])
+  position     Position?    @relation(fields: [positionId], references: [id])
+  role         Role?        @relation(fields: [roleId], references: [id])
+
+  // Auditoría
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, businessUnitId])
+}
+
+model UserPermission {
+  id             String  @id @default(uuid())
+  userId         String
+  businessUnitId String
+  permissionId   String
+  isAllowed      Boolean @default(true)
+
+  user         User         @relation(fields: [userId], references: [id])
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id])
+  permission   Permission   @relation(fields: [permissionId], references: [id])
+
+  // Auditoría
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, businessUnitId, permissionId])
+  @@index([userId, businessUnitId])
+}
+
+model StrategicPlan {
+  id                   String    @id @default(uuid())
+  name                 String    @db.VarChar(150)
+  description          String?   @db.VarChar(500)
+  order                Int       @default(0)
+  period               Int
+  fromAt               DateTime?
+  untilAt              DateTime?
+  mission              String?   @db.VarChar(500)
+  vision               String?   @db.VarChar(500)
+  competitiveAdvantage String?   @db.VarChar(250)
+  status               String    @default("OPE") @db.VarChar(3)
+
+  businessUnitId String
+  businessUnit   BusinessUnit @relation(fields: [businessUnitId], references: [id])
+
+  values     StrategicValue[]
+  factors    StrategicSuccessFactor[]
+  objectives Objective[]
+  projects   StrategicProject[]
+
+  isActive  Boolean  @default(true)
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  positions Position[]
+}
+
+model StrategicValue {
+  id          String  @id @default(uuid())
+  name        String  @db.VarChar(150)
+  description String? @db.VarChar(500)
+  order       Int     @default(0)
+
+  strategicPlanId String
+  strategicPlan   StrategicPlan @relation(fields: [strategicPlanId], references: [id])
+
+  isActive  Boolean  @default(true)
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StrategicSuccessFactor {
+  id          String  @id @default(uuid())
+  name        String  @db.VarChar(150)
+  description String? @db.VarChar(500)
+  order       Int     @default(0)
+
+  strategicPlanId String
+  strategicPlan   StrategicPlan @relation(fields: [strategicPlanId], references: [id])
+
+  isActive  Boolean  @default(true)
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Objective {
+  id               String  @id @default(uuid())
+  name             String  @db.VarChar(150)
+  description      String? @db.VarChar(500)
+  order            Int     @default(0)
+  perspective      String  @db.VarChar(3)
+  level            Int
+  valueOrientation String?
+  goalValue        Float?
+  status           String  @default("OPE")
+
+  positionId String
+  position   Position @relation(fields: [positionId], references: [id])
+
+  strategicPlanId String
+  strategicPlan   StrategicPlan @relation(fields: [strategicPlanId], references: [id])
+
+  indicatorId String?
+  indicator   Indicator? @relation(fields: [indicatorId], references: [id])
+
+  objectiveParentId String?
+  parent            Objective?  @relation("ObjectiveHierarchy", fields: [objectiveParentId], references: [id])
+  children          Objective[] @relation("ObjectiveHierarchy")
+
+  isActive  Boolean  @default(true)
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  strategicProjects StrategicProject[]
+}
+
+model Indicator {
+  id           String  @id @default(uuid())
+  name         String  @db.VarChar(150)
+  description  String? @db.VarChar(500)
+  order        Int     @default(0)
+  formula      String?
+  isDefault    Boolean @default(false)
+  isConfigured Boolean @default(false)
+  origin       String?
+  tendence     String?
+  frequency    String?
+  measurement  String?
+  type         String?
+  reference    String?
+
+  periodStart DateTime?
+  periodEnd   DateTime?
+
+  isActive  Boolean  @default(true)
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  objectives Objective[]
+}
+
+model StrategicProject {
+  id          String    @id @default(uuid())
+  name        String    @db.VarChar(150)
+  description String?   @db.VarChar(500)
+  order       Int       @default(0)
+  fromAt      DateTime?
+  untilAt     DateTime?
+  finishedAt  DateTime?
+  canceledAt  DateTime?
+  status      String    @default("OPE")
+  budget      Float?
+
+  strategicPlanId String
+  strategicPlan   StrategicPlan @relation(fields: [strategicPlanId], references: [id])
+
+  positionId String
+  position   Position @relation(fields: [positionId], references: [id])
+
+  objectiveId String?
+  objective   Objective? @relation(fields: [objectiveId], references: [id])
+
+  isActive  Boolean  @default(true)
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
