@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { CreateUserDto, UpdateUserDto } from '../dto';
+import {
+  CreateUserDto,
+  CreateUserWithRoleAndUnitDto,
+  UpdateUserDto,
+} from '../dto';
 import { UserEntity } from '../entities/user.entity';
 import { handleDatabaseErrors } from 'src/common/helpers/database-error.helper';
 
@@ -8,9 +12,11 @@ import { handleDatabaseErrors } from 'src/common/helpers/database-error.helper';
 export class UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(data: CreateUserDto): Promise<UserEntity> {
+  async create(data: CreateUserWithRoleAndUnitDto): Promise<UserEntity> {
+    const { businessUnitId, roleId, ...userData } = data;
+
     try {
-      const user = await this.prisma.user.create({ data });
+      const user = await this.prisma.user.create({ data: userData });
       return new UserEntity(user);
     } catch (error) {
       handleDatabaseErrors(error);
@@ -128,5 +134,73 @@ export class UsersRepository {
     });
 
     return links.map((l) => l.businessUnit);
+  }
+
+  async assignToBusinessUnit(
+    userId: string,
+    businessUnitId: string,
+    roleId: string,
+  ): Promise<void> {
+    await this.prisma.userBusinessUnit.create({
+      data: {
+        userId,
+        businessUnitId,
+        roleId,
+      },
+    });
+  }
+
+  async bulkCreatePermissions(
+    data: {
+      userId: string;
+      businessUnitId: string;
+      permissionId: string;
+      isAllowed: boolean;
+    }[],
+  ): Promise<void> {
+    if (!data.length) return;
+
+    await this.prisma.userPermission.createMany({
+      data,
+      skipDuplicates: true,
+    });
+  }
+
+  async findUsersGroupedByBusinessUnit(companyId: string) {
+    return this.prisma.userBusinessUnit.findMany({
+      where: {
+        businessUnit: {
+          companyId,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        role: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        businessUnit: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        position: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
   }
 }

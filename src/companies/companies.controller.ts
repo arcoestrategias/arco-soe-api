@@ -17,6 +17,8 @@ import { PERMISSIONS } from 'src/common/constants/permissions.constant';
 import { SuccessMessage } from 'src/core/decorators/success-message.decorator';
 import { CompaniesService } from './companies.service';
 import { UserId } from 'src/common/decorators/user-id.decorator';
+import { ResponseGroupedUsersByUnitDto, ResponseUserDto } from 'src/users/dto';
+import { GroupedUsersByUnitEntity } from 'src/users/entities/grouped-users-by-unit.entity';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('companies')
@@ -68,5 +70,40 @@ export class CompaniesController {
     @UserId() UserId: string,
   ): Promise<void> {
     await this.companyService.remove(id, UserId);
+  }
+
+  @Permissions(PERMISSIONS.USERS.READ)
+  @Get(':companyId/users')
+  async findUsersByCompany(
+    @Param('companyId') companyId: string,
+  ): Promise<ResponseUserDto[]> {
+    const users = await this.companyService.findUsersByCompany(companyId);
+    return users.map((u) => new ResponseUserDto(u));
+  }
+
+  @Permissions(PERMISSIONS.USERS.READ)
+  @Get(':companyId/users/by-business-unit')
+  async findUsersGroupedByBusinessUnit(
+    @Param('companyId') companyId: string,
+  ): Promise<ResponseGroupedUsersByUnitDto[]> {
+    const result: GroupedUsersByUnitEntity[] =
+      await this.companyService.findUsersGroupedByBusinessUnit(companyId);
+
+    return result.map((unit) => ({
+      businessUnitId: unit.businessUnitId,
+      businessUnitName: unit.businessUnitName,
+      roles: unit.roles.map((r) => ({
+        roleId: r.roleId,
+        roleName: r.roleName,
+        users: r.users.map((u) => ({
+          id: u.id,
+          email: u.email,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          positionId: u.positionId,
+          positionName: u.positionName,
+        })),
+      })),
+    }));
   }
 }

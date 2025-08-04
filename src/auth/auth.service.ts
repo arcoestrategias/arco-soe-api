@@ -43,41 +43,6 @@ export class AuthService {
     };
   }
 
-  async register(dto: RegisterDto) {
-    const existingEmail = await this.usersRepo.findByEmail(dto.email);
-    if (existingEmail)
-      throw new ConflictException('El email ya está registrado');
-
-    if (dto.ide) {
-      const existingIde = await this.usersRepo.findByIde(dto.ide);
-      if (existingIde)
-        throw new ConflictException('La cédula ya está registrada');
-    }
-
-    if (dto.username) {
-      const existingUsername = await this.usersRepo.findByUsername(dto.username);
-      if (existingUsername)
-        throw new ConflictException('El nombre de usuario ya está en uso');
-    }
-
-    const hashedPassword = await hashPassword(dto.password);
-
-    const newUser = await this.usersRepo.create({
-      email: dto.email,
-      password: hashedPassword,
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      ide: dto.ide,
-    });
-
-    const tokens = this.generateTokens(newUser.id);
-
-    return {
-      user: newUser.toResponse(),
-      ...tokens,
-    };
-  }
-
   async refresh(userId: string) {
     const tokens = this.generateTokens(userId);
     return tokens;
@@ -123,7 +88,11 @@ export class AuthService {
 
   async resetPasswordWithToken(dto: ResetPasswordTokenDto) {
     const user = await this.usersRepo.findByResetToken(dto.token);
-    if (!user || !user.resetTokenExpiresAt || user.resetTokenExpiresAt < new Date()) {
+    if (
+      !user ||
+      !user.resetTokenExpiresAt ||
+      user.resetTokenExpiresAt < new Date()
+    ) {
       throw new BadRequestException('Token expirado o inválido');
     }
 
