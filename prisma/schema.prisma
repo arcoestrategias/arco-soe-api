@@ -349,9 +349,9 @@ model Objective {
   name             String  @db.VarChar(150)
   description      String? @db.VarChar(500)
   order            Int     @default(0)
-  perspective      String  @db.VarChar(3)
-  level            Int
-  valueOrientation String?
+  perspective      String  @db.VarChar(3) @default("FIN")
+  level            String  @db.VarChar(3) @default("EST")
+  valueOrientation String  @db.VarChar(3) @default("CRE")
   goalValue        Float?
   status           String  @default("OPE")
 
@@ -374,6 +374,7 @@ model Objective {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  objectiveGoals ObjectiveGoal[]
   strategicProjects StrategicProject[]
 }
 
@@ -403,6 +404,40 @@ model Indicator {
 
   objectives Objective[]
 }
+
+model ObjectiveGoal {
+  id        String   @id @default(uuid())
+
+  month     Int      // 1 a 12
+  year      Int      // año calendario
+
+  goalPercentage      Float?
+  goalValue           Float?
+  realPercentage      Float?
+  realValue           Float?
+  indexCompliance     Float?
+  score               Float?
+  rangeExceptional    Float?
+  rangeInacceptable   Float?
+  indexPerformance    Float?
+  baseValue           Float?
+  light               Float?
+
+  observation         String?  @db.Text
+  action              String?  @db.Text
+
+  objectiveId String
+  objective   Objective @relation(fields: [objectiveId], references: [id])
+
+  isActive    Boolean   @default(true)
+  createdBy   String?
+  updatedBy   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([objectiveId, month, year])
+}
+
 
 model StrategicProject {
   id          String    @id @default(uuid())
