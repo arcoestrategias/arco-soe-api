@@ -29,6 +29,7 @@ CREATE TABLE "BusinessUnit" (
     "address" VARCHAR(250),
     "phone" VARCHAR(50),
     "order" INTEGER,
+    "isMain" BOOLEAN NOT NULL DEFAULT false,
     "companyId" TEXT NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdBy" TEXT,
@@ -42,8 +43,15 @@ CREATE TABLE "BusinessUnit" (
 -- CreateTable
 CREATE TABLE "Position" (
     "id" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
+    "name" VARCHAR(150) NOT NULL,
     "businessUnitId" TEXT NOT NULL,
+    "userId" TEXT,
+    "strategicPlanId" TEXT,
+    "mission" TEXT,
+    "vision" TEXT,
+    "department" TEXT,
+    "isCeo" BOOLEAN NOT NULL DEFAULT false,
+    "positionSuperiorId" TEXT,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdBy" TEXT,
     "updatedBy" TEXT,
@@ -180,6 +188,135 @@ CREATE TABLE "UserPermission" (
     CONSTRAINT "UserPermission_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "StrategicPlan" (
+    "id" TEXT NOT NULL,
+    "name" VARCHAR(150) NOT NULL,
+    "description" VARCHAR(500),
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "period" INTEGER NOT NULL,
+    "fromAt" TIMESTAMP(3),
+    "untilAt" TIMESTAMP(3),
+    "mission" VARCHAR(500),
+    "vision" VARCHAR(500),
+    "competitiveAdvantage" VARCHAR(250),
+    "status" VARCHAR(3) NOT NULL DEFAULT 'OPE',
+    "businessUnitId" TEXT NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdBy" TEXT,
+    "updatedBy" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "StrategicPlan_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "StrategicValue" (
+    "id" TEXT NOT NULL,
+    "name" VARCHAR(150) NOT NULL,
+    "description" VARCHAR(500),
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "strategicPlanId" TEXT NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdBy" TEXT,
+    "updatedBy" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "StrategicValue_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "StrategicSuccessFactor" (
+    "id" TEXT NOT NULL,
+    "name" VARCHAR(150) NOT NULL,
+    "description" VARCHAR(500),
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "strategicPlanId" TEXT NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdBy" TEXT,
+    "updatedBy" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "StrategicSuccessFactor_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Objective" (
+    "id" TEXT NOT NULL,
+    "name" VARCHAR(150) NOT NULL,
+    "description" VARCHAR(500),
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "perspective" VARCHAR(3) NOT NULL,
+    "level" INTEGER NOT NULL,
+    "valueOrientation" TEXT,
+    "goalValue" DOUBLE PRECISION,
+    "status" TEXT NOT NULL DEFAULT 'OPE',
+    "positionId" TEXT NOT NULL,
+    "strategicPlanId" TEXT NOT NULL,
+    "indicatorId" TEXT,
+    "objectiveParentId" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdBy" TEXT,
+    "updatedBy" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Objective_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Indicator" (
+    "id" TEXT NOT NULL,
+    "name" VARCHAR(150) NOT NULL,
+    "description" VARCHAR(500),
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "formula" TEXT,
+    "isDefault" BOOLEAN NOT NULL DEFAULT false,
+    "isConfigured" BOOLEAN NOT NULL DEFAULT false,
+    "origin" TEXT,
+    "tendence" TEXT,
+    "frequency" TEXT,
+    "measurement" TEXT,
+    "type" TEXT,
+    "reference" TEXT,
+    "periodStart" TIMESTAMP(3),
+    "periodEnd" TIMESTAMP(3),
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdBy" TEXT,
+    "updatedBy" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Indicator_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "StrategicProject" (
+    "id" TEXT NOT NULL,
+    "name" VARCHAR(150) NOT NULL,
+    "description" VARCHAR(500),
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "fromAt" TIMESTAMP(3),
+    "untilAt" TIMESTAMP(3),
+    "finishedAt" TIMESTAMP(3),
+    "canceledAt" TIMESTAMP(3),
+    "status" TEXT NOT NULL DEFAULT 'OPE',
+    "budget" DOUBLE PRECISION,
+    "strategicPlanId" TEXT NOT NULL,
+    "positionId" TEXT NOT NULL,
+    "objectiveId" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdBy" TEXT,
+    "updatedBy" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "StrategicProject_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "Role_name_key" ON "Role"("name");
 
@@ -220,6 +357,15 @@ ALTER TABLE "BusinessUnit" ADD CONSTRAINT "BusinessUnit_companyId_fkey" FOREIGN 
 ALTER TABLE "Position" ADD CONSTRAINT "Position_businessUnitId_fkey" FOREIGN KEY ("businessUnitId") REFERENCES "BusinessUnit"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "Position" ADD CONSTRAINT "Position_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Position" ADD CONSTRAINT "Position_strategicPlanId_fkey" FOREIGN KEY ("strategicPlanId") REFERENCES "StrategicPlan"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Position" ADD CONSTRAINT "Position_positionSuperiorId_fkey" FOREIGN KEY ("positionSuperiorId") REFERENCES "Position"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Permission" ADD CONSTRAINT "Permission_moduleId_fkey" FOREIGN KEY ("moduleId") REFERENCES "Module"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -254,3 +400,33 @@ ALTER TABLE "UserPermission" ADD CONSTRAINT "UserPermission_businessUnitId_fkey"
 
 -- AddForeignKey
 ALTER TABLE "UserPermission" ADD CONSTRAINT "UserPermission_permissionId_fkey" FOREIGN KEY ("permissionId") REFERENCES "Permission"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StrategicPlan" ADD CONSTRAINT "StrategicPlan_businessUnitId_fkey" FOREIGN KEY ("businessUnitId") REFERENCES "BusinessUnit"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StrategicValue" ADD CONSTRAINT "StrategicValue_strategicPlanId_fkey" FOREIGN KEY ("strategicPlanId") REFERENCES "StrategicPlan"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StrategicSuccessFactor" ADD CONSTRAINT "StrategicSuccessFactor_strategicPlanId_fkey" FOREIGN KEY ("strategicPlanId") REFERENCES "StrategicPlan"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Objective" ADD CONSTRAINT "Objective_positionId_fkey" FOREIGN KEY ("positionId") REFERENCES "Position"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Objective" ADD CONSTRAINT "Objective_strategicPlanId_fkey" FOREIGN KEY ("strategicPlanId") REFERENCES "StrategicPlan"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Objective" ADD CONSTRAINT "Objective_indicatorId_fkey" FOREIGN KEY ("indicatorId") REFERENCES "Indicator"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Objective" ADD CONSTRAINT "Objective_objectiveParentId_fkey" FOREIGN KEY ("objectiveParentId") REFERENCES "Objective"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StrategicProject" ADD CONSTRAINT "StrategicProject_strategicPlanId_fkey" FOREIGN KEY ("strategicPlanId") REFERENCES "StrategicPlan"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StrategicProject" ADD CONSTRAINT "StrategicProject_positionId_fkey" FOREIGN KEY ("positionId") REFERENCES "Position"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StrategicProject" ADD CONSTRAINT "StrategicProject_objectiveId_fkey" FOREIGN KEY ("objectiveId") REFERENCES "Objective"("id") ON DELETE SET NULL ON UPDATE CASCADE;

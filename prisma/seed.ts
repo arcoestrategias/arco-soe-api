@@ -28,6 +28,15 @@ async function main() {
     { name: 'modules', shortCode: 'module' },
     { name: 'companies', shortCode: 'company' },
     { name: 'business-units', shortCode: 'businessUnit' },
+    { name: 'positions', shortCode: 'position' },
+    { name: 'strategic-plans', shortCode: 'strategicPlan' },
+    { name: 'strategic-values', shortCode: 'strategicValue' },
+    { name: 'strategic-success-factors', shortCode: 'strategicSuccessFactor' },
+    { name: 'objectives', shortCode: 'objective' },
+    { name: 'indicators', shortCode: 'indicator' },
+    { name: 'objectives-goals', shortCode: 'objectiveGoal' },
+    { name: 'objectives-participants', shortCode: 'objectiveParticipant' },
+    { name: 'strategic-projects', shortCode: 'strategicProject' },
   ];
 
   const roleMatrix = {

@@ -106,4 +106,24 @@ export class CompaniesController {
       })),
     }));
   }
+
+  /*
+  Crea:
+    Empresa (Company)
+    Usuario inicial con correo ide@empresa.com
+    Relación UserCompany como isManager
+    Unidad principal (BusinessUnit)
+    Posición CEO con isCeo = true
+    Relación UserBusinessUnit con rol Manager y posición CEO
+    Copia de permisos de RolePermission → UserPermission
+  */
+  @Permissions(PERMISSIONS.COMPANIES.CREATE)
+  @SuccessMessage('Empresa creada con estructura inicial')
+  @Post('full-create')
+  async createWithStructure(
+    @Body() dto: CreateCompanyDto,
+  ): Promise<ResponseCompanyDto> {
+    const company = await this.companyService.createWithStructure(dto);
+    return new ResponseCompanyDto(company);
+  }
 }
