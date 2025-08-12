@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import {
   IsUUID,
   IsNotEmpty,
@@ -6,6 +7,7 @@ import {
   IsIn,
   MaxLength,
   MinLength,
+  IsNumber,
 } from 'class-validator';
 
 export class CreateObjectiveDto {
@@ -25,9 +27,9 @@ export class CreateObjectiveDto {
   perspective: 'FIN' | 'CLI' | 'PRO' | 'PER';
 
   @IsString()
-  @IsIn(['REN', 'OPE'])
+  @IsIn(['EST', 'OPE'])
   @IsOptional()
-  level?: 'REN' | 'OPE';
+  level?: 'EST' | 'OPE';
 
   @IsString()
   @IsIn(['CRE', 'REN'])
@@ -45,4 +47,14 @@ export class CreateObjectiveDto {
   @IsUUID()
   @IsOptional()
   parentId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  goalValue?: number | null;
+
+  @IsString()
+  @IsIn(['OPE', 'CLO'])
+  @IsOptional()
+  status?: string;
 }

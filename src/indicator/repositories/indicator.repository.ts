@@ -50,6 +50,7 @@ export class IndicatorRepository {
 
       return new IndicatorEntity(updated);
     } catch (error) {
+      console.log(error);
       handleDatabaseErrors(error);
     }
   }

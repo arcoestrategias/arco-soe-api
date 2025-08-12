@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import {
   IsNotEmpty,
   IsOptional,
@@ -6,6 +7,7 @@ import {
   IsBoolean,
   MaxLength,
   IsDate,
+  IsIn,
 } from 'class-validator';
 
 export class CreateIndicatorDto {
@@ -31,23 +33,33 @@ export class CreateIndicatorDto {
   @IsOptional()
   isConfigured?: boolean;
 
+  // Manual=MAN, Automatico=AUT
   @IsString()
+  @IsIn(['MAN', 'AUT'])
   @IsOptional()
   origin?: string;
 
+  // Creciente=POS, Decreciente=NEG, Mantenimiento=MAN, Hito=HIT
   @IsString()
+  @IsIn(['POS', 'NEG', 'MAN', 'HIT'])
   @IsOptional()
   tendence?: string;
 
+  // Trimestral=TRI, Cuatrimestral=QTR, Mensual=MES, Semestral=STR, Anual=ANU, Personalizado=PER
   @IsString()
+  @IsIn(['MES', 'TRI', 'QTR', 'STR', 'ANU', 'PER'])
   @IsOptional()
   frequency?: string;
 
+  // Porcentaje=POR, Ratio=RAT, Unidad=UNI, Moneda=MON, Unico=UNC
   @IsString()
+  @IsIn(['POR', 'RAT', 'UNI', 'MON', 'UNC'])
   @IsOptional()
   measurement?: string;
 
+  // Resultado=RES, Gestion=GES
   @IsString()
+  @IsIn(['RES', 'GES'])
   @IsOptional()
   type?: string;
 
@@ -55,11 +67,13 @@ export class CreateIndicatorDto {
   @IsOptional()
   reference?: string;
 
-  @IsDate()
   @IsOptional()
-  fromAt?: Date;
+  @Type(() => Date)
+  @IsDate()
+  periodStart?: Date | null;
 
-  @IsDate()
   @IsOptional()
-  untilAt?: Date;
+  @Type(() => Date)
+  @IsDate()
+  periodEnd?: Date | null;
 }
