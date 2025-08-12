@@ -14,8 +14,8 @@ export class ResponseIndicatorDto {
   measurement: string | null;
   type: string | null;
   reference: string | null;
-  fromAt: Date | null;
-  untilAt: Date | null;
+  periodStart: Date | null;
+  periodEnd: Date | null;
   isActive: boolean;
   createdBy: string | null;
   updatedBy: string | null;
@@ -36,8 +36,8 @@ export class ResponseIndicatorDto {
     this.measurement = entity.measurement ?? null;
     this.type = entity.type ?? null;
     this.reference = entity.reference ?? null;
-    this.fromAt = entity.fromAt ?? null;
-    this.untilAt = entity.untilAt ?? null;
+    this.periodStart = entity.periodStart ?? null;
+    this.periodEnd = entity.periodEnd ?? null;
     this.isActive = entity.isActive;
     this.createdBy = entity.createdBy ?? null;
     this.updatedBy = entity.updatedBy ?? null;

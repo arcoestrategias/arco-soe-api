@@ -15,6 +15,8 @@ import {
   UpdateObjectiveDto,
   ResponseObjectiveDto,
   ReorderObjectiveWrapperDto,
+  ConfigureObjectiveDto,
+  ResponseConfigureObjectiveDto,
 } from './dto';
 import { ObjectiveService } from './objective.service';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -59,6 +61,22 @@ export class ObjectiveController {
   async findById(@Param('id') id: string): Promise<ResponseObjectiveDto> {
     const objective = await this.objectiveService.findById(id);
     return new ResponseObjectiveDto(objective);
+  }
+
+  @Permissions(PERMISSIONS.OBJECTIVES.UPDATE)
+  @SuccessMessage('Objetivo configurado correctamente')
+  @Patch(':id/configure')
+  async configure(
+    @Param('id') id: string,
+    @Body() body: ConfigureObjectiveDto,
+    @UserId() userId: string,
+  ) {
+    const payload: ConfigureObjectiveDto = { ...body, objectiveId: id };
+    const result = await this.objectiveService.configureObjective(
+      payload,
+      userId,
+    );
+    return new ResponseConfigureObjectiveDto(result);
   }
 
   @Permissions(PERMISSIONS.OBJECTIVES.UPDATE)

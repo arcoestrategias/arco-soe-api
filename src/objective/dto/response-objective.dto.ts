@@ -7,7 +7,8 @@ export class ResponseObjectiveDto {
   perspective: 'FIN' | 'CLI' | 'PRO' | 'PER';
   order: number;
   strategicPlanId: string;
-  parentId: string | null;
+  objectiveParentId: string | null;
+  indicatorId: string | null;
   isActive: boolean;
   createdBy: string | null;
   updatedBy: string | null;
@@ -21,7 +22,8 @@ export class ResponseObjectiveDto {
     this.perspective = entity.perspective;
     this.order = entity.order;
     this.strategicPlanId = entity.strategicPlanId;
-    this.parentId = entity.parentId ?? null;
+    this.objectiveParentId = entity.objectiveParentId ?? null;
+    this.indicatorId = entity.indicatorId ?? null;
     this.isActive = entity.isActive;
     this.createdBy = entity.createdBy ?? null;
     this.updatedBy = entity.updatedBy ?? null;

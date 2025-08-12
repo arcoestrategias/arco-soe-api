@@ -1,0 +1,12 @@
+-- AlterTable
+ALTER TABLE "ObjectiveGoal" ALTER COLUMN "goalPercentage" SET DEFAULT 0,
+ALTER COLUMN "goalValue" SET DEFAULT 0,
+ALTER COLUMN "realPercentage" SET DEFAULT 0,
+ALTER COLUMN "realValue" SET DEFAULT 0,
+ALTER COLUMN "indexCompliance" SET DEFAULT 0,
+ALTER COLUMN "score" SET DEFAULT 0,
+ALTER COLUMN "rangeExceptional" SET DEFAULT 0,
+ALTER COLUMN "rangeInacceptable" SET DEFAULT 0,
+ALTER COLUMN "indexPerformance" SET DEFAULT 0,
+ALTER COLUMN "baseValue" SET DEFAULT 0,
+ALTER COLUMN "light" SET DEFAULT 0;

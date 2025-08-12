@@ -3,7 +3,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { handleDatabaseErrors } from 'src/common/helpers/database-error.helper';
 import { CreateObjectiveDto, ReorderObjectiveDto } from '../dto';
 import { ObjectiveEntity } from '../entities/objective.entity';
-import { Objective } from '@prisma/client';
+import { Objective, Prisma } from '@prisma/client';
 
 @Injectable()
 export class ObjectiveRepository {
@@ -117,6 +117,26 @@ export class ObjectiveRepository {
       await this.prisma.$transaction(queries);
     } catch (error) {
       handleDatabaseErrors(error);
+    }
+  }
+
+  async findForConfigure(objectiveId: string) {
+    try {
+      return await this.prisma.objective.findUnique({
+        where: { id: objectiveId },
+        include: {
+          indicator: {
+            select: {
+              id: true,
+              tendence: true,
+              measurement: true,
+              // agrega lo que necesites comparar/mostrar
+            },
+          },
+        },
+      });
+    } catch (e) {
+      handleDatabaseErrors(e);
     }
   }
 }

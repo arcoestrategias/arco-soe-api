@@ -349,10 +349,10 @@ model Objective {
   name             String  @db.VarChar(150)
   description      String? @db.VarChar(500)
   order            Int     @default(0)
-  perspective      String  @db.VarChar(3) @default("FIN")
-  level            String  @db.VarChar(3) @default("EST")
-  valueOrientation String  @db.VarChar(3) @default("CRE")
-  goalValue        Float?
+  perspective      String  @default("FIN") @db.VarChar(3)
+  level            String  @default("EST") @db.VarChar(3)
+  valueOrientation String  @default("CRE") @db.VarChar(3)
+  goalValue        Float?  @default(0)
   status           String  @default("OPE")
 
   positionId String
@@ -374,7 +374,8 @@ model Objective {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  objectiveGoals ObjectiveGoal[]
+  objectiveGoals    ObjectiveGoal[]
+  objectiveGoalsHis ObjectiveGoalHist[]
   strategicProjects StrategicProject[]
 }
 
@@ -386,12 +387,12 @@ model Indicator {
   formula      String?
   isDefault    Boolean @default(false)
   isConfigured Boolean @default(false)
-  origin       String?
-  tendence     String?
-  frequency    String?
-  measurement  String?
-  type         String?
-  reference    String?
+  origin       String? @default("MAN")
+  tendence     String? @default("POS")
+  frequency    String? @default("MES")
+  measurement  String? @default("POR")
+  type         String? @default("GES")
+  reference    String? @default("MAN")
 
   periodStart DateTime?
   periodEnd   DateTime?
@@ -406,38 +407,72 @@ model Indicator {
 }
 
 model ObjectiveGoal {
-  id        String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  month     Int      // 1 a 12
-  year      Int      // año calendario
+  month Int // 1 a 12
+  year  Int // año calendario
 
-  goalPercentage      Float?
-  goalValue           Float?
-  realPercentage      Float?
-  realValue           Float?
-  indexCompliance     Float?
-  score               Float?
-  rangeExceptional    Float?
-  rangeInacceptable   Float?
-  indexPerformance    Float?
-  baseValue           Float?
-  light               Float?
+  goalPercentage    Float? @default(100)
+  goalValue         Float? @default(0)
+  realPercentage    Float? @default(0)
+  realValue         Float? @default(0)
+  indexCompliance   Float? @default(0)
+  score             Float? @default(100)
+  rangeExceptional  Float? @default(0)
+  rangeInacceptable Float? @default(0)
+  indexPerformance  Float? @default(0)
+  baseValue         Float? @default(0)
+  light             Float? @default(0)
 
-  observation         String?  @db.Text
-  action              String?  @db.Text
+  observation String? @db.Text
+  action      String? @db.Text
 
   objectiveId String
   objective   Objective @relation(fields: [objectiveId], references: [id])
 
-  isActive    Boolean   @default(true)
-  createdBy   String?
-  updatedBy   String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  isActive  Boolean  @default(true)
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([objectiveId, month, year])
 }
 
+model ObjectiveGoalHist {
+  id          String @id @default(uuid())
+  objectiveId String
+  month       Int // 1 a 12
+  year        Int // año calendario
+
+  goalPercentage    Float?
+  goalValue         Float?
+  realPercentage    Float?
+  realValue         Float?
+  indexCompliance   Float?
+  score             Float?
+  rangeExceptional  Float?
+  rangeInacceptable Float?
+  indexPerformance  Float?
+  baseValue         Float?
+  light             Float?
+
+  observation String? @db.Text
+  action      String? @db.Text
+
+  wasActive  Boolean
+  archivedAt DateTime @default(now())
+  archivedBy String?
+
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  objective Objective @relation(fields: [objectiveId], references: [id])
+
+  @@index([objectiveId, year, month])
+}
 
 model StrategicProject {
   id          String    @id @default(uuid())

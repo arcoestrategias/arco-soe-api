@@ -14,8 +14,8 @@ export class IndicatorEntity {
   readonly type?: string | null;
   readonly reference?: string | null;
 
-  readonly fromAt?: Date | null;
-  readonly untilAt?: Date | null;
+  readonly periodStart?: Date | null;
+  readonly periodEnd?: Date | null;
 
   readonly isActive: boolean;
   readonly createdBy?: string | null;
@@ -39,8 +39,8 @@ export class IndicatorEntity {
     this.type = indicator.type;
     this.reference = indicator.reference;
 
-    this.fromAt = indicator.fromAt;
-    this.untilAt = indicator.untilAt;
+    this.periodStart = indicator.periodStart;
+    this.periodEnd = indicator.periodEnd;
 
     this.isActive = indicator.isActive;
     this.createdBy = indicator.createdBy ?? null;
