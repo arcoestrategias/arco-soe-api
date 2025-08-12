@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { StrategicPlanRepository } from './repositories/strategic-plan.repository';
 import { CreateStrategicPlanDto, UpdateStrategicPlanDto } from './dto';
 import { StrategicPlanEntity } from './entities/strategic-plan.entity';
+import { StrategicPlanRepository } from './repositories/strategic-plan.repository';
 
 @Injectable()
 export class StrategicPlanService {

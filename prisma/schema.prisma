@@ -415,7 +415,7 @@ model ObjectiveGoal {
   goalPercentage    Float? @default(100)
   goalValue         Float? @default(0)
   realPercentage    Float? @default(0)
-  realValue         Float? @default(0)
+  realValue         Float?
   indexCompliance   Float? @default(0)
   score             Float? @default(100)
   rangeExceptional  Float? @default(0)

@@ -16,6 +16,7 @@ import { StrategicSuccessFactorModule } from './strategic-success-factor/strateg
 import { ObjectiveModule } from './objective/objective.module';
 import { IndicatorModule } from './indicator/indicator.module';
 import { ObjectiveGoalModule } from './objective-goal/objective-goal.module';
+import { IcoModule } from './ico/ico.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { ObjectiveGoalModule } from './objective-goal/objective-goal.module';
     ObjectiveModule,
     IndicatorModule,
     ObjectiveGoalModule,
+    IcoModule,
   ],
   controllers: [],
 })
