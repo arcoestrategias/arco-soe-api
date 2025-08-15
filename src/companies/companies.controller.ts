@@ -73,15 +73,6 @@ export class CompaniesController {
   }
 
   @Permissions(PERMISSIONS.USERS.READ)
-  @Get(':companyId/users')
-  async findUsersByCompany(
-    @Param('companyId') companyId: string,
-  ): Promise<ResponseUserDto[]> {
-    const users = await this.companyService.findUsersByCompany(companyId);
-    return users.map((u) => new ResponseUserDto(u));
-  }
-
-  @Permissions(PERMISSIONS.USERS.READ)
   @Get(':companyId/users/by-business-unit')
   async findUsersGroupedByBusinessUnit(
     @Param('companyId') companyId: string,
@@ -89,6 +80,7 @@ export class CompaniesController {
     const result: GroupedUsersByUnitEntity[] =
       await this.companyService.findUsersGroupedByBusinessUnit(companyId);
 
+    console.log(JSON.stringify(result));
     return result.map((unit) => ({
       businessUnitId: unit.businessUnitId,
       businessUnitName: unit.businessUnitName,
@@ -107,6 +99,15 @@ export class CompaniesController {
     }));
   }
 
+  @Permissions(PERMISSIONS.USERS.READ)
+  @Get(':companyId/users')
+  async findUsersByCompany(
+    @Param('companyId') companyId: string,
+  ): Promise<ResponseUserDto[]> {
+    const users = await this.companyService.findUsersByCompany(companyId);
+    return users.map((u) => new ResponseUserDto(u));
+  }
+
   /*
   Crea:
     Empresa (Company)
@@ -122,8 +123,9 @@ export class CompaniesController {
   @Post('full-create')
   async createWithStructure(
     @Body() dto: CreateCompanyDto,
+    @UserId() userId: string,
   ): Promise<ResponseCompanyDto> {
-    const company = await this.companyService.createWithStructure(dto);
+    const company = await this.companyService.createWithStructure(dto, userId);
     return new ResponseCompanyDto(company);
   }
 }

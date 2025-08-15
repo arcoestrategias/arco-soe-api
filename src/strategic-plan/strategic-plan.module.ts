@@ -7,5 +7,6 @@ import { PrismaService } from 'src/prisma/prisma.service';
 @Module({
   controllers: [StrategicPlanController],
   providers: [StrategicPlanService, StrategicPlanRepository, PrismaService],
+  exports: [StrategicPlanRepository]
 })
 export class StrategicPlanModule {}

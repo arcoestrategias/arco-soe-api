@@ -105,7 +105,10 @@ export class CompaniesService {
     return Object.values(grouped);
   }
 
-  async createWithStructure(dto: CreateCompanyDto): Promise<CompanyEntity> {
+  async createWithStructure(
+    dto: CreateCompanyDto,
+    userAdminId: string,
+  ): Promise<CompanyEntity> {
     const { name, ide, legalRepresentativeName } = dto;
     const email = `${ide}@empresa.com`;
     const password = await hashPassword('Temporal123');
@@ -120,8 +123,8 @@ export class CompaniesService {
             name,
             ide,
             legalRepresentativeName,
-            createdBy: 'system',
-            updatedBy: 'system',
+            createdBy: userAdminId,
+            updatedBy: userAdminId,
           },
         });
 
@@ -152,8 +155,8 @@ export class CompaniesService {
             name: company.name,
             isMain: true,
             companyId: company.id,
-            createdBy: 'system',
-            updatedBy: 'system',
+            createdBy: userAdminId,
+            updatedBy: userAdminId,
           },
         });
 
@@ -165,7 +168,7 @@ export class CompaniesService {
             businessUnitId: businessUnit.id,
             userId: user.id,
           },
-          'system',
+          userAdminId,
           tx,
         );
 
@@ -196,8 +199,8 @@ export class CompaniesService {
               userId: user.id,
               businessUnitId: businessUnit.id,
               permissionId: perm.permissionId,
-              createdBy: 'system',
-              updatedBy: 'system',
+              createdBy: userAdminId,
+              updatedBy: userAdminId,
             })),
           });
         }

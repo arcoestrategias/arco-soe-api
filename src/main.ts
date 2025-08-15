@@ -3,10 +3,19 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { join } from 'path';
 import { AppModule } from './app.module';
+// import { Prisma } from '@prisma/client';
 
 async function bootstrap() {
   // Creamos la aplicación Nest usando Express como plataforma base
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // const model = Prisma.dmmf.datamodel.models.find(
+  //   (m) => m.name === 'StrategicProject',
+  // );
+  // console.log(
+  //   'PRISMA MODEL StrategicProject (runtime):',
+  //   JSON.stringify(model, null, 2),
+  // );
 
   // Prefijo global para todas las rutas: todos los endpoints comienzan con /api/v1
   app.setGlobalPrefix('api/v1');
