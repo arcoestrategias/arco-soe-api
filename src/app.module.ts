@@ -17,6 +17,10 @@ import { ObjectiveModule } from './objective/objective.module';
 import { IndicatorModule } from './indicator/indicator.module';
 import { ObjectiveGoalModule } from './objective-goal/objective-goal.module';
 import { IcoModule } from './ico/ico.module';
+import { StrategicProjectModule } from './strategic-project/strategic-project.module';
+import { ProjectFactorModule } from './project-factor/project-factor.module';
+import { ProjectTaskModule } from './project-task/project-task.module';
+import { ProjectParticipantModule } from './project-participant/project-participant.module';
 
 @Module({
   imports: [
@@ -37,6 +41,10 @@ import { IcoModule } from './ico/ico.module';
     IndicatorModule,
     ObjectiveGoalModule,
     IcoModule,
+    StrategicProjectModule,
+    ProjectFactorModule,
+    ProjectTaskModule,
+    ProjectParticipantModule,
   ],
   controllers: [],
 })

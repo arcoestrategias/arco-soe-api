@@ -46,7 +46,7 @@ datasource db {
 /// - Auditar con campos createdAt, updatedAt, createdBy, updatedBy si aplica
 
 model Company {
-  id                      String  @id @default(uuid())
+  id                      String  @id @default(uuid()) @db.Uuid
   name                    String  @db.VarChar(150)
   description             String? @db.VarChar(500)
   ide                     String  @db.VarChar(13)
@@ -69,7 +69,7 @@ model Company {
 }
 
 model BusinessUnit {
-  id                      String             @id @default(uuid())
+  id                      String             @id @default(uuid()) @db.Uuid
   name                    String             @db.VarChar(150)
   description             String?            @db.VarChar(500)
   ide                     String?            @db.VarChar(13)
@@ -78,16 +78,15 @@ model BusinessUnit {
   phone                   String?            @db.VarChar(50)
   order                   Int?
   isMain                  Boolean            @default(false)
-  companyId               String
+  companyId               String             @db.Uuid
   company                 Company            @relation(fields: [companyId], references: [id])
   positions               Position[]
   userLinks               UserBusinessUnit[]
   userPermissions         UserPermission[]
 
-  // Auditoría
   isActive  Boolean  @default(true)
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -95,18 +94,18 @@ model BusinessUnit {
 }
 
 model Position {
-  id   String @id @default(uuid())
+  id   String @id @default(uuid()) @db.Uuid
   name String @db.VarChar(150)
 
-  businessUnitId String
+  businessUnitId String       @db.Uuid
   businessUnit   BusinessUnit @relation(fields: [businessUnitId], references: [id])
 
   userLinks UserBusinessUnit[]
 
-  userId String?
+  userId String? @db.Uuid
   user   User?   @relation(fields: [userId], references: [id])
 
-  strategicPlanId String?
+  strategicPlanId String?        @db.Uuid
   strategicPlan   StrategicPlan? @relation(fields: [strategicPlanId], references: [id])
 
   mission    String?
@@ -114,13 +113,15 @@ model Position {
   department String?
   isCeo      Boolean @default(false)
 
-  positionSuperiorId String?
+  positionSuperiorId String?    @db.Uuid
   superior           Position?  @relation("PositionHierarchy", fields: [positionSuperiorId], references: [id])
   subordinates       Position[] @relation("PositionHierarchy")
 
+  projectParticipants ProjectParticipant[]
+
   isActive  Boolean  @default(true)
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -129,70 +130,66 @@ model Position {
 }
 
 model Role {
-  id          String           @id @default(uuid())
+  id          String           @id @default(uuid()) @db.Uuid
   name        String           @unique
   description String?
   permissions RolePermission[]
 
   userLinks UserBusinessUnit[]
 
-  // Auditoría
   isActive  Boolean  @default(true)
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Module {
-  id          String       @id @default(uuid())
+  id          String       @id @default(uuid()) @db.Uuid
   name        String       @unique
   shortCode   String       @unique
   description String?
   permissions Permission[]
 
-  // Auditoría
   isActive  Boolean  @default(true)
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Permission {
-  id          String           @id @default(uuid())
+  id          String           @id @default(uuid()) @db.Uuid
   name        String           @unique
   description String?
-  moduleId    String
+  moduleId    String           @db.Uuid
   module      Module           @relation(fields: [moduleId], references: [id])
   roleLinks   RolePermission[]
   userLinks   UserPermission[]
 
-  // Auditoría
   isActive  Boolean  @default(true)
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model RolePermission {
-  id           String     @id @default(uuid())
-  roleId       String
-  permissionId String
+  id           String     @id @default(uuid()) @db.Uuid
+  roleId       String     @db.Uuid
+  permissionId String     @db.Uuid
   role         Role       @relation(fields: [roleId], references: [id])
   permission   Permission @relation(fields: [permissionId], references: [id])
 
-  // Auditoría
   isActive  Boolean  @default(true)
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model User {
-  id                String             @id @default(uuid())
+  id                String             @id @default(uuid()) @db.Uuid
   email             String             @unique
   username          String?            @unique
   ide               String             @unique
@@ -205,22 +202,19 @@ model User {
   userPermissions   UserPermission[]
   isPlatformAdmin   Boolean            @default(false)
 
-  // Recuperación y confirmación de cuenta
   resetToken            String?   @db.VarChar(255)
   resetTokenExpiresAt   DateTime?
   isEmailConfirmed      Boolean   @default(false)
   emailConfirmToken     String?   @db.VarChar(255)
   emailConfirmExpiresAt DateTime?
 
-  // Seguridad del login
-  lastLoginAt   DateTime? //Última vez que inició sesión
-  loginAttempts Int       @default(0) //Intentos fallidos acumulados
-  lockedUntil   DateTime? //Si está temporalmente bloqueado
+  lastLoginAt   DateTime?
+  loginAttempts Int       @default(0)
+  lockedUntil   DateTime?
 
-  // Auditoría
   isActive  Boolean  @default(true)
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -228,9 +222,9 @@ model User {
 }
 
 model UserCompany {
-  id        String  @id @default(uuid())
-  userId    String
-  companyId String
+  id        String  @id @default(uuid()) @db.Uuid
+  userId    String  @db.Uuid
+  companyId String  @db.Uuid
   isManager Boolean @default(false)
 
   user    User    @relation(fields: [userId], references: [id])
@@ -240,21 +234,20 @@ model UserCompany {
 }
 
 model UserBusinessUnit {
-  id             String  @id @default(uuid())
-  userId         String
-  businessUnitId String
+  id             String  @id @default(uuid()) @db.Uuid
+  userId         String  @db.Uuid
+  businessUnitId String  @db.Uuid
   isResponsible  Boolean @default(false)
-  positionId     String?
-  roleId         String?
+  positionId     String? @db.Uuid
+  roleId         String? @db.Uuid
 
   user         User         @relation(fields: [userId], references: [id])
   businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id])
   position     Position?    @relation(fields: [positionId], references: [id])
   role         Role?        @relation(fields: [roleId], references: [id])
 
-  // Auditoría
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -262,19 +255,18 @@ model UserBusinessUnit {
 }
 
 model UserPermission {
-  id             String  @id @default(uuid())
-  userId         String
-  businessUnitId String
-  permissionId   String
+  id             String  @id @default(uuid()) @db.Uuid
+  userId         String  @db.Uuid
+  businessUnitId String  @db.Uuid
+  permissionId   String  @db.Uuid
   isAllowed      Boolean @default(true)
 
   user         User         @relation(fields: [userId], references: [id])
   businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id])
   permission   Permission   @relation(fields: [permissionId], references: [id])
 
-  // Auditoría
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -283,7 +275,7 @@ model UserPermission {
 }
 
 model StrategicPlan {
-  id                   String    @id @default(uuid())
+  id                   String    @id @default(uuid()) @db.Uuid
   name                 String    @db.VarChar(150)
   description          String?   @db.VarChar(500)
   order                Int       @default(0)
@@ -295,7 +287,7 @@ model StrategicPlan {
   competitiveAdvantage String?   @db.VarChar(250)
   status               String    @default("OPE") @db.VarChar(3)
 
-  businessUnitId String
+  businessUnitId String       @db.Uuid
   businessUnit   BusinessUnit @relation(fields: [businessUnitId], references: [id])
 
   values     StrategicValue[]
@@ -304,8 +296,8 @@ model StrategicPlan {
   projects   StrategicProject[]
 
   isActive  Boolean  @default(true)
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -313,39 +305,39 @@ model StrategicPlan {
 }
 
 model StrategicValue {
-  id          String  @id @default(uuid())
+  id          String  @id @default(uuid()) @db.Uuid
   name        String  @db.VarChar(150)
   description String? @db.VarChar(500)
   order       Int     @default(0)
 
-  strategicPlanId String
+  strategicPlanId String        @db.Uuid
   strategicPlan   StrategicPlan @relation(fields: [strategicPlanId], references: [id])
 
   isActive  Boolean  @default(true)
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model StrategicSuccessFactor {
-  id          String  @id @default(uuid())
+  id          String  @id @default(uuid()) @db.Uuid
   name        String  @db.VarChar(150)
   description String? @db.VarChar(500)
   order       Int     @default(0)
 
-  strategicPlanId String
+  strategicPlanId String        @db.Uuid
   strategicPlan   StrategicPlan @relation(fields: [strategicPlanId], references: [id])
 
   isActive  Boolean  @default(true)
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Objective {
-  id               String  @id @default(uuid())
+  id               String  @id @default(uuid()) @db.Uuid
   name             String  @db.VarChar(150)
   description      String? @db.VarChar(500)
   order            Int     @default(0)
@@ -355,22 +347,22 @@ model Objective {
   goalValue        Float?  @default(0)
   status           String  @default("OPE")
 
-  positionId String
+  positionId String   @db.Uuid
   position   Position @relation(fields: [positionId], references: [id])
 
-  strategicPlanId String
+  strategicPlanId String        @db.Uuid
   strategicPlan   StrategicPlan @relation(fields: [strategicPlanId], references: [id])
 
-  indicatorId String?
+  indicatorId String?    @db.Uuid
   indicator   Indicator? @relation(fields: [indicatorId], references: [id])
 
-  objectiveParentId String?
+  objectiveParentId String?     @db.Uuid
   parent            Objective?  @relation("ObjectiveHierarchy", fields: [objectiveParentId], references: [id])
   children          Objective[] @relation("ObjectiveHierarchy")
 
   isActive  Boolean  @default(true)
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -380,26 +372,25 @@ model Objective {
 }
 
 model Indicator {
-  id           String  @id @default(uuid())
-  name         String  @db.VarChar(150)
-  description  String? @db.VarChar(500)
-  order        Int     @default(0)
-  formula      String?
-  isDefault    Boolean @default(false)
-  isConfigured Boolean @default(false)
-  origin       String? @default("MAN")
-  tendence     String? @default("POS")
-  frequency    String? @default("MES")
-  measurement  String? @default("POR")
-  type         String? @default("GES")
-  reference    String? @default("MAN")
-
-  periodStart DateTime?
-  periodEnd   DateTime?
+  id           String    @id @default(uuid()) @db.Uuid
+  name         String    @db.VarChar(150)
+  description  String?   @db.VarChar(500)
+  order        Int       @default(0)
+  formula      String?   @default("N/A")
+  isDefault    Boolean   @default(false)
+  isConfigured Boolean   @default(false)
+  origin       String?   @default("MAN")
+  tendence     String?   @default("POS")
+  frequency    String?   @default("MES")
+  measurement  String?   @default("POR")
+  type         String?   @default("GES")
+  reference    String?   @default("MAN")
+  periodStart  DateTime?
+  periodEnd    DateTime?
 
   isActive  Boolean  @default(true)
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -407,10 +398,10 @@ model Indicator {
 }
 
 model ObjectiveGoal {
-  id String @id @default(uuid())
+  id String @id @default(uuid()) @db.Uuid
 
-  month Int // 1 a 12
-  year  Int // año calendario
+  month Int
+  year  Int
 
   goalPercentage    Float? @default(100)
   goalValue         Float? @default(0)
@@ -427,12 +418,12 @@ model ObjectiveGoal {
   observation String? @db.Text
   action      String? @db.Text
 
-  objectiveId String
+  objectiveId String    @db.Uuid
   objective   Objective @relation(fields: [objectiveId], references: [id])
 
   isActive  Boolean  @default(true)
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -440,10 +431,10 @@ model ObjectiveGoal {
 }
 
 model ObjectiveGoalHist {
-  id          String @id @default(uuid())
-  objectiveId String
-  month       Int // 1 a 12
-  year        Int // año calendario
+  id          String @id @default(uuid()) @db.Uuid
+  objectiveId String @db.Uuid
+  month       Int
+  year        Int
 
   goalPercentage    Float?
   goalValue         Float?
@@ -462,10 +453,10 @@ model ObjectiveGoalHist {
 
   wasActive  Boolean
   archivedAt DateTime @default(now())
-  archivedBy String?
+  archivedBy String?  @db.Uuid
 
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -475,7 +466,7 @@ model ObjectiveGoalHist {
 }
 
 model StrategicProject {
-  id          String    @id @default(uuid())
+  id          String    @id @default(uuid()) @db.Uuid
   name        String    @db.VarChar(150)
   description String?   @db.VarChar(500)
   order       Int       @default(0)
@@ -486,18 +477,94 @@ model StrategicProject {
   status      String    @default("OPE")
   budget      Float?
 
-  strategicPlanId String
+  strategicPlanId String        @db.Uuid
   strategicPlan   StrategicPlan @relation(fields: [strategicPlanId], references: [id])
 
-  positionId String
+  positionId String   @db.Uuid
   position   Position @relation(fields: [positionId], references: [id])
 
-  objectiveId String?
+  objectiveId String?    @db.Uuid
   objective   Objective? @relation(fields: [objectiveId], references: [id])
 
+  factors      ProjectFactor[]
+  participants ProjectParticipant[]
+
   isActive  Boolean  @default(true)
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model ProjectFactor {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String
+  description String? @default("N/A")
+  result      String? @default("N/A") @db.VarChar(200)
+  projectId   String  @db.Uuid
+  order       Int     @default(0)
+
+  isActive  Boolean  @default(true)
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project StrategicProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   ProjectTask[]
+
+  @@index([projectId])
+}
+
+model ProjectParticipant {
+  id         String  @id @default(uuid()) @db.Uuid
+  isLeader   Boolean @default(false)
+  projectId  String  @db.Uuid
+  positionId String  @db.Uuid
+
+  isActive  Boolean  @default(true)
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project  StrategicProject @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  position Position         @relation(fields: [positionId], references: [id])
+
+  tasks ProjectTask[]
+
+  @@unique([projectId, positionId])
+  @@index([projectId])
+  @@index([positionId])
+}
+
+model ProjectTask {
+  id                   String    @id @default(uuid()) @db.Uuid
+  name                 String    @db.VarChar(150)
+  description          String?   @db.VarChar(500)
+  order                Int       @default(0)
+  fromAt               DateTime  @db.Date
+  untilAt              DateTime  @db.Date
+  finishedAt           DateTime? @db.Date
+  status               String    @default("OPE") @db.VarChar(3)
+  props                String?   @default("N/A") @db.VarChar(250)
+  result               String?   @default("N/A") @db.VarChar(250)
+  methodology          String?   @default("N/A") @db.VarChar(100)
+  budget               Decimal   @default(0)
+  limitation           String?   @default("N/A") @db.VarChar(250)
+  comments             String?   @default("N/A") @db.VarChar(500)
+  projectFactorId      String    @db.Uuid
+  projectParticipantId String    @db.Uuid
+
+  isActive  Boolean  @default(true)
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  factor      ProjectFactor      @relation(fields: [projectFactorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  participant ProjectParticipant @relation(fields: [projectParticipantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([projectFactorId])
+  @@index([projectParticipantId])
 }

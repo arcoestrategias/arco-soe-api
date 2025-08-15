@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import {
   IsNotEmpty,
   IsString,
@@ -6,6 +7,7 @@ import {
   IsOptional,
   IsInt,
   IsDateString,
+  IsDate,
 } from 'class-validator';
 
 export class CreateStrategicPlanDto {
@@ -23,13 +25,13 @@ export class CreateStrategicPlanDto {
   @IsNotEmpty()
   period: number;
 
-  @IsDateString()
-  @IsOptional()
-  fromAt?: Date;
+  @Type(() => Date)
+  @IsDate()
+  fromAt: Date;
 
-  @IsDateString()
-  @IsOptional()
-  untilAt?: Date;
+  @Type(() => Date)
+  @IsDate()
+  untilAt: Date;
 
   @IsString()
   @MaxLength(500)
