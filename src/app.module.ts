@@ -21,6 +21,7 @@ import { StrategicProjectModule } from './strategic-project/strategic-project.mo
 import { ProjectFactorModule } from './project-factor/project-factor.module';
 import { ProjectTaskModule } from './project-task/project-task.module';
 import { ProjectParticipantModule } from './project-participant/project-participant.module';
+import { PriorityModule } from './priority/priority.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { ProjectParticipantModule } from './project-participant/project-particip
     ProjectFactorModule,
     ProjectTaskModule,
     ProjectParticipantModule,
+    PriorityModule,
   ],
   controllers: [],
 })
