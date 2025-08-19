@@ -118,6 +118,7 @@ model Position {
   subordinates       Position[] @relation("PositionHierarchy")
 
   projectParticipants ProjectParticipant[]
+  priorities          Priority[]
 
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
@@ -369,6 +370,7 @@ model Objective {
   objectiveGoals    ObjectiveGoal[]
   objectiveGoalsHis ObjectiveGoalHist[]
   strategicProjects StrategicProject[]
+  priorities        Priority[]
 }
 
 model Indicator {
@@ -567,4 +569,40 @@ model ProjectTask {
 
   @@index([projectFactorId])
   @@index([projectParticipantId])
+}
+
+model Priority {
+  id       String  @id @default(uuid()) @db.Uuid
+  isActive Boolean @default(true)
+
+  name        String  @db.VarChar(1000)
+  description String? @db.VarChar(1000)
+  order       Int     @default(0)
+
+  fromAt     DateTime  @db.Date
+  untilAt    DateTime  @db.Date
+  finishedAt DateTime? @db.Date
+  canceledAt DateTime? @db.Date
+
+  month Int?
+  year  Int?
+
+  status String @default("OPE") @db.VarChar(3) // OPE | CLO | CAN
+
+  positionId String @db.Uuid
+  position   Position @relation(fields: [positionId], references: [id])
+
+  objectiveId String? @db.Uuid
+  objective   Objective? @relation(fields: [objectiveId], references: [id])
+
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([positionId])
+  @@index([objectiveId])
+  @@index([status])
+  @@index([year, month])
+  @@index([untilAt])
 }
