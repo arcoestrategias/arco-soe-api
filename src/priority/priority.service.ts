@@ -69,35 +69,138 @@ export class PriorityService {
     const page = f.page ?? 1;
     const limit = f.limit ?? 10;
 
-    const { items, total } = await this.repo.list({ ...f, page, limit });
-
-    const mappedEntities = items
-      .map((i) => this.withMonthlyClass(i, f.month, f.year, f.now))
-      .filter((i) =>
-        f.monthlyClass ? i.monthlyClass === f.monthlyClass : true,
+    // Si NO hay período, comportamiento actual (lista por mes/año si te lo pasan, o todo)
+    if (!f.month || !f.year) {
+      const { items, total } = await this.repo.list({ ...f, page, limit });
+      const mapped = items.map((e) =>
+        this.withMonthlyClass(e, f.month, f.year, f?.now),
       );
-
-    const t = f.monthlyClass ? mappedEntities.length : total;
-
-    const response: ListPriorityResponseDto = {
-      items: mappedEntities.map((e) => new ResponsePriorityDto(e)),
-      total: t,
-      page,
-      limit,
-    };
-
-    // Si hay periodo (mes/año), calcular ICP con los mismos filtros de alcance
-    if (f.month && f.year) {
-      const icpQuery: CalculatePriorityIcpDto = {
-        month: f.month,
-        year: f.year,
-        positionId: f.positionId,
-        objectiveId: f.objectiveId,
+      return {
+        items: mapped.map((e) => new ResponsePriorityDto(e)),
+        total,
+        page,
+        limit,
+        icp: undefined,
       };
-      response.icp = await this.calculateIcp(icpQuery);
     }
 
-    return response;
+    // ====== con período: traemos cada bucket como hace el ICP ======
+    const q = {
+      month: f.month,
+      year: f.year,
+      positionId: f.positionId,
+      objectiveId: f.objectiveId,
+    };
+
+    const [
+      openPrev, // OPE untilAt < start(M)
+      openInMonth, // OPE untilAt ∈ M
+      closedInMonth, // CLO finishedAt ∈ M
+      canceledInMonth, // CAN canceledAt ∈ M
+      completedInOtherMonth, // CLO untilAt ∈ M, finishedAt > end(M)
+    ] = await Promise.all([
+      this.repo.listOpenPreviousMonthsFull(q),
+      this.repo.listOpenInMonthFull(q),
+      this.repo.listClosedInMonthFull(q),
+      this.repo.listCanceledInMonthFull(q),
+      this.repo.listCompletedInOtherMonthFull(q),
+    ]);
+
+    // Clasificar cerradas en el mes en: onTime / late / prevMonths
+    const completedOnTime: PriorityEntity[] = [];
+    const completedLate: PriorityEntity[] = [];
+    const completedPreviousMonths: PriorityEntity[] = [];
+
+    for (const r of closedInMonth) {
+      if (!r.untilAt || !r.finishedAt) continue;
+      const fin = this.onlyDate(r.finishedAt);
+      const lim = this.onlyDate(r.untilAt);
+
+      const limInThisMonth =
+        lim.getUTCFullYear() === f.year && lim.getUTCMonth() + 1 === f.month;
+      const limBeforeThisMonth = this.isBeforePeriod(lim, {
+        month: f.month,
+        year: f.year,
+      });
+
+      if (limInThisMonth) {
+        if (fin <= lim) completedOnTime.push(r);
+        else completedLate.push(r);
+      } else if (limBeforeThisMonth) {
+        completedPreviousMonths.push(r);
+      }
+    }
+
+    // OPE del mes -> inProgress vs overdue, con tu regla (futuro: todo inProgress)
+    const now = f?.now ?? new Date();
+    const targetIdx = f.year * 12 + (f.month - 1);
+    const currentIdx = now.getUTCFullYear() * 12 + now.getUTCMonth();
+
+    const inProgress: PriorityEntity[] = [];
+    const notCompletedOverdue: PriorityEntity[] = [];
+
+    if (targetIdx > currentIdx) {
+      inProgress.push(...openInMonth);
+    } else {
+      const ref =
+        targetIdx < currentIdx
+          ? this.periodEnd({ month: f.month, year: f.year })
+          : this.onlyDate(now);
+      for (const r of openInMonth) {
+        const lim = this.onlyDate(r.untilAt);
+        if (lim < ref) notCompletedOverdue.push(r);
+        else inProgress.push(r);
+      }
+    }
+
+    // Mapear monthlyClass + compliance por item
+    const tag = (
+      e: PriorityEntity,
+      mc: string,
+      compliance: '0%' | '100%' | '-',
+    ) => {
+      const withMC = new PriorityEntity({ ...e, monthlyClass: mc });
+      const dto = new ResponsePriorityDto(withMC);
+      dto.compliance = compliance;
+      return dto;
+    };
+
+    // Orden final (según tu prioridad)
+    const ordered: ResponsePriorityDto[] = [
+      ...openPrev.map((e) => tag(e, 'NO_CUMPLIDAS_MESES_ATRAS', '0%')),
+      ...notCompletedOverdue.map((e) => tag(e, 'NO_CUMPLIDAS_ATRASADAS', '0%')),
+      ...inProgress.map((e) => tag(e, 'EN_PROCESO', '-')),
+      ...completedLate.map((e) => tag(e, 'CUMPLIDAS_ATRASADAS', '100%')),
+      ...completedPreviousMonths.map((e) =>
+        tag(e, 'CUMPLIDAS_MESES_ATRAS', '100%'),
+      ),
+      ...completedInOtherMonth.map((e) => tag(e, 'CUMPLIDAS_OTRO_MES', '100%')),
+      ...completedOnTime.map((e) => tag(e, 'CUMPLIDAS_A_TIEMPO', '100%')),
+      ...canceledInMonth.map((e) => tag(e, 'ANULADAS', '-')),
+    ];
+
+    const total = ordered.length;
+
+    // Paginación al final (coherente con el orden cruzado)
+    const start = (page - 1) * limit;
+    const paged = ordered.slice(start, start + limit);
+
+    // Adjunta ICP del mismo scope
+    const icpQuery = {
+      month: f.month,
+      year: f.year,
+      positionId: f.positionId,
+      objectiveId: f.objectiveId,
+    };
+    const icp = await this.calculateIcp(icpQuery);
+
+    return {
+      items: paged,
+      total,
+      page,
+      limit,
+      icp,
+    };
   }
 
   async reorder(
@@ -284,6 +387,14 @@ export class PriorityService {
       canceled: base.canceled,
       completedEarly,
     };
+  }
+
+  private isBeforePeriod(
+    date: Date,
+    period: { month: number; year: number },
+  ): boolean {
+    const start = new Date(Date.UTC(period.year, period.month - 1, 1)); // primer día del mes consultado
+    return date < start;
   }
 
   private onlyDate(d: Date): Date {

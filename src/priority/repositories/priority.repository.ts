@@ -193,25 +193,6 @@ export class PriorityRepository {
     return { totalPlanned, completedOnTime, completedLate, open, canceled };
   }
 
-  async listClosedInMonth(q: {
-    month: number;
-    year: number;
-    positionId?: string;
-    objectiveId?: string;
-  }) {
-    const { start, end } = monthRange(q.year, q.month);
-    return this.prisma.priority.findMany({
-      where: {
-        isActive: true,
-        status: 'CLO',
-        finishedAt: { gte: start, lte: end },
-        ...(q.positionId ? { positionId: q.positionId } : {}),
-        ...(q.objectiveId ? { objectiveId: q.objectiveId } : {}),
-      },
-      select: { finishedAt: true, untilAt: true },
-    });
-  }
-
   // OPE con untilAt en el mes → separar IN_PROGRESS vs NOT_COMPLETED_OVERDUE
   async listOpenInMonth(q: {
     month: number;
@@ -251,6 +232,25 @@ export class PriorityRepository {
     });
   }
 
+  async listClosedInMonth(q: {
+    month: number;
+    year: number;
+    positionId?: string;
+    objectiveId?: string;
+  }) {
+    const { start, end } = monthRange(q.year, q.month);
+    return this.prisma.priority.findMany({
+      where: {
+        isActive: true,
+        status: 'CLO',
+        finishedAt: { gte: start, lte: end },
+        ...(q.positionId ? { positionId: q.positionId } : {}),
+        ...(q.objectiveId ? { objectiveId: q.objectiveId } : {}),
+      },
+      select: { finishedAt: true, untilAt: true },
+    });
+  }
+
   // CLO con untilAt en el mes consultado y finishedAt > fin de mes → "COMPLETED_IN_OTHER_MONTH"
   async countCompletedInOtherMonth(q: {
     month: number;
@@ -269,5 +269,110 @@ export class PriorityRepository {
         ...(q.objectiveId ? { objectiveId: q.objectiveId } : {}),
       },
     });
+  }
+
+  async listOpenInMonthFull(q: {
+    month: number;
+    year: number;
+    positionId?: string;
+    objectiveId?: string;
+  }) {
+    const { start, end } = monthRange(q.year, q.month);
+    const rows = await this.prisma.priority.findMany({
+      where: {
+        isActive: true,
+        status: 'OPE',
+        untilAt: { gte: start, lte: end },
+        ...(q.positionId ? { positionId: q.positionId } : {}),
+        ...(q.objectiveId ? { objectiveId: q.objectiveId } : {}),
+      },
+      orderBy: [{ untilAt: 'asc' }, { order: 'asc' }],
+    });
+    return rows.map((r) => new PriorityEntity(r));
+  }
+
+  // OPE con untilAt en meses previos (arrastradas)
+  async listOpenPreviousMonthsFull(q: {
+    month: number;
+    year: number;
+    positionId?: string;
+    objectiveId?: string;
+  }) {
+    const { start } = monthRange(q.year, q.month);
+    const rows = await this.prisma.priority.findMany({
+      where: {
+        isActive: true,
+        status: 'OPE',
+        untilAt: { lt: start },
+        ...(q.positionId ? { positionId: q.positionId } : {}),
+        ...(q.objectiveId ? { objectiveId: q.objectiveId } : {}),
+      },
+      orderBy: [{ untilAt: 'asc' }, { order: 'asc' }],
+    });
+    return rows.map((r) => new PriorityEntity(r));
+  }
+
+  // CLO terminadas en el MES consultado (items completos)
+  async listClosedInMonthFull(q: {
+    month: number;
+    year: number;
+    positionId?: string;
+    objectiveId?: string;
+  }) {
+    const { start, end } = monthRange(q.year, q.month);
+    const rows = await this.prisma.priority.findMany({
+      where: {
+        isActive: true,
+        status: 'CLO',
+        finishedAt: { gte: start, lte: end },
+        ...(q.positionId ? { positionId: q.positionId } : {}),
+        ...(q.objectiveId ? { objectiveId: q.objectiveId } : {}),
+      },
+      orderBy: [{ finishedAt: 'asc' }, { order: 'asc' }],
+    });
+    return rows.map((r) => new PriorityEntity(r));
+  }
+
+  // CAN anuladas en el MES consultado (items completos)
+  async listCanceledInMonthFull(q: {
+    month: number;
+    year: number;
+    positionId?: string;
+    objectiveId?: string;
+  }) {
+    const { start, end } = monthRange(q.year, q.month);
+    const rows = await this.prisma.priority.findMany({
+      where: {
+        isActive: true,
+        status: 'CAN',
+        canceledAt: { gte: start, lte: end },
+        ...(q.positionId ? { positionId: q.positionId } : {}),
+        ...(q.objectiveId ? { objectiveId: q.objectiveId } : {}),
+      },
+      orderBy: [{ canceledAt: 'asc' }, { order: 'asc' }],
+    });
+    return rows.map((r) => new PriorityEntity(r));
+  }
+
+  // `untilAt` en el MES consultado pero cerradas después
+  async listCompletedInOtherMonthFull(q: {
+    month: number;
+    year: number;
+    positionId?: string;
+    objectiveId?: string;
+  }) {
+    const { start, end } = monthRange(q.year, q.month);
+    const rows = await this.prisma.priority.findMany({
+      where: {
+        isActive: true,
+        status: 'CLO',
+        untilAt: { gte: start, lte: end },
+        finishedAt: { gt: end },
+        ...(q.positionId ? { positionId: q.positionId } : {}),
+        ...(q.objectiveId ? { objectiveId: q.objectiveId } : {}),
+      },
+      orderBy: [{ untilAt: 'asc' }, { order: 'asc' }],
+    });
+    return rows.map((r) => new PriorityEntity(r));
   }
 }
