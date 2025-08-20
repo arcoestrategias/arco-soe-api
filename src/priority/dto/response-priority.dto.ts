@@ -23,6 +23,9 @@ export class ResponsePriorityDto {
   // derivado
   monthlyClass?: string;
 
+  //porcentaje/indicador de cumplimiento para la UI
+  compliance?: '0%' | '100%' | '-';
+
   constructor(e: PriorityEntity) {
     Object.assign(this, e);
   }
