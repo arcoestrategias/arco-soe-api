@@ -7,6 +7,8 @@ import {
   Param,
   Delete,
   UseGuards,
+  Query,
+  NotFoundException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import {
@@ -24,13 +26,51 @@ import { CurrentUserPayload } from 'src/auth/interfaces/current-user.interface';
 import { SuccessMessage } from 'src/core/decorators/success-message.decorator';
 import { BusinessUnitId } from 'src/common/decorators/business-unit-id.decorator';
 import { BusinessUnitsService } from 'src/business-unit/business-unit.service';
+import { AssignUserToBusinessUnitDto } from './dto/assign-user-to-business-unit.dto';
+import { CompaniesRepository } from 'src/companies/repositories/companies.repository';
+import { PermissionValidatorService } from 'src/core/services/permission-validator.service';
+import { v4 as uuidv4 } from 'uuid';
+import { NotificationService } from 'src/notifications/notifications.service';
+import { buildUrl } from 'src/common/helpers/url.helper';
 
 @Controller('users')
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly businessUnitService: BusinessUnitsService,
+    private readonly permissionValidator: PermissionValidatorService,
+    private readonly companiesRepo: CompaniesRepository,
+    private readonly notificationService: NotificationService,
   ) {}
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions(PERMISSIONS.USERS.UPDATE)
+  @SuccessMessage('Correo de confirmación enviado')
+  @Post(':id/send-confirmation-email')
+  async sendConfirmationEmail(@Param('id') userId: string) {
+    const user = await this.usersService.findOne(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    const token = uuidv4();
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // 60 min
+
+    await this.usersService.update(userId, {
+      emailConfirmToken: token,
+      emailConfirmExpiresAt: expires,
+    } as any);
+
+    await this.notificationService.sendByCode({
+      codeTemplate: 'ACC',
+      to: user.email,
+      variables: {
+        firstname: user.firstName ?? user.username ?? 'usuario',
+        url: buildUrl(`/auth/confirm?token=${token}`),
+        contact: buildUrl('/ayuda'),
+      },
+    });
+
+    return { success: true };
+  }
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
@@ -40,28 +80,70 @@ export class UsersController {
   ) {
     const userId = user.sub;
     const userEntity = await this.usersService.findOne(userId);
-    let currentBusinessUnit: { id: string; name: string } | null = null;
 
-    if (!businessUnitId) {
-      const units = await this.usersService.findUnitsForUser(userId);
+    // ✅ ADMIN: no exige BU y devuelve todas las compañías con sus unidades
+    const isAdmin = await this.permissionValidator.isPlatformAdmin(userId);
+    if (isAdmin) {
+      const companies = await this.companiesRepo.findAllWithUnits();
 
-      if (units.length > 1) {
-        return {
-          ...userEntity.toResponse(),
-          needsBusinessUnit: true,
-          businessUnits: units,
-        };
-      }
-
-      businessUnitId = units[0].id;
-      currentBusinessUnit = units[0];
-    } else {
-      currentBusinessUnit = await this.usersService.findBusinessUnitInfo(
-        userId,
-        businessUnitId,
-      );
+      return {
+        ...userEntity.toResponse(),
+        isPlatformAdmin: true,
+        currentBusinessUnit: null,
+        permissions: null, // ⬅️ admin bypass → no calculamos permisos
+        needsBusinessUnit: false, // ⬅️ admin no necesita BU
+        businessUnits: [], // ⬅️ sin BUs propias
+        companies, // ⬅️ TODAS las compañías con sus BUs
+      };
     }
 
+    // === NO-ADMIN ===
+    const units = await this.usersService.findUnitsForUser(userId);
+
+    // Sin unidades asignadas
+    if (!units || units.length === 0) {
+      return {
+        ...userEntity.toResponse(),
+        isPlatformAdmin: false,
+        currentBusinessUnit: null,
+        permissions: null, // ⬅️ no hay BU → no hay permisos
+        needsBusinessUnit: true,
+        businessUnits: [],
+      };
+    }
+
+    // Varias unidades y sin header → solo lista para selección
+    if (!businessUnitId && units.length > 1) {
+      return {
+        ...userEntity.toResponse(),
+        isPlatformAdmin: false,
+        currentBusinessUnit: null,
+        permissions: null, // ⬅️ aún no hay BU concreta
+        needsBusinessUnit: true,
+        businessUnits: units,
+      };
+    }
+
+    // Resolver BU actual (1 sola o vino header)
+    if (!businessUnitId) businessUnitId = units[0].id;
+
+    const buWithPos = await this.usersService.findBusinessUnitInfoWithPosition(
+      userId,
+      businessUnitId,
+    );
+    if (!buWithPos) {
+      // Header inválido o usuario no asignado a esa BU -> lista para selección
+      return {
+        ...userEntity.toResponse(),
+        isPlatformAdmin: false,
+        currentBusinessUnit: null,
+        permissions: null,
+        needsBusinessUnit: true,
+        businessUnits: units,
+      };
+    }
+
+    // Con BU válida: calculamos permisos (manteniendo TU forma actual)
     const permissions =
       await this.businessUnitService.getUserPermissionsByModule(
         businessUnitId,
@@ -70,8 +152,16 @@ export class UsersController {
 
     return {
       ...userEntity.toResponse(),
-      currentBusinessUnit,
+      isPlatformAdmin: false,
+      currentBusinessUnit: {
+        id: buWithPos.id,
+        name: buWithPos.name,
+        positionId: buWithPos.positionId,
+        positionName: buWithPos.positionName,
+      },
       permissions,
+      needsBusinessUnit: true,
+      businessUnits: units,
     };
   }
 
@@ -122,6 +212,27 @@ export class UsersController {
     @Body() dto: CreateUserWithRoleAndUnitDto,
   ): Promise<ResponseUserDto> {
     const user = await this.usersService.createUserWithRoleAndUnit(dto);
+    return new ResponseUserDto(user);
+  }
+
+  /**
+   * Asigna un usuario existente a una BU, con opción de copiar permisos desde un rol.
+   * Requiere permiso (ej.) 'users.assign' en el contexto de la BU del header.
+   */
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions(PERMISSIONS.USERS.ASSIGN, PERMISSIONS.ROLES.ASSIGN)
+  @Post('assign-to-business-unit')
+  @SuccessMessage('Usuario asignado a la unidad de negocio')
+  async assignToBusinessUnit(@Body() dto: AssignUserToBusinessUnitDto) {
+    return this.usersService.assignToBusinessUnit(dto);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions(PERMISSIONS.USERS.CREATE)
+  @SuccessMessage('Usuario creado')
+  @Post()
+  async createBasic(@Body() dto: CreateUserDto): Promise<ResponseUserDto> {
+    const user = await this.usersService.createBasic(dto);
     return new ResponseUserDto(user);
   }
 }

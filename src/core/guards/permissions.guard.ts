@@ -20,37 +20,41 @@ export class PermissionsGuard implements CanActivate {
    * Se ejecuta automáticamente en las rutas que usan este guard.
    */
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    // 1. Extrae los permisos requeridos definidos por el decorador @Permissions
-    const requiredPermissions = this.reflector.getAllAndMerge<string[]>(
-      PERMISSIONS_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    // 1. Obtiene los permisos requeridos desde el decorador @Permissions(...)
+    const requiredPermissions =
+      this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]) ?? [];
 
-    // Si no se requiere ningún permiso, se permite el acceso.
-    if (!requiredPermissions || requiredPermissions.length === 0) {
-      return true;
+    // Si el endpoint no requiere permisos, permite el acceso.
+    if (requiredPermissions.length === 0) return true;
+
+    // 2. Obtiene el usuario autenticado desde el request (inyectado por JwtAuthGuard)
+    const req = context.switchToHttp().getRequest<any>();
+    const userId: string | undefined = req?.user?.sub;
+
+    if (!userId) {
+      // Si no hay usuario en el request, no está autenticado correctamente.
+      throw new ForbiddenException('No autenticado');
     }
 
-    // 2. Obtiene el usuario autenticado desde la request
-    const request = context.switchToHttp().getRequest();
+    // ✅ BYPASS ADMIN: si es admin de plataforma, permite el acceso sin exigir BU.
+    const isAdmin = await this.permissionValidator.isPlatformAdmin(userId);
+    if (isAdmin) return true;
 
-    /**
-     * userId proviene del token JWT y se inyecta en req.user.sub por JwtStrategy.
-     * businessUnitId debe ser enviado por el frontend en el header 'x-business-unit-id'.
-     */
-    const userId = request.user?.sub;
-    const businessUnitId = request.headers['x-business-unit-id'];
-    // console.log(userId);
-    // console.log(businessUnitId);
+    // 3. Requiere el header de unidad de negocio para el resto de casos
+    const businessUnitId: string | undefined =
+      (req.headers['x-business-unit-id'] as string) ??
+      (typeof req.get === 'function'
+        ? req.get('x-business-unit-id')
+        : undefined);
 
-    // Verifica que ambos valores estén presentes.
-    if (!userId || !businessUnitId) {
-      throw new ForbiddenException(
-        'Faltan datos de autenticación o unidad de negocio',
-      );
+    if (!businessUnitId) {
+      throw new ForbiddenException('x-business-unit-id requerido');
     }
 
-    // 3. Verifica uno a uno si el usuario tiene los permisos requeridos en esa unidad.
+    // 4. Verifica uno a uno si el usuario tiene los permisos requeridos en esa unidad.
     for (const permission of requiredPermissions) {
       const hasAccess = await this.permissionValidator.hasPermission(
         userId,
@@ -58,13 +62,13 @@ export class PermissionsGuard implements CanActivate {
         permission,
       );
 
-      // Si no tiene al menos uno, deniega el acceso.
+      // Si no tiene al menos uno, deniega el acceso (se exige cada permiso declarado).
       if (!hasAccess) {
         throw new ForbiddenException(`No tienes permiso para: ${permission}`);
       }
     }
 
-    // 4. Si se cumplen todos los permisos, permite el acceso
+    // 5. Si se cumplen todos los permisos, permite el acceso
     return true;
   }
 }

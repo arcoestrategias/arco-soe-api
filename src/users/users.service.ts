@@ -16,6 +16,8 @@ import { handleDatabaseErrors } from 'src/common/helpers/database-error.helper';
 import { hashPassword } from 'src/common/helpers/hash.helper';
 import { CompaniesRepository } from 'src/companies/repositories/companies.repository';
 import { RolesRepository } from 'src/roles/repositories/roles.repository';
+import { AssignUserToBusinessUnitDto } from './dto/assign-user-to-business-unit.dto';
+import { UserAssignmentRepository } from './repositories/user-assignment.repository';
 
 @Injectable()
 export class UsersService {
@@ -23,7 +25,35 @@ export class UsersService {
     private readonly usersRepository: UsersRepository,
     private readonly companiesRepository: CompaniesRepository,
     private readonly rolesRepository: RolesRepository,
+    private readonly assignmentRepo: UserAssignmentRepository,
   ) {}
+
+  async createBasic(dto: CreateUserDto): Promise<UserEntity> {
+    // Unicidad básica
+    if (await this.usersRepository.findByEmail(dto.email)) {
+      throw new ConflictException('El email ya está registrado');
+    }
+    if (!(dto as any).ide) {
+      throw new BadRequestException('La cédula (ide) es obligatoria');
+    }
+    if (await this.usersRepository.findByIde((dto as any).ide)) {
+      throw new ConflictException('La cédula ya está registrada');
+    }
+    if ((dto as any).username) {
+      const existingUser = await this.usersRepository.findByUsername(
+        (dto as any).username,
+      );
+      if (existingUser)
+        throw new ConflictException('El username ya está registrado');
+    }
+
+    // Hash de contraseña
+    const hashedPassword = await hashPassword(dto.password);
+    dto.password = hashedPassword;
+
+    // Crear
+    return this.usersRepository.createBasic(dto);
+  }
 
   async findAll(userId: string): Promise<UserEntity[]> {
     try {
@@ -103,6 +133,21 @@ export class UsersService {
     return unit;
   }
 
+  async findBusinessUnitInfoWithPosition(
+    userId: string,
+    businessUnitId: string,
+  ): Promise<{
+    id: string;
+    name: string;
+    positionId: string | null;
+    positionName: string | null;
+  } | null> {
+    return this.usersRepository.findBusinessUnitInfoWithPosition(
+      userId,
+      businessUnitId,
+    );
+  }
+
   async findUnitsForUser(
     userId: string,
   ): Promise<{ id: string; name: string }[]> {
@@ -113,43 +158,6 @@ export class UsersService {
       handleDatabaseErrors(error);
     }
   }
-
-  // async createUserWithRoleAndUnit(
-  //   dto: CreateUserWithRoleAndUnitDto,
-  // ): Promise<UserEntity> {
-  //   // 1. Crear usuario
-  //   const user = await this.usersRepository.create(dto);
-
-  //   // 2. Vincular a unidad y rol
-  //   await this.usersRepository.assignToBusinessUnit(
-  //     user.id,
-  //     dto.businessUnitId,
-  //     dto.roleId,
-  //   );
-
-  //   // 3. Obtener permisos base del rol
-  //   const rolePermissions = await this.rolesRepository.findPermissions(
-  //     dto.roleId,
-  //   );
-
-  //   if (!rolePermissions.length) {
-  //     throw new BadRequestException(
-  //       'El rol seleccionado no tiene permisos asignados',
-  //     );
-  //   }
-
-  //   // 4. Clonar permisos al usuario en esa unidad
-  //   await this.usersRepository.bulkCreatePermissions(
-  //     rolePermissions.map((p) => ({
-  //       userId: user.id,
-  //       businessUnitId: dto.businessUnitId,
-  //       permissionId: p.permissionId,
-  //       isAllowed: true,
-  //     })),
-  //   );
-
-  //   return user;
-  // }
 
   async createUserWithRoleAndUnit(
     dto: CreateUserWithRoleAndUnitDto,
@@ -179,7 +187,7 @@ export class UsersService {
     dto.password = hashedPassword;
 
     // 3. Crear usuario
-    const user = await this.usersRepository.create(dto);
+    const user = await this.usersRepository.createFull(dto);
 
     // 4. Asignar a unidad y rol
     await this.usersRepository.assignToBusinessUnit(
@@ -209,5 +217,16 @@ export class UsersService {
     );
 
     return user;
+  }
+
+  async assignToBusinessUnit(dto: AssignUserToBusinessUnitDto) {
+    return this.assignmentRepo.assignExistingUserToBusinessUnit({
+      userId: dto.userId,
+      businessUnitId: dto.businessUnitId,
+      roleId: dto.roleId,
+      positionId: dto.positionId,
+      isResponsible: dto.isResponsible ?? false,
+      copyPermissions: dto.copyPermissions ?? true,
+    });
   }
 }

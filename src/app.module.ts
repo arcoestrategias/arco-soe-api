@@ -22,6 +22,9 @@ import { ProjectFactorModule } from './project-factor/project-factor.module';
 import { ProjectTaskModule } from './project-task/project-task.module';
 import { ProjectParticipantModule } from './project-participant/project-participant.module';
 import { PriorityModule } from './priority/priority.module';
+import { FilesModule } from './files/files.module';
+import { MailModule } from './mail/mail.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -47,6 +50,9 @@ import { PriorityModule } from './priority/priority.module';
     ProjectTaskModule,
     ProjectParticipantModule,
     PriorityModule,
+    FilesModule,
+    MailModule,
+    NotificationsModule,
   ],
   controllers: [],
 })

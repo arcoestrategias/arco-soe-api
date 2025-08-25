@@ -11,6 +11,7 @@ export class UserEntity {
   readonly createdAt: Date;
   readonly updatedAt: Date;
   private readonly password: string;
+  readonly tokenInvalidBeforeAt?: Date | null;
 
   readonly resetToken?: string | null;
   readonly resetTokenExpiresAt?: Date | null;
@@ -31,6 +32,10 @@ export class UserEntity {
 
   getPassword(): string {
     return this.password;
+  }
+
+  getTokenInvalidBeforeAt(): Date | undefined {
+    return this.tokenInvalidBeforeAt ?? undefined;
   }
 
   toResponse() {

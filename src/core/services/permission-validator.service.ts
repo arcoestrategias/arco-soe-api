@@ -5,6 +5,14 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class PermissionValidatorService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async isPlatformAdmin(userId: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { isPlatformAdmin: true },
+    });
+    return !!user?.isPlatformAdmin;
+  }
+
   async hasPermission(
     userId: string,
     businessUnitId: string,

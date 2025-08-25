@@ -85,4 +85,44 @@ export class CompaniesRepository {
       handleDatabaseErrors(error);
     }
   }
+
+  // TODAS las compañías con sus unidades (solo id y name)
+  async findAllWithUnits(): Promise<
+    Array<{
+      id: string;
+      name: string;
+      businessUnits: { id: string; name: string }[];
+    }>
+  > {
+    return this.prisma.company.findMany({
+      select: {
+        id: true,
+        name: true,
+        businessUnits: {
+          select: { id: true, name: true },
+          orderBy: { name: 'asc' },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  // Una compañía (por id) con sus unidades
+  async findByIdWithUnits(companyId: string): Promise<{
+    id: string;
+    name: string;
+    businessUnits: { id: string; name: string }[];
+  } | null> {
+    return this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        name: true,
+        businessUnits: {
+          select: { id: true, name: true },
+          orderBy: { name: 'asc' },
+        },
+      },
+    });
+  }
 }
