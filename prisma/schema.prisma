@@ -203,6 +203,7 @@ model User {
   userPermissions   UserPermission[]
   isPlatformAdmin   Boolean            @default(false)
 
+  tokenInvalidBeforeAt  DateTime?
   resetToken            String?   @db.VarChar(255)
   resetTokenExpiresAt   DateTime?
   isEmailConfirmed      Boolean   @default(false)
@@ -605,4 +606,49 @@ model Priority {
   @@index([status])
   @@index([year, month])
   @@index([untilAt])
+}
+
+model File {
+  id               String   @id @default(uuid())
+  fieldName        String?                         
+  description      String?
+  originalName     String?                           
+  encoding         String?
+  mimeType         String?                          
+  destination      String?
+  fileName         String?                          
+  path             String?
+  sizeByte         Decimal?                         
+  extension        String?
+  icon             String?
+  moduleShortcode  String?   
+  referenceId      String? @db.Uuid
+  screenKey        String?          // ← p.ej. "logo", "avatar", "attachments", "banner"
+  
+  isActive  Boolean  @default(true)
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([moduleShortcode, referenceId], name: "idx_files_module_ref")
+  @@index([moduleShortcode, referenceId, screenKey], name: "idx_files_module_ref_screen") // ← nuevo
+
+  @@map("files")
+}
+
+model NotificationTemplate {
+  id            String   @id @default(uuid())
+  name          String   @db.VarChar(150)
+  subject       String?  @db.VarChar(150)
+  codeTemplate  String   @db.Char(3) @unique
+  template      String   @db.Text
+
+  isActive      Boolean  @default(true)
+  createdBy     String?
+  updatedBy     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive])
 }

@@ -12,7 +12,17 @@ import { handleDatabaseErrors } from 'src/common/helpers/database-error.helper';
 export class UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(data: CreateUserWithRoleAndUnitDto): Promise<UserEntity> {
+  async createBasic(data: CreateUserDto): Promise<UserEntity> {
+    console.log('insertando');
+    try {
+      const user = await this.prisma.user.create({ data });
+      return new UserEntity(user);
+    } catch (error) {
+      handleDatabaseErrors(error);
+    }
+  }
+
+  async createFull(data: CreateUserWithRoleAndUnitDto): Promise<UserEntity> {
     const { businessUnitId, roleId, ...userData } = data;
 
     try {
@@ -74,6 +84,47 @@ export class UsersRepository {
     });
 
     return users.map((user) => new UserEntity(user));
+  }
+
+  async findBusinessUnitInfoWithPosition(
+    userId: string,
+    businessUnitId: string,
+  ): Promise<{
+    id: string;
+    name: string;
+    positionId: string | null;
+    positionName: string | null;
+  } | null> {
+    const link = await this.prisma.userBusinessUnit.findFirst({
+      where: { userId, businessUnitId },
+      select: {
+        businessUnit: { select: { id: true, name: true } },
+        position: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!link) return null;
+
+    let positionId = link.position?.id ?? null;
+    let positionName = link.position?.name ?? null;
+
+    if (!positionId || !positionName) {
+      const pos = await this.prisma.position.findFirst({
+        where: { businessUnitId, userId },
+        select: { id: true, name: true },
+      });
+      if (pos) {
+        positionId = pos.id;
+        positionName = pos.name;
+      }
+    }
+
+    return {
+      id: link.businessUnit.id,
+      name: link.businessUnit.name,
+      positionId,
+      positionName,
+    };
   }
 
   async update(id: string, data: UpdateUserDto): Promise<UserEntity> {
@@ -202,5 +253,12 @@ export class UsersRepository {
         },
       },
     });
+  }
+
+  async findByEmailConfirmToken(token: string) {
+    const row = await this.prisma.user.findFirst({
+      where: { emailConfirmToken: token, isActive: true },
+    });
+    return row ? new UserEntity(row) : null;
   }
 }

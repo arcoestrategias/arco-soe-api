@@ -18,9 +18,17 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
    *
    * Lo que se retorne aquí estará disponible como `req.user` en todos los endpoints protegidos.
    */
-  async validate(payload: { sub: string }) {
+  async validate(payload: { sub: string; iat?: number }) {
     const user = await this.usersRepo.findById(payload.sub);
     if (!user) throw new UnauthorizedException();
+
+    const invalidBefore = user.tokenInvalidBeforeAt ?? user.getTokenInvalidBeforeAt?.();
+    if (invalidBefore && payload.iat) {
+      const iatMs = payload.iat * 1000;
+      if (iatMs < new Date(invalidBefore).getTime()) {
+        throw new UnauthorizedException('Token inválido (logout previo)');
+      }
+    }
 
     // Solo retornamos el ID como `sub`, que es el identificador estándar JWT.
     return { sub: user.id };
