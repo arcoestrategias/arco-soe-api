@@ -24,4 +24,14 @@ export class CreatePositionDto {
   @IsBoolean()
   @IsOptional()
   isCeo?: boolean;
+
+  @IsString()
+  @MaxLength(500)
+  @IsOptional()
+  mission?: string;
+
+  @IsString()
+  @MaxLength(500)
+  @IsOptional()
+  vision?: string;
 }

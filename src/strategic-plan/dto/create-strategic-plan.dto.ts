@@ -8,6 +8,7 @@ import {
   IsInt,
   IsDateString,
   IsDate,
+  IsBoolean,
 } from 'class-validator';
 
 export class CreateStrategicPlanDto {
@@ -51,4 +52,8 @@ export class CreateStrategicPlanDto {
   @IsUUID()
   @IsNotEmpty()
   businessUnitId: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }

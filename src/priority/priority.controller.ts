@@ -27,6 +27,8 @@ import { PERMISSIONS } from 'src/common/constants/permissions.constant';
 import { SuccessMessage } from 'src/core/decorators/success-message.decorator';
 import { UserId } from 'src/common/decorators/user-id.decorator';
 import { PriorityService } from './priority.service';
+import { GetIcpSeriesDto } from './dto/get-icp-series.dto';
+import { IcpSeriesResponseDto } from './dto/icp-series-response.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('priorities')
@@ -42,6 +44,13 @@ export class PriorityController {
     @UserId() userId: string,
   ): Promise<ResponsePriorityDto> {
     return this.priorityService.create(dto, userId);
+  }
+
+  @Permissions(PERMISSIONS.PRIORITIES.READ)
+  @SuccessMessage('Operación exitosa')
+  @Get('icp/series')
+  async icpSeries(@Query() q: GetIcpSeriesDto): Promise<IcpSeriesResponseDto> {
+    return this.priorityService.icpSeries(q);
   }
 
   @Permissions(PERMISSIONS.PRIORITIES.READ)

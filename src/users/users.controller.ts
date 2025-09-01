@@ -32,6 +32,7 @@ import { PermissionValidatorService } from 'src/core/services/permission-validat
 import { v4 as uuidv4 } from 'uuid';
 import { NotificationService } from 'src/notifications/notifications.service';
 import { buildUrl } from 'src/common/helpers/url.helper';
+import { UpdateUserBusinessUnitDto } from './dto/update-user-business-unit.dto';
 
 @Controller('users')
 export class UsersController {
@@ -182,6 +183,23 @@ export class UsersController {
   async findOne(@Param('id') id: string): Promise<ResponseUserDto> {
     const user = await this.usersService.findOne(id);
     return new ResponseUserDto(user);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions(PERMISSIONS.USERS.UPDATE)
+  @Patch(':userId/business-units/:businessUnitId')
+  // @Permissions('user.assign') // ← si manejas permisos por decorador, ajusta el nombre si difiere
+  async updateUserBusinessUnit(
+    @Param('userId') userId: string,
+    @Param('businessUnitId') businessUnitId: string,
+    @Body() dto: UpdateUserBusinessUnitDto,
+    @CurrentUser() actor: { id: string },
+  ) {
+    return await this.usersService.updateUserBusinessUnit(
+      { userId, businessUnitId },
+      dto,
+      actor.id,
+    );
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)

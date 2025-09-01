@@ -5,6 +5,19 @@ import { handleDatabaseErrors } from 'src/common/helpers/database-error.helper';
 import { BusinessUnitEntity } from '../entities/business-unit.entity';
 import { CreateBusinessUnitDto, UpdateBusinessUnitDto } from '../dto';
 
+const ALLOWED_ACTIONS = [
+  'access',
+  'create',
+  'read',
+  'update',
+  'delete',
+  'export',
+  'approve',
+  'assign',
+] as const;
+
+type AllowedAction = (typeof ALLOWED_ACTIONS)[number];
+
 @Injectable()
 export class BusinessUnitsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -29,8 +42,7 @@ export class BusinessUnitsRepository {
 
   async findAll(): Promise<BusinessUnitEntity[]> {
     const units = await this.prisma.businessUnit.findMany({
-      where: { isActive: true },
-      orderBy: { order: 'asc' },
+      orderBy: { name: 'asc' },
     });
     return units.map((u) => new BusinessUnitEntity(u));
   }
@@ -110,6 +122,32 @@ export class BusinessUnitsRepository {
           },
         },
       },
+    });
+  }
+
+  async findModulesActionSkeleton(): Promise<
+    Array<{ shortCode: string; actions: AllowedAction[] }>
+  > {
+    const modules = await this.prisma.module.findMany({
+      select: {
+        shortCode: true,
+        permissions: { select: { name: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return modules.map((m) => {
+      // Derivamos 'action' desde "mod.action"
+      const actions = Array.from(
+        new Set(
+          m.permissions
+            .map((p) => (p.name.includes('.') ? p.name.split('.')[1] : p.name))
+            .filter((a): a is AllowedAction =>
+              (ALLOWED_ACTIONS as readonly string[]).includes(a),
+            ),
+        ),
+      );
+      return { shortCode: m.shortCode, actions };
     });
   }
 }

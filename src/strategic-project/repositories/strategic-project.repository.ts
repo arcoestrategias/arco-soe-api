@@ -134,6 +134,23 @@ export class StrategicProjectRepository {
     return { items, total, page, limit };
   }
 
+  async findByPlanAndPosition(
+    strategicPlanId: string,
+    positionId: string,
+  ): Promise<StrategicProjectEntity[]> {
+    const rows = await this.prisma.strategicProject.findMany({
+      where: { strategicPlanId, positionId, isActive: true },
+      orderBy: { order: 'asc' },
+      // Si necesitas traer algo adicional para el front, agrega include aquí:
+      // include: {
+      //   position: { select: { name: true } },
+      //   strategicPlan: { select: { name: true, fromAt: true, untilAt: true } },
+      // }
+    });
+
+    return rows.map((r) => new StrategicProjectEntity(r));
+  }
+
   // ---------- Reorder (bulk transaction) ----------
   async getNextOrderForPlan(strategicPlanId: string): Promise<number> {
     const last = await this.prisma.strategicProject.findFirst({

@@ -24,11 +24,16 @@ import { PERMISSIONS } from 'src/common/constants/permissions.constant';
 import { SuccessMessage } from 'src/core/decorators/success-message.decorator';
 import { UserId } from 'src/common/decorators/user-id.decorator';
 import { BusinessUnitsService } from './business-unit.service';
+import { ResponseUserDto } from 'src/users/dto';
+import { UsersService } from '../users/users.service';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('business-units')
 export class BusinessUnitsController {
-  constructor(private readonly businessUnitService: BusinessUnitsService) {}
+  constructor(
+    private readonly businessUnitService: BusinessUnitsService,
+    private readonly usersService: UsersService,
+  ) {}
 
   @Permissions(PERMISSIONS.BUSINESS_UNITS.CREATE)
   @SuccessMessage('Unidad de negocio creada exitosamente')
@@ -39,6 +44,12 @@ export class BusinessUnitsController {
   ): Promise<ResponseBusinessUnitDto> {
     const unit = await this.businessUnitService.create(dto, userId);
     return new ResponseBusinessUnitDto(unit);
+  }
+
+  @Permissions(PERMISSIONS.USERS.READ)
+  @Get(':businessUnitId/users')
+  async listUsersInBU(@Param('businessUnitId') businessUnitId: string) {
+    return this.usersService.listByBusinessUnitId(businessUnitId);
   }
 
   @Permissions(PERMISSIONS.BUSINESS_UNITS.READ)

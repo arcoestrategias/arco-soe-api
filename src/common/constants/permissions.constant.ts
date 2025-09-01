@@ -181,6 +181,16 @@ export const PERMISSIONS = {
     APPROVE: 'projectTask.approve',
     ASSIGN: 'projectTask.assign',
   },
+  LEVERS: {
+    ACCESS: 'lever.access',
+    READ: 'lever.read',
+    CREATE: 'lever.create',
+    UPDATE: 'lever.update',
+    DELETE: 'lever.delete',
+    EXPORT: 'lever.export',
+    APPROVE: 'lever.approve',
+    ASSIGN: 'lever.assign',
+  },
   PRIORITIES: {
     ACCESS: 'priority.access',
     READ: 'priority.read',

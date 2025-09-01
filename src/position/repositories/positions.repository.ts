@@ -5,9 +5,39 @@ import { CreatePositionDto, UpdatePositionDto } from '../dto';
 import { PositionEntity } from '../entities/position.entity';
 import { Prisma } from '@prisma/client';
 
+export type PositionWithNames = PositionEntity & {
+  businessUnitName: string;
+  userFullName: string | null;
+};
+
 @Injectable()
 export class PositionsRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  private buildUserFullName(
+    user?: {
+      firstName: string | null;
+      lastName: string | null;
+      username: string | null;
+      email: string;
+    } | null,
+  ): string | null {
+    if (!user) return null;
+    const full = [user.firstName, user.lastName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    return full || user.username || user.email || null;
+  }
+
+  private mapToWithNames(row: any): PositionWithNames {
+    const { businessUnit, user, ...base } = row;
+    return {
+      ...base,
+      businessUnitName: businessUnit?.name ?? '',
+      userFullName: this.buildUserFullName(user ?? null),
+    };
+  }
 
   async create(
     data: CreatePositionDto,
@@ -27,11 +57,45 @@ export class PositionsRepository {
     }
   }
 
-  async findAll(): Promise<PositionEntity[]> {
-    const positions = await this.prisma.position.findMany({
-      where: { isActive: true },
+  async findAll(): Promise<PositionWithNames[]> {
+    const rows = await this.prisma.position.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        businessUnit: { select: { name: true } },
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+            username: true,
+            email: true,
+          },
+        },
+      },
     });
-    return positions.map((p) => new PositionEntity(p));
+
+    return rows.map((r) => this.mapToWithNames(r));
+  }
+
+  async findAllByBusinessUnitId(
+    businessUnitId: string,
+  ): Promise<PositionWithNames[]> {
+    const rows = await this.prisma.position.findMany({
+      where: { businessUnitId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        businessUnit: { select: { name: true } },
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+            username: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    return rows.map((r) => this.mapToWithNames(r));
   }
 
   async findById(id: string): Promise<PositionEntity | null> {
@@ -39,6 +103,13 @@ export class PositionsRepository {
       where: { id },
     });
     return position ? new PositionEntity(position) : null;
+  }
+
+  async findCeoInBusinessUnit(businessUnitId: string) {
+    return this.prisma.position.findFirst({
+      where: { businessUnitId, isCeo: true },
+      select: { id: true, name: true, businessUnitId: true },
+    });
   }
 
   async update(

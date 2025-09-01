@@ -116,6 +116,7 @@ export class PriorityRepository {
         ...(q.positionId ? { positionId: q.positionId } : {}),
         ...(q.objectiveId ? { objectiveId: q.objectiveId } : {}),
       },
+      include: { objective: { select: { id: true, name: true } } },
       orderBy: [{ untilAt: 'asc' }, { order: 'asc' }, { createdAt: 'asc' }],
     });
     return rows.map((r) => new PriorityEntity(r));
@@ -158,6 +159,7 @@ export class PriorityRepository {
         ...(q.positionId ? { positionId: q.positionId } : {}),
         ...(q.objectiveId ? { objectiveId: q.objectiveId } : {}),
       },
+      include: { objective: { select: { id: true, name: true } } },
       orderBy: [{ finishedAt: 'asc' }, { order: 'asc' }, { createdAt: 'asc' }],
     });
     return rows.map((r) => new PriorityEntity(r));
@@ -179,6 +181,7 @@ export class PriorityRepository {
         ...(q.positionId ? { positionId: q.positionId } : {}),
         ...(q.objectiveId ? { objectiveId: q.objectiveId } : {}),
       },
+      include: { objective: { select: { id: true, name: true } } },
       orderBy: [{ canceledAt: 'asc' }, { order: 'asc' }, { createdAt: 'asc' }],
     });
     return rows.map((r) => new PriorityEntity(r));
@@ -201,6 +204,7 @@ export class PriorityRepository {
         ...(q.positionId ? { positionId: q.positionId } : {}),
         ...(q.objectiveId ? { objectiveId: q.objectiveId } : {}),
       },
+      include: { objective: { select: { id: true, name: true } } },
       orderBy: [{ untilAt: 'asc' }, { order: 'asc' }, { createdAt: 'asc' }],
     });
     return rows.map((r) => new PriorityEntity(r));
@@ -340,6 +344,7 @@ export class PriorityRepository {
     const [items, total] = await Promise.all([
       this.prisma.priority.findMany({
         where,
+        include: { objective: { select: { id: true, name: true } } },
         orderBy: [{ untilAt: 'asc' }, { order: 'asc' }, { createdAt: 'asc' }],
         skip: (page - 1) * limit,
         take: limit,
@@ -347,6 +352,15 @@ export class PriorityRepository {
       this.prisma.priority.count({ where }),
     ]);
 
-    return { items: items.map((i) => new PriorityEntity(i)), total };
+    return {
+      items: items.map(
+        (i) =>
+          new PriorityEntity({
+            ...i,
+            objectiveName: i.objective?.name ?? null,
+          }),
+      ),
+      total,
+    };
   }
 }

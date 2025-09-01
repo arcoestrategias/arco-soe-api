@@ -1,4 +1,3 @@
-// src/features/strategic-projects/services/strategic-project.service.ts
 import {
   Injectable,
   BadRequestException,
@@ -20,6 +19,7 @@ import {
 import { StrategicPlanRepository } from 'src/strategic-plan/repositories/strategic-plan.repository';
 import { ProjectParticipantRepository } from 'src/project-participant/repositories/project-participant.repository';
 import { ProjectFactorRepository } from 'src/project-factor/repositories/project-factor.repository';
+import { ListStrategicProjectsByPlanAndPositionDto } from './dto/list-by-plan-and-position.dto';
 
 @Injectable()
 export class StrategicProjectService {
@@ -35,12 +35,27 @@ export class StrategicProjectService {
     dto: CreateStrategicProjectDto,
     userId: string,
   ): Promise<StrategicProjectEntity> {
+    // 1) Traer el plan
+    const plan = await this.planRepository.findById(dto.strategicPlanId);
+    if (!plan) throw new NotFoundException('Strategic plan not found');
+
+    // 2) Resolver fechas efectivas
+    const effectiveFromAt = dto.fromAt ?? plan.fromAt;
+    const effectiveUntilAt = dto.untilAt ?? plan.untilAt;
+
+    if (!effectiveFromAt || !effectiveUntilAt) {
+      // Solo por seguridad si en DB son NOT NULL
+      throw new BadRequestException(
+        'No se pudo resolver el rango de fechas del proyecto',
+      );
+    }
+
     // Validaciones de fechas
-    await this.validateProjectDates(dto.fromAt, dto.untilAt);
+    await this.validateProjectDates(effectiveFromAt, effectiveUntilAt);
     await this.validateDatesInsidePlan(
       dto.strategicPlanId,
-      dto.fromAt,
-      dto.untilAt,
+      effectiveFromAt,
+      effectiveUntilAt,
     );
 
     // Calcular orden
@@ -54,6 +69,8 @@ export class StrategicProjectService {
       description: dto.description ?? null,
       order: nextOrder,
       objectiveId: dto.objectiveId ?? null,
+      fromAt: effectiveFromAt,
+      untilAt: effectiveUntilAt,
       isActive: true,
       createdBy: userId ?? null,
       updatedBy: null,
@@ -211,6 +228,22 @@ export class StrategicProjectService {
     );
 
     return { ...pageData, items };
+  }
+
+  async listByPlanAndPosition(
+    dto: ListStrategicProjectsByPlanAndPositionDto,
+  ): Promise<StrategicProjectEntity[]> {
+    const { strategicPlanId, positionId } = dto;
+    if (!strategicPlanId || !positionId) {
+      throw new BadRequestException(
+        'strategicPlanId y positionId son obligatorios',
+      );
+    }
+    const rows = await this.projectRepository.findByPlanAndPosition(
+      strategicPlanId,
+      positionId,
+    );
+    return rows; // si usas Entities/DTOs de respuesta, mapéalos aquí
   }
 
   // ---------- Reorder ----------

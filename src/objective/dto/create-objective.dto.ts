@@ -23,8 +23,9 @@ export class CreateObjectiveDto {
   description?: string;
 
   @IsString()
+  @IsOptional()
   @IsIn(['FIN', 'CLI', 'PRO', 'PER'])
-  perspective: 'FIN' | 'CLI' | 'PRO' | 'PER';
+  perspective?: 'FIN' | 'CLI' | 'PRO' | 'PER';
 
   @IsString()
   @IsIn(['EST', 'OPE'])

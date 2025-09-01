@@ -35,9 +35,9 @@ export class ObjectiveRepository {
     }
   }
 
-  async findAll(strategicPlanId: string): Promise<ObjectiveEntity[]> {
+  async findAll(strategicPlanId: string, positionId: string): Promise<ObjectiveEntity[]> {
     const items = await this.prisma.objective.findMany({
-      where: { strategicPlanId, isActive: true },
+      where: { strategicPlanId, positionId, isActive: true },
       orderBy: { order: 'asc' },
     });
     return items.map((o) => new ObjectiveEntity(o));

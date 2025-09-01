@@ -16,6 +16,9 @@ export class PositionEntity {
   readonly createdAt: Date;
   readonly updatedAt: Date;
 
+  readonly businessUnitName: string | null;
+  readonly userFullName: string | null;
+
   constructor(position: any) {
     this.id = position.id;
     this.name = position.name;
@@ -32,5 +35,7 @@ export class PositionEntity {
     this.updatedBy = position.updatedBy ?? null;
     this.createdAt = position.createdAt;
     this.updatedAt = position.updatedAt;
+    this.businessUnitName = position.businessUnitName;
+    this.userFullName = position.userFullName;
   }
 }

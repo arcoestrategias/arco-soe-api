@@ -25,7 +25,7 @@ export class CompaniesRepository {
 
   async findAll(): Promise<CompanyEntity[]> {
     const companies = await this.prisma.company.findMany({
-      where: { isActive: true },
+      orderBy: { name: 'asc' },
     });
     return companies.map((c) => new CompanyEntity(c));
   }
