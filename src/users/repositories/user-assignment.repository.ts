@@ -1,4 +1,10 @@
-import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
@@ -44,7 +50,9 @@ export class UserAssignmentRepository {
         where: { userId, businessUnitId },
       });
       if (existing) {
-        throw new ConflictException('El usuario ya está asignado a esta unidad de negocio');
+        throw new ConflictException(
+          'El usuario ya está asignado a esta unidad de negocio',
+        );
       }
 
       // 3) Validar posición (si se envía) y que pertenezca a la BU
@@ -52,10 +60,14 @@ export class UserAssignmentRepository {
         const pos = await tx.position.findUnique({ where: { id: positionId } });
         if (!pos) throw new NotFoundException('Posición no encontrada');
         if (pos.businessUnitId !== businessUnitId) {
-          throw new BadRequestException('La posición no pertenece a la unidad de negocio objetivo');
+          throw new BadRequestException(
+            'La posición no pertenece a la unidad de negocio objetivo',
+          );
         }
         if (pos.userId && pos.userId !== userId) {
-          throw new ConflictException('La posición ya está ocupada por otro usuario');
+          throw new ConflictException(
+            'La posición ya está ocupada por otro usuario',
+          );
         }
       }
 
@@ -103,6 +115,22 @@ export class UserAssignmentRepository {
         userBusinessUnitId: link.id,
         copiedPermissions,
       };
+    });
+  }
+
+  findByUserAndBusinessUnit(userId: string, businessUnitId: string) {
+    return this.prisma.userBusinessUnit.findUnique({
+      where: { userId_businessUnitId: { userId, businessUnitId } },
+    });
+  }
+
+  updateByUserAndBusinessUnit(
+    where: { userId: string; businessUnitId: string },
+    data: Prisma.UserBusinessUnitUpdateInput,
+  ) {
+    return this.prisma.userBusinessUnit.update({
+      where: { userId_businessUnitId: where },
+      data,
     });
   }
 }

@@ -9,16 +9,18 @@ import {
 
 export class CreateCompanyDto {
   @IsString()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'El IDE es obligatorio.' })
   name: string;
 
   @IsString()
   @IsNotEmpty()
-  @Length(10, 13)
+  @Length(10, 13, {
+    message: 'La identificación debe tener entre 10 y 13 caracteres.',
+  })
   ide: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'El representante legal es obligatorio.' })
   legalRepresentativeName: string;
 
   @IsString()
@@ -44,4 +46,8 @@ export class CreateCompanyDto {
   @IsBoolean()
   @IsOptional()
   isGroup?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }

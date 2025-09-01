@@ -16,6 +16,8 @@ export class ResponsePositionDto {
   updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
+  businessUnitName: string; 
+  userFullName: string | null; 
 
   constructor(position: PositionEntity) {
     this.id = position.id;
@@ -33,5 +35,7 @@ export class ResponsePositionDto {
     this.updatedBy = position.updatedBy ?? null;
     this.createdAt = position.createdAt;
     this.updatedAt = position.updatedAt;
+    this.businessUnitName = position?.businessUnitName ?? '';
+    this.userFullName = position?.userFullName ?? null;
   }
 }

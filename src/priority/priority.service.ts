@@ -15,6 +15,8 @@ import {
   ListPriorityResponseDto,
   ResponsePriorityIcpDto,
 } from './dto';
+import { GetIcpSeriesDto } from './dto/get-icp-series.dto';
+import { IcpSeriesItemDto, IcpSeriesResponseDto } from './dto/icp-series-response.dto';
 
 @Injectable()
 export class PriorityService {
@@ -37,11 +39,39 @@ export class PriorityService {
     return new ResponsePriorityDto(withClass);
   }
 
+  private todayLocalDate(tz = 'America/Guayaquil'): Date {
+    // extrae año/mes/día en la zona local deseada
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+
+    const y = Number(parts.find((p) => p.type === 'year')!.value);
+    const m = Number(parts.find((p) => p.type === 'month')!.value);
+    const d = Number(parts.find((p) => p.type === 'day')!.value);
+
+    // construye "YYYY-MM-DD 00:00:00Z" → al ser DATE, PG guardará ese día exacto
+    return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+  }
+
   async update(
     id: string,
     dto: UpdatePriorityDto,
     userId: string,
   ): Promise<ResponsePriorityDto> {
+    if (dto.status === 'CLO' && !dto.finishedAt) {
+      dto.finishedAt = this.todayLocalDate(); // antes: new Date()
+    }
+    if (dto.status === 'CAN' && !dto.canceledAt) {
+      dto.canceledAt = this.todayLocalDate(); // antes: new Date()
+    }
+    if (dto.status === 'OPE') {
+      dto.finishedAt = null;
+      dto.canceledAt = null;
+    }
+
     if (dto.untilAt && (!dto.month || !dto.year)) {
       const u = new Date(dto.untilAt);
       dto.month = dto.month ?? u.getUTCMonth() + 1;
@@ -86,24 +116,18 @@ export class PriorityService {
     const page = f.page ?? 1;
     const limit = f.limit ?? 10;
 
-    // Si no hay período (month/year), fallback a listado genérico
-    if (!f.month || !f.year) {
-      const { items, total } = await this.repo.list({ ...f, page, limit });
-      return {
-        items: items.map((e) => new ResponsePriorityDto(e)),
-        total,
-        page,
-        limit,
-      };
-    }
+    // Defaults si no llegan: mes/año actuales
+    const now = new Date();
+    const month = f.month ?? now.getMonth() + 1;
+    const year = f.year ?? now.getFullYear();
 
-    // Con período: unificamos dataset, clasificamos y derivamos ICP
     const scope = {
-      month: f.month,
-      year: f.year,
+      month,
+      year,
       positionId: f.positionId,
       objectiveId: f.objectiveId,
     };
+
     const ds = await this.getPeriodDataset(scope);
     const { items, buckets } = this.buildPeriodView(scope, ds);
 
@@ -113,13 +137,7 @@ export class PriorityService {
 
     const icp = this.computeIcpFromBuckets(scope, buckets);
 
-    return {
-      items: paged,
-      total,
-      page,
-      limit,
-      icp,
-    };
+    return { items: paged, total, page, limit, icp };
   }
 
   // ============================================================
@@ -269,7 +287,7 @@ export class PriorityService {
       ...inProgress.map((e) => tag(e, 'EN_PROCESO', '-')),
       ...completedLate.map((e) => tag(e, 'CUMPLIDAS_ATRASADAS', '100%')),
       ...completedPreviousMonths.map((e) =>
-        tag(e, 'CUMPLIDAS_MESES_ATRAS', '100%'),
+        tag(e, 'CUMPLIDAS_ATRASADAS_MESES_ANTERIORES', '100%'),
       ),
       ...ds.completedInOtherMonth.map((e) =>
         tag(e, 'CUMPLIDAS_OTRO_MES', '100%'),
@@ -432,5 +450,76 @@ export class PriorityService {
     }
 
     return undefined;
+  }
+
+  private parseYm(ym: string) {
+    const [y, m] = ym.split('-').map(Number);
+    return { year: y, month: m };
+  }
+  private diffInMonths(
+    a: { year: number; month: number },
+    b: { year: number; month: number },
+  ) {
+    return (b.year - a.year) * 12 + (b.month - a.month);
+  }
+
+  async icpSeries(q: GetIcpSeriesDto): Promise<IcpSeriesResponseDto> {
+    const from = this.parseYm(q.from);
+    const to = this.parseYm(q.to);
+
+    const diff = this.diffInMonths(from, to);
+    if (diff < 0) throw new BadRequestException('from debe ser <= to');
+    if (diff > 36)
+      throw new BadRequestException('Rango demasiado grande (máx 36 meses)');
+
+    const items: IcpSeriesItemDto[] = [];
+
+    let y = from.year,
+      m = from.month;
+    for (;;) {
+      const scope = {
+        month: m,
+        year: y,
+        positionId: q.positionId,
+        objectiveId: q.objectiveId,
+      };
+
+      // Reusa tu pipeline mensual
+      const ds = await this.getPeriodDataset(scope);
+      const { buckets } = this.buildPeriodView(scope, ds);
+      const icp = this.computeIcpFromBuckets(scope, buckets);
+
+      items.push({
+        month: m,
+        year: y,
+        icp: icp.icp,
+        totalPlanned: icp.totalPlanned,
+        totalCompleted: icp.totalCompleted,
+        inProgress: icp.inProgress,
+        notCompletedOverdue: icp.notCompletedOverdue,
+        notCompletedPreviousMonths: icp.notCompletedPreviousMonths,
+        completedOnTime: icp.completedOnTime,
+        completedLate: icp.completedLate,
+        completedPreviousMonths: icp.completedPreviousMonths,
+        completedInOtherMonth: icp.completedInOtherMonth,
+        canceled: icp.canceled,
+        completedEarly: icp.completedEarly,
+      });
+
+      if (y === to.year && m === to.month) break;
+      m++;
+      if (m > 12) {
+        m = 1;
+        y++;
+      }
+    }
+
+    return {
+      positionId: q.positionId,
+      objectiveId: q.objectiveId,
+      from: q.from,
+      to: q.to,
+      items,
+    };
   }
 }

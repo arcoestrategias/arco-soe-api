@@ -14,8 +14,14 @@ export class StrategicPlanService {
     return this.planRepo.create(dto, userId);
   }
 
-  async findAll(businessUnitId: string): Promise<StrategicPlanEntity[]> {
-    return this.planRepo.findAll(businessUnitId);
+  async findAll(): Promise<StrategicPlanEntity[]> {
+    return this.planRepo.findAll();
+  }
+
+  async findAllBybusinessUnitId(
+    businessUnitId: string,
+  ): Promise<StrategicPlanEntity[]> {
+    return this.planRepo.findAllByBusinessUnitId(businessUnitId);
   }
 
   async findById(id: string): Promise<StrategicPlanEntity> {

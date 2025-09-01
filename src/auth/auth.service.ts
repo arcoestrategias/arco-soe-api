@@ -97,7 +97,7 @@ export class AuthService {
       resetTokenExpiresAt: expires,
     } as any);
 
-    const resetUrl = buildUrl(`/auth/reset?token=${resetToken}`);
+    const resetUrl = buildUrl(`/auth/reset-password?token=${resetToken}`);
     await this.notificationService.sendByCode({
       codeTemplate: 'RST',
       to: user.email,
@@ -133,7 +133,7 @@ export class AuthService {
       to: user.email,
       variables: {
         firstname: user.firstName ?? user.username ?? 'usuario',
-        url: buildUrl('/auth/login'),
+        url: buildUrl('/login'),
         contact: buildUrl('/ayuda'),
       },
     });
@@ -173,8 +173,8 @@ export class AuthService {
       to: user.email,
       variables: {
         firstname: user.firstName ?? user.username ?? 'usuario',
-        url: buildUrl('/auth/login'),
-        contact: buildUrl('/ayuda'),
+        url: buildUrl('/login'),
+        contact: buildUrl('/help-me'),
       },
     });
 

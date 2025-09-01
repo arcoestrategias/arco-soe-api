@@ -15,6 +15,7 @@ export class ResponsePriorityDto {
   status!: 'OPE' | 'CLO' | 'CAN';
   positionId!: string;
   objectiveId?: string | null;
+  objectiveName?: string | null;
   createdBy?: string | null;
   updatedBy?: string | null;
   createdAt!: Date;

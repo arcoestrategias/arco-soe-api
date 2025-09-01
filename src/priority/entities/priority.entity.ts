@@ -24,6 +24,7 @@ export class PriorityEntity {
 
   readonly positionId: string;
   readonly objectiveId?: string | null;
+  readonly objectiveName?: string | null;
 
   readonly createdBy?: string | null;
   readonly updatedBy?: string | null;
@@ -63,6 +64,8 @@ export class PriorityEntity {
 
     this.positionId = priority.positionId;
     this.objectiveId = priority.objectiveId ?? null;
+    this.objectiveName =
+      priority.objective?.name ?? priority.objectiveName ?? null;
 
     this.createdBy = priority.createdBy ?? null;
     this.updatedBy = priority.updatedBy ?? null;

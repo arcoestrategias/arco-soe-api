@@ -46,13 +46,21 @@ export class ObjectiveController {
   @Get()
   async findAll(
     @Query('strategicPlanId') strategicPlanId: string,
+    @Query('positionId') positionId: string,
   ): Promise<ResponseObjectiveDto[]> {
     if (!strategicPlanId) {
       throw new BadRequestException(
         'El parámetro strategicPlanId es requerido',
       );
     }
-    const result = await this.objectiveService.findAll(strategicPlanId);
+
+    if (!positionId) {
+      throw new BadRequestException('El parámetro positionId es requerido');
+    }
+    const result = await this.objectiveService.findAll(
+      strategicPlanId,
+      positionId,
+    );
     return result.map((o) => new ResponseObjectiveDto(o));
   }
 

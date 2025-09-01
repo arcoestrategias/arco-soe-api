@@ -26,10 +26,19 @@ export class StrategicPlanRepository {
     }
   }
 
-  async findAll(businessUnitId: string): Promise<StrategicPlanEntity[]> {
+  async findAll(): Promise<StrategicPlanEntity[]> {
     const plans = await this.prisma.strategicPlan.findMany({
-      where: { businessUnitId, isActive: true },
-      orderBy: { order: 'asc' },
+      orderBy: { createdAt: 'asc' },
+    });
+    return plans.map((p) => new StrategicPlanEntity(p));
+  }
+
+  async findAllByBusinessUnitId(
+    businessUnitId: string,
+  ): Promise<StrategicPlanEntity[]> {
+    const plans = await this.prisma.strategicPlan.findMany({
+      where: { businessUnitId },
+      orderBy: { createdAt: 'asc' },
     });
     return plans.map((p) => new StrategicPlanEntity(p));
   }

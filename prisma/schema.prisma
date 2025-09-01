@@ -119,6 +119,7 @@ model Position {
 
   projectParticipants ProjectParticipant[]
   priorities          Priority[]
+  levers Lever[]
 
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
@@ -570,6 +571,22 @@ model ProjectTask {
 
   @@index([projectFactorId])
   @@index([projectParticipantId])
+}
+
+model Lever {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @db.VarChar(150)
+  description String? @db.VarChar(500)
+  order       Int     @default(0)
+
+  positionId String   @db.Uuid
+  position   Position @relation(fields: [positionId], references: [id])
+
+  isActive  Boolean  @default(true)
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Priority {

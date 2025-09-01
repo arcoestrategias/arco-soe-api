@@ -43,7 +43,10 @@ export class StrategicPlanController {
   async findAll(
     @Query('businessUnitId') businessUnitId: string,
   ): Promise<ResponseStrategicPlanDto[]> {
-    const result = await this.planService.findAll(businessUnitId);
+    const result = businessUnitId
+      ? await this.planService.findAllBybusinessUnitId(businessUnitId)
+      : await this.planService.findAll();
+
     return result.map((p) => new ResponseStrategicPlanDto(p));
   }
 

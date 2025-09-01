@@ -26,6 +26,7 @@ import { PERMISSIONS } from 'src/common/constants/permissions.constant';
 import { SuccessMessage } from 'src/core/decorators/success-message.decorator';
 import { UserId } from 'src/common/decorators/user-id.decorator';
 import { StrategicProjectService } from './strategic-project.service';
+import { ListStrategicProjectsByPlanAndPositionDto } from './dto/list-by-plan-and-position.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('strategic-projects')
@@ -41,6 +42,14 @@ export class StrategicProjectController {
     @UserId() userId: string,
   ): Promise<ResponseStrategicProjectDto> {
     return this.projectService.createStrategicProject(dto, userId);
+  }
+
+  @Permissions(PERMISSIONS.STRATEGIC_PROJECTS.READ)
+  @Get()
+  async listByPlanAndPosition(
+    @Query() query: ListStrategicProjectsByPlanAndPositionDto,
+  ): Promise<ResponseStrategicProjectDto[]> {
+    return await this.projectService.listByPlanAndPosition(query);
   }
 
   /**

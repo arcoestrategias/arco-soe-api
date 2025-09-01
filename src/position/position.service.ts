@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PositionsRepository } from './repositories/positions.repository';
 import { CreatePositionDto, UpdatePositionDto } from './dto';
 import { PositionEntity } from './entities/position.entity';
@@ -18,6 +22,12 @@ export class PositionsService {
     return this.positionsRepo.findAll();
   }
 
+  async findAllBybusinessUnitId(
+    businessUnitId: string,
+  ): Promise<PositionEntity[]> {
+    return this.positionsRepo.findAllByBusinessUnitId(businessUnitId);
+  }
+
   async findById(id: string): Promise<PositionEntity> {
     const position = await this.positionsRepo.findById(id);
     if (!position) throw new NotFoundException('Posición no encontrada');
@@ -31,6 +41,19 @@ export class PositionsService {
   ): Promise<PositionEntity> {
     const exists = await this.positionsRepo.findById(id);
     if (!exists) throw new NotFoundException('Posición no encontrada');
+
+    const targetBusinessUnitId = dto.businessUnitId;
+    if (dto.isCeo === true) {
+      const existingCeo = await this.positionsRepo.findCeoInBusinessUnit(
+        targetBusinessUnitId!,
+      );
+      if (existingCeo && existingCeo.id !== id) {
+        throw new ConflictException(
+          'Ya existe un CEO en esta unidad de negocio',
+        );
+      }
+    }
+
     return this.positionsRepo.update(id, dto, userId);
   }
 

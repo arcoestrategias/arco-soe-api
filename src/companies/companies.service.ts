@@ -109,7 +109,8 @@ export class CompaniesService {
     dto: CreateCompanyDto,
     userAdminId: string,
   ): Promise<CompanyEntity> {
-    const { name, ide, legalRepresentativeName } = dto;
+    const { name, ide, legalRepresentativeName, description, address, phone } =
+      dto;
     const email = `${ide}@empresa.com`;
     const password = await hashPassword('Temporal123');
 
@@ -123,6 +124,9 @@ export class CompaniesService {
             name,
             ide,
             legalRepresentativeName,
+            description,
+            address,
+            phone,
             createdBy: userAdminId,
             updatedBy: userAdminId,
           },

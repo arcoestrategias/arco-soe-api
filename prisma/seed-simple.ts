@@ -39,6 +39,7 @@ async function main() {
     { name: 'project-tasks', shortCode: 'projectTask' },
     { name: 'priorities', shortCode: 'priority' },
     { name: 'performance', shortCode: 'performance' },
+    { name: 'levers', shortCode: 'lever' },
   ];
 
   // Matriz de permisos por rol (en el orden de actions[])

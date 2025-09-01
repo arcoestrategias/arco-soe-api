@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import {
   CreatePositionDto,
@@ -39,8 +40,13 @@ export class PositionsController {
 
   @Permissions(PERMISSIONS.POSITIONS.READ)
   @Get()
-  async findAll(): Promise<ResponsePositionDto[]> {
-    const result = await this.positionsService.findAll();
+  async findAll(
+    @Query('businessUnitId') businessUnitId: string,
+  ): Promise<ResponsePositionDto[]> {
+    const result = businessUnitId
+      ? await this.positionsService.findAllBybusinessUnitId(businessUnitId)
+      : await this.positionsService.findAll();
+
     return result.map((p) => new ResponsePositionDto(p));
   }
 

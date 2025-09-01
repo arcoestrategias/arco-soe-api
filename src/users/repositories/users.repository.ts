@@ -8,6 +8,15 @@ import {
 import { UserEntity } from '../entities/user.entity';
 import { handleDatabaseErrors } from 'src/common/helpers/database-error.helper';
 
+const userBusinessUnitSelect = {
+  select: {
+    businessUnitId: true,
+    positionId: true,
+    roleId: true,
+    isResponsible: true,
+  },
+};
+
 @Injectable()
 export class UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -65,6 +74,14 @@ export class UsersRepository {
     return users.map((user) => new UserEntity(user));
   }
 
+  async findAllWithLinks(): Promise<Array<any>> {
+    return this.prisma.user.findMany({
+      include: {
+        userBusinessUnits: userBusinessUnitSelect,
+      },
+    });
+  }
+
   async findByCompanyIds(companyIds: string[]): Promise<UserEntity[]> {
     const units = await this.prisma.businessUnit.findMany({
       where: { companyId: { in: companyIds } },
@@ -84,6 +101,23 @@ export class UsersRepository {
     });
 
     return users.map((user) => new UserEntity(user));
+  }
+
+  async findByCompanyIdsWithLinks(companyIds: string[]): Promise<Array<any>> {
+    const units = await this.prisma.businessUnit.findMany({
+      where: { companyId: { in: companyIds } },
+      select: { id: true },
+    });
+    const unitIds = units.map((u) => u.id);
+
+    return this.prisma.user.findMany({
+      where: {
+        userBusinessUnits: { some: { businessUnitId: { in: unitIds } } },
+      },
+      include: {
+        userBusinessUnits: userBusinessUnitSelect,
+      },
+    });
   }
 
   async findBusinessUnitInfoWithPosition(
@@ -260,5 +294,57 @@ export class UsersRepository {
       where: { emailConfirmToken: token, isActive: true },
     });
     return row ? new UserEntity(row) : null;
+  }
+
+  async findMany(params: {
+    skip?: number;
+    take?: number;
+    where?: any;
+    orderBy?: any;
+  }) {
+    const { skip, take, where, orderBy } = params ?? {};
+
+    return this.prisma.user.findMany({
+      skip,
+      take,
+      where,
+      orderBy,
+      include: {
+        // Traemos SOLO lo necesario de UserBusinessUnit
+        userBusinessUnits: {
+          select: {
+            businessUnitId: true,
+            positionId: true,
+            roleId: true,
+            isResponsible: true,
+          },
+        },
+      },
+    });
+  }
+
+  async findUsersInBusinessUnitWithNames(businessUnitId: string) {
+    const links = await this.prisma.userBusinessUnit.findMany({
+      where: { businessUnitId },
+      orderBy: [{ user: { lastName: 'asc' } }, { user: { firstName: 'asc' } }],
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            isActive: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+        businessUnit: { select: { name: true } },
+        role: { select: { id: true, name: true } },
+        position: { select: { id: true, name: true, isCeo: true } },
+      },
+    });
+
+    return links;
   }
 }

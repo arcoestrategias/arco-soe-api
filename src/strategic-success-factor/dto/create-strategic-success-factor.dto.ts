@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -22,4 +23,8 @@ export class CreateStrategicSuccessFactorDto {
   @IsUUID()
   @IsNotEmpty()
   strategicPlanId: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }

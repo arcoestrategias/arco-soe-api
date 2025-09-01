@@ -20,10 +20,12 @@ export class CreateStrategicProjectDto {
   @Length(0, 500)
   description?: string | null;
 
+  @IsOptional()
   @Type(() => Date)
   @IsDate()
   fromAt!: Date;
 
+  @IsOptional()
   @Type(() => Date)
   @IsDate()
   untilAt!: Date;

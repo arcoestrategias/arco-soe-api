@@ -5,12 +5,13 @@ import {
   MaxLength,
   IsNumber,
   IsNotEmpty,
+  IsBoolean,
 } from 'class-validator';
 
 export class CreateBusinessUnitDto {
   @IsString()
   @MaxLength(150)
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'El IDE es obligatorio.' })
   name: string;
 
   @IsString()
@@ -43,6 +44,10 @@ export class CreateBusinessUnitDto {
   order?: number;
 
   @IsUUID()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'La compañia es obligatoria.' })
   companyId: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }

@@ -25,6 +25,7 @@ import { PriorityModule } from './priority/priority.module';
 import { FilesModule } from './files/files.module';
 import { MailModule } from './mail/mail.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { LeversModule } from './levers/levers.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     FilesModule,
     MailModule,
     NotificationsModule,
+    LeversModule,
   ],
   controllers: [],
 })

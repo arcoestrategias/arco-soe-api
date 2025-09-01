@@ -56,8 +56,11 @@ export class ObjectiveService {
     );
   }
 
-  async findAll(strategicPlanId: string): Promise<ObjectiveEntity[]> {
-    return this.objectiveRepo.findAll(strategicPlanId);
+  async findAll(
+    strategicPlanId: string,
+    positionId: string,
+  ): Promise<ObjectiveEntity[]> {
+    return this.objectiveRepo.findAll(strategicPlanId, positionId);
   }
 
   async findById(id: string): Promise<ObjectiveEntity> {
