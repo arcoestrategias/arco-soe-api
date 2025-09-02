@@ -133,7 +133,7 @@ export class ProjectFactorService {
     );
     if (duplicated) {
       throw new BadRequestException(
-        'Factor name must be unique within the project',
+        'Ya existe un factor con ese nombre en este proyecto',
       );
     }
   }

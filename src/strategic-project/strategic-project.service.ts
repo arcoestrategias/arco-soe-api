@@ -230,6 +230,99 @@ export class StrategicProjectService {
     return { ...pageData, items };
   }
 
+  async getProjectStructure(opts: {
+    projectId: string;
+    includeInactiveFactors?: boolean;
+    includeInactiveTasks?: boolean;
+    includeInactiveParticipants?: boolean;
+  }) {
+    const p = await this.projectRepository.getStructureByProject(opts);
+
+    // participantes
+    const participants = p.participants ?? [];
+    const leader =
+      participants.find((pp) => pp.isLeader) ?? participants[0] ?? null;
+
+    // factores + tareas + contadores
+    const factors = (p.factors ?? []).map((f) => {
+      const tasks = f.tasks ?? [];
+      const taskOpe = tasks.filter((t) => t.status === 'OPE').length;
+      const taskClo = tasks.filter((t) => t.status === 'CLO').length;
+      return { ...f, taskOpe, taskClo, tasks };
+    });
+
+    const progressProject =
+      this.computeProjectProgressProjectFromFactors(factors);
+
+    return {
+      project: {
+        ...p,
+        // asegurar objetivo disponible
+        objective: p.objective
+          ? { id: p.objective.id, name: p.objective.name }
+          : null,
+        participants,
+        leader,
+        factors,
+        progressProject,
+      },
+    };
+  }
+
+  async getProjectsDashboard(dto: ListProjectStructureDto) {
+    // 1) Reutilizamos tu estructura actual
+    const data = await this.listProjectStructure(dto);
+    const items = dto.positionId
+      ? (data.items ?? [])
+      : Object.values(data.groups ?? {}).flat();
+
+    // 2) Mapear por proyecto lo que pide el front
+    const projects = items.map((p: any) => {
+      const factors = p.factors ?? [];
+      const allTasks = factors.flatMap((f: any) => f.tasks ?? []);
+      const tasksClosed = allTasks.filter(
+        (t: any) => t.status === 'CLO',
+      ).length;
+      const tasksTotal = allTasks.length;
+
+      const executed = allTasks
+        .filter((t: any) => t.status === 'CLO')
+        .reduce((sum: number, t: any) => sum + Number(t.budget ?? 0), 0);
+
+      return {
+        id: p.id,
+        name: p.name,
+        description: p.description ?? null,
+        fromAt: p.fromAt ? new Date(p.fromAt).toISOString() : null,
+        untilAt: p.untilAt ? new Date(p.untilAt).toISOString() : null,
+        budget: Number(p.budget ?? 0),
+        executed,
+        tasksClosed,
+        tasksTotal,
+        compliance: Number(p.progressProject ?? 0), // ya calculado por tu service
+        objectiveId: p.objective?.id ?? p.objectiveId ?? null,
+        objectiveName: p.objective?.name ?? null,
+
+        factorsTotal: factors.length,
+      };
+    });
+
+    // 3) KPIs del resumen
+    const totalProjects = projects.length;
+    const totalBudget = projects.reduce((a, x) => a + (x.budget ?? 0), 0);
+    const totalExecuted = projects.reduce((a, x) => a + (x.executed ?? 0), 0);
+    const avgCompliance = totalProjects
+      ? +(
+          projects.reduce((a, x) => a + (x.compliance ?? 0), 0) / totalProjects
+        ).toFixed(2)
+      : 0;
+
+    return {
+      summary: { totalProjects, avgCompliance, totalBudget, totalExecuted },
+      projects,
+    };
+  }
+
   async listByPlanAndPosition(
     dto: ListStrategicProjectsByPlanAndPositionDto,
   ): Promise<StrategicProjectEntity[]> {
@@ -368,8 +461,13 @@ export class StrategicProjectService {
       const progressProject =
         this.computeProjectProgressProjectFromFactors(factors);
 
+      const objective = p.objective
+        ? { id: p.objective.id, name: p.objective.name }
+        : null;
+
       return {
         ...p, // todas las columnas del proyecto
+        objective,
         progressProject, // 0..100
         participants, // participantes del proyecto (solo activos)
         leader, // participante líder (o el primero, o null)

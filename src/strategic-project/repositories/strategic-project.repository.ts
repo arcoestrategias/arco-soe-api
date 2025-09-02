@@ -134,6 +134,43 @@ export class StrategicProjectRepository {
     return { items, total, page, limit };
   }
 
+  async getStructureByProject(opts: {
+    projectId: string;
+    includeInactiveFactors?: boolean;
+    includeInactiveTasks?: boolean;
+    includeInactiveParticipants?: boolean;
+  }) {
+    const {
+      projectId,
+      includeInactiveFactors,
+      includeInactiveTasks,
+      includeInactiveParticipants,
+    } = opts;
+
+    return this.prisma.strategicProject.findUniqueOrThrow({
+      where: { id: projectId, isActive: true },
+      include: {
+        objective: { select: { id: true, name: true } },
+        position: true,
+        participants: {
+          ...(includeInactiveParticipants ? {} : { where: { isActive: true } }),
+          orderBy: { createdAt: 'asc' },
+          include: { position: true },
+        },
+        factors: {
+          ...(includeInactiveFactors ? {} : { where: { isActive: true } }),
+          orderBy: { order: 'asc' },
+          include: {
+            tasks: {
+              ...(includeInactiveTasks ? {} : { where: { isActive: true } }),
+              orderBy: { order: 'asc' },
+            },
+          },
+        },
+      },
+    });
+  }
+
   async findByPlanAndPosition(
     strategicPlanId: string,
     positionId: string,
@@ -321,6 +358,8 @@ export class StrategicProjectRepository {
       where,
       orderBy: { createdAt: 'asc' },
       include: {
+        objective: { select: { id: true, name: true } },
+
         position: true,
         participants: {
           ...(includeInactiveParticipants ? {} : { where: { isActive: true } }),

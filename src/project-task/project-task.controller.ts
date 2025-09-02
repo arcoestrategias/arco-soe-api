@@ -58,17 +58,6 @@ export class ProjectTaskController {
   }
 
   @Permissions(PERMISSIONS.PROJECT_TASKS.UPDATE)
-  @SuccessMessage('Tarea actualizada correctamente')
-  @Patch(':id')
-  async updateTask(
-    @Param('id') taskId: string,
-    @Body() dto: UpdateProjectTaskDto,
-    @UserId() userId: string,
-  ): Promise<ProjectTaskEntity> {
-    return this.taskService.updateTask(taskId, dto, userId);
-  }
-
-  @Permissions(PERMISSIONS.PROJECT_TASKS.UPDATE)
   @SuccessMessage('Orden de tareas actualizado correctamente')
   @Patch('reorder')
   async reorderTasks(
@@ -86,5 +75,16 @@ export class ProjectTaskController {
     @UserId() userId: string,
   ): Promise<ProjectTaskEntity> {
     return this.taskService.setTaskActive(taskId, body.isActive, userId);
+  }
+
+  @Permissions(PERMISSIONS.PROJECT_TASKS.UPDATE)
+  @SuccessMessage('Tarea actualizada correctamente')
+  @Patch(':id')
+  async updateTask(
+    @Param('id') taskId: string,
+    @Body() dto: UpdateProjectTaskDto,
+    @UserId() userId: string,
+  ): Promise<ProjectTaskEntity> {
+    return this.taskService.updateTask(taskId, dto, userId);
   }
 }

@@ -20,6 +20,11 @@ async function bootstrap() {
   // Prefijo global para todas las rutas: todos los endpoints comienzan con /api/v1
   app.setGlobalPrefix('api/v1');
 
+  const origins = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
   // Validaciones globales: transforma, elimina propiedades no permitidas,
   // y lanza error si se reciben campos desconocidos
   app.useGlobalPipes(
@@ -37,7 +42,11 @@ async function bootstrap() {
     prefix: '/uploads/',
     index: false,
     setHeaders: (res, path, stat) => {
-      const allowedOrigins = ['http://localhost:3000'];
+      const allowedOrigins = [
+        'http://localhost:3000',
+        'http://192.168.100.51:3000',
+        'https://yrs-courts-mandate-april.trycloudflare.com',
+      ];
       const requestOrigin = res.req.headers.origin;
 
       // Permite CORS solo desde orígenes permitidos
@@ -51,9 +60,8 @@ async function bootstrap() {
     },
   });
 
-  // Configura CORS a nivel global (para todas las rutas)
   app.enableCors({
-    origin: ['http://localhost:3000'],
+    origin: origins.length ? origins : [/localhost/],
     credentials: true, // Permite el envío de cookies y headers de autorización
   });
 

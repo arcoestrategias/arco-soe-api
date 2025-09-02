@@ -44,6 +44,28 @@ export class StrategicProjectController {
     return this.projectService.createStrategicProject(dto, userId);
   }
 
+  @Get(':projectId/structure')
+  @Permissions(PERMISSIONS.STRATEGIC_PROJECTS.READ)
+  getProjectStructure(
+    @Param('projectId') projectId: string,
+    @Query('includeInactiveFactors') incF?: string,
+    @Query('includeInactiveTasks') incT?: string,
+    @Query('includeInactiveParticipants') incP?: string,
+  ) {
+    return this.projectService.getProjectStructure({
+      projectId,
+      includeInactiveFactors: incF === 'true',
+      includeInactiveTasks: incT === 'true',
+      includeInactiveParticipants: incP === 'true',
+    });
+  }
+
+  @Permissions(PERMISSIONS.STRATEGIC_PROJECTS.READ)
+  @Get('dashboard')
+  getDashboard(@Query() q: ListProjectStructureDto) {
+    return this.projectService.getProjectsDashboard(q);
+  }
+
   @Permissions(PERMISSIONS.STRATEGIC_PROJECTS.READ)
   @Get()
   async listByPlanAndPosition(
@@ -60,7 +82,7 @@ export class StrategicProjectController {
    */
   @Permissions(PERMISSIONS.STRATEGIC_PROJECTS.READ)
   @Get('structure')
-  getProjectStructure(@Query() q: ListProjectStructureDto) {
+  getStructureAllProjects(@Query() q: ListProjectStructureDto) {
     return this.projectService.listProjectStructure(q);
   }
 
