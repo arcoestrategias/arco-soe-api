@@ -4,6 +4,7 @@ export class StrategicProjectEntity {
   readonly description?: string | null;
   readonly fromAt: Date;
   readonly untilAt: Date;
+  readonly budget: number;
   readonly order: number;
   readonly strategicPlanId: string;
   readonly objectiveId?: string | null;
@@ -23,6 +24,7 @@ export class StrategicProjectEntity {
     this.description = project.description ?? null;
     this.fromAt = project.fromAt;
     this.untilAt = project.untilAt;
+    this.budget = Number(project.budget ?? 0);
     this.order = project.order;
     this.strategicPlanId = project.strategicPlanId;
     this.objectiveId = project.objectiveId ?? null;

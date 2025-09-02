@@ -7,6 +7,7 @@ import {
   Min,
   IsUUID,
   IsNotEmpty,
+  IsNumber,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -29,6 +30,11 @@ export class CreateStrategicProjectDto {
   @Type(() => Date)
   @IsDate()
   untilAt!: Date;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  budget?: number; // default en service: 0
 
   @IsOptional()
   @IsInt()
