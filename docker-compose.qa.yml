@@ -43,4 +43,5 @@ volumes:
 
 networks:
   soe-qa-network:
+    name: soe-qa-network
     driver: bridge
