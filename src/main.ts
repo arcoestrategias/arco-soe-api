@@ -1,61 +1,54 @@
+// main.ts
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { AppModule } from './app.module';
 
-function parseList(env?: string): string[] {
-  return (env ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
+function norm(o?: string) {
+  return (o ?? '').trim().replace(/\/+$/, '').toLowerCase();
 }
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    // Manejamos CORS nosotros mismos abajo
-    cors: false,
+    cors: false, // lo manejamos nosotros
   });
 
-  // Prefijo global de API
   app.setGlobalPrefix('api/v1');
-
-  // Si estás detrás de Nginx/Proxy
   // @ts-ignore
   app.set('trust proxy', 1);
 
-  // Sirve estáticos (si los usas) con CORS abierto (sin credenciales)
+  // (Opcional) estáticos públicos con CORS abierto
   app.useStaticAssets(join(__dirname, '..', 'public'), {
     setHeaders: (res) => {
-      res.setHeader('Access-Control-Allow-Origin', '*'); // permitido para assets públicos
+      res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     },
   });
 
-  // ---- CORS para API (estricto con lista blanca) ----
-  const origins = parseList(process.env.CORS_ORIGINS);
-  const allowedMethods =
-    process.env.CORS_ALLOWED_METHODS ??
-    'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS';
-  const allowedHeaders =
-    process.env.CORS_ALLOWED_HEADERS ?? 'Authorization,Content-Type';
-  const allowCredentials =
-    (process.env.CORS_ALLOW_CREDENTIALS ?? 'true').toLowerCase() === 'true';
+  // ✅ Lista "hardcoded" de orígenes permitidos
+  const ALLOWED_ORIGINS = new Set(
+    ['https://qav2.soe.la', 'http://localhost:3000'].map(norm),
+  );
 
   app.enableCors({
     origin: (origin, cb) => {
-      // Permite SSR/health checks (sin header Origin) y orígenes listados
-      if (!origin || origins.includes(origin)) return cb(null, true);
-      return cb(new Error('CORS: origin not allowed'));
+      // Permite SSR/health checks (no traen Origin)
+      if (!origin) return cb(null, true);
+
+      const o = norm(origin);
+      if (ALLOWED_ORIGINS.has(o)) return cb(null, true);
+
+      // ❌ No lanzar error: devolver false evita 500 en preflight
+      return cb(null, false);
     },
-    methods: allowedMethods,
-    allowedHeaders: allowedHeaders,
-    credentials: allowCredentials,
+    methods: 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS',
+    allowedHeaders: 'Authorization,Content-Type',
+    credentials: true, // pon false si NO usas cookies/sesión
   });
 
-  // Validaciones globales
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -67,10 +60,6 @@ async function bootstrap() {
   const port = parseInt(process.env.PORT ?? '4000', 10);
   await app.listen(port, '0.0.0.0');
 
-  const startedOn = await app.getUrl();
-  // eslint-disable-next-line no-console
-  console.log(
-    `[BOOT] API listening on ${startedOn}  |  Allowed CORS: ${origins.join(', ') || '(none)'}`,
-  );
+  console.log('[BOOT] API on', await app.getUrl());
 }
 bootstrap();
