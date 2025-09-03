@@ -42,11 +42,7 @@ async function bootstrap() {
     prefix: '/uploads/',
     index: false,
     setHeaders: (res, path, stat) => {
-      const allowedOrigins = [
-        'http://localhost:3000',
-        'http://192.168.100.51:3000',
-        'https://yrs-courts-mandate-april.trycloudflare.com',
-      ];
+      const allowedOrigins = ['http://localhost:3000', 'https://qav2.soe.la'];
       const requestOrigin = res.req.headers.origin;
 
       // Permite CORS solo desde orígenes permitidos
