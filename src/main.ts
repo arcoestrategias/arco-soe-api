@@ -1,68 +1,76 @@
 import { NestFactory } from '@nestjs/core';
-import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { AppModule } from './app.module';
-// import { Prisma } from '@prisma/client';
+
+function parseList(env?: string): string[] {
+  return (env ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 async function bootstrap() {
-  // Creamos la aplicación Nest usando Express como plataforma base
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    // Manejamos CORS nosotros mismos abajo
+    cors: false,
+  });
 
-  // const model = Prisma.dmmf.datamodel.models.find(
-  //   (m) => m.name === 'StrategicProject',
-  // );
-  // console.log(
-  //   'PRISMA MODEL StrategicProject (runtime):',
-  //   JSON.stringify(model, null, 2),
-  // );
-
-  // Prefijo global para todas las rutas: todos los endpoints comienzan con /api/v1
+  // Prefijo global de API
   app.setGlobalPrefix('api/v1');
 
-  const origins = (process.env.CORS_ORIGINS ?? '')
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean);
+  // Si estás detrás de Nginx/Proxy
+  // @ts-ignore
+  app.set('trust proxy', 1);
 
-  // Validaciones globales: transforma, elimina propiedades no permitidas,
-  // y lanza error si se reciben campos desconocidos
-  app.useGlobalPipes(
-    new ValidationPipe({
-      transform: true, // Transforma automáticamente los DTOs
-      whitelist: true, // Elimina propiedades que no están en los DTOs
-      forbidNonWhitelisted: true, // Lanza error si hay propiedades no permitidas
-      transformOptions: { enableImplicitConversion: true },
-    }),
-  );
-
-  // Configura la carpeta de archivos estáticos (como imágenes o PDFs)
-  // En este caso: /uploads será accesible públicamente
-  app.useStaticAssets(join(process.cwd(), 'uploads'), {
-    prefix: '/uploads/',
-    index: false,
-    setHeaders: (res, path, stat) => {
-      const allowedOrigins = ['http://localhost:3000', 'https://qav2.soe.la'];
-      const requestOrigin = res.req.headers.origin;
-
-      // Permite CORS solo desde orígenes permitidos
-      if (allowedOrigins.includes(requestOrigin)) {
-        res.setHeader('Access-Control-Allow-Origin', requestOrigin);
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-      }
-
-      // Habilita el cacheo por 1 hora para recursos estáticos
-      res.setHeader('Cache-Control', 'public, max-age=3600');
+  // Sirve estáticos (si los usas) con CORS abierto (sin credenciales)
+  app.useStaticAssets(join(__dirname, '..', 'public'), {
+    setHeaders: (res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*'); // permitido para assets públicos
+      res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     },
   });
 
+  // ---- CORS para API (estricto con lista blanca) ----
+  const origins = parseList(process.env.CORS_ORIGINS);
+  const allowedMethods =
+    process.env.CORS_ALLOWED_METHODS ??
+    'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS';
+  const allowedHeaders =
+    process.env.CORS_ALLOWED_HEADERS ?? 'Authorization,Content-Type';
+  const allowCredentials =
+    (process.env.CORS_ALLOW_CREDENTIALS ?? 'true').toLowerCase() === 'true';
+
   app.enableCors({
-    origin: origins.length ? origins : [/localhost/],
-    credentials: true, // Permite el envío de cookies y headers de autorización
+    origin: (origin, cb) => {
+      // Permite SSR/health checks (sin header Origin) y orígenes listados
+      if (!origin || origins.includes(origin)) return cb(null, true);
+      return cb(new Error('CORS: origin not allowed'));
+    },
+    methods: allowedMethods,
+    allowedHeaders: allowedHeaders,
+    credentials: allowCredentials,
   });
 
-  // Levanta el servidor en el puerto configurado, o 3000 por defecto
-  await app.listen(process.env.PORT ?? 3000);
-  console.log(`App running on port ${process.env.PORT}`);
+  // Validaciones globales
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: false,
+    }),
+  );
+
+  const port = parseInt(process.env.PORT ?? '4000', 10);
+  await app.listen(port, '0.0.0.0');
+
+  const startedOn = await app.getUrl();
+  // eslint-disable-next-line no-console
+  console.log(
+    `[BOOT] API listening on ${startedOn}  |  Allowed CORS: ${origins.join(', ') || '(none)'}`,
+  );
 }
 bootstrap();
