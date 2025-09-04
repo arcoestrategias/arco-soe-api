@@ -11,49 +11,59 @@ function norm(o?: string) {
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    cors: false, // lo manejamos con enableCors()
+    cors: false, // lo manejamos con enableCors
   });
 
   app.setGlobalPrefix('api/v1');
   // @ts-ignore
   app.set('trust proxy', 1);
 
-  // --- Cargar whitelist desde ENV ---
-  // Ejemplo:
-  // CORS_ORIGINS=http://localhost:3000,https://qa.soe.la,https://qav2.soe.la,https://portal.soe.la,https://portalv2.soe.la
+  // --- 3) ORÍGENES PERMITIDOS DESDE ENV ---
+  const norm = (o?: string) =>
+    (o ?? '').trim().replace(/\/+$/, '').toLowerCase();
   const ALLOWED_ORIGINS = new Set(
     (process.env.CORS_ORIGINS ?? '').split(',').map(norm).filter(Boolean),
   );
 
-  // --- CORTA-FUEGO: responder PRELIGHT OPTIONS antes de guards/interceptors ---
+  // --- 4) MIDDLEWARE GLOBAL: ACAO en TODAS las respuestas reales ---
+  app.use((req, res, next) => {
+    const origin = (req.headers.origin as string | undefined) ?? '';
+    const o = norm(origin);
+    if (origin && ALLOWED_ORIGINS.has(o)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+    next();
+  });
+
+  // --- 5) MIDDLEWARE PRE-FLIGHT: responder OPTIONS con 204 ---
   app.use((req, res, next) => {
     if (req.method === 'OPTIONS') {
       const origin = (req.headers.origin as string | undefined) ?? '';
-      const o = norm(origin);
-      if (origin && ALLOWED_ORIGINS.has(o)) {
+      if (origin) {
         res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Vary', 'Origin');
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader(
-          'Access-Control-Allow-Methods',
-          'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS',
-        );
-        res.setHeader(
-          'Access-Control-Allow-Headers',
-          'Authorization, Content-Type, Accept, X-Requested-With',
-        );
       }
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader(
+        'Access-Control-Allow-Methods',
+        'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS',
+      );
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Authorization, Content-Type, Accept, X-Requested-With',
+      );
       return res.status(204).send();
     }
     next();
   });
 
-  // --- CORS estándar en Nest ---
+  // --- 6) CORS estándar en Nest (sigue validando orígenes) ---
   app.enableCors({
     origin: (origin, cb) => {
       if (!origin) return cb(null, true); // curl/postman
-      const o = norm(origin);
-      return cb(null, ALLOWED_ORIGINS.has(o));
+      return cb(null, ALLOWED_ORIGINS.has(norm(origin)));
     },
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
@@ -66,21 +76,14 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Estáticos (no afectan al login/CORS)
-  app.useStaticAssets(join(process.cwd(), 'uploads'), {
-    prefix: '/uploads/',
-    index: false,
-    setHeaders: (res) => {
-      res.setHeader('Cache-Control', 'public, max-age=3600');
-    },
-  });
+  // (si tienes estáticos, déjalos aquí o antes; no afecta CORS del login)
 
-  // Validaciones globales
+  // --- luego tus pipes globales ---
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true, // elimina props no definidas en DTOs
       transform: true, // convierte payloads a tipos de los DTOs
-      forbidNonWhitelisted: false, // no lanza 400 por props extra (como antes)
+      forbidNonWhitelisted: false, // no lanza 400 por props extra
     }),
   );
 
