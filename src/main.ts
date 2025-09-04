@@ -1,7 +1,7 @@
+// main.ts
 import { NestFactory } from '@nestjs/core';
-import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
-import helmet from 'helmet';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { AppModule } from './app.module';
 
@@ -10,37 +10,50 @@ function norm(o?: string) {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    cors: false, // lo manejamos con enableCors()
+  });
 
-  // Prefijo global para todos los endpoints: /api/v1/**
   app.setGlobalPrefix('api/v1');
-
-  // Si corres detrás de Nginx/Proxy
   // @ts-ignore
   app.set('trust proxy', 1);
 
-  // Seguridad base (CSP, XSS, etc.)
-  app.use(
-    helmet({
-      // Permitimos que otros orígenes válidos consuman estáticos si corresponde
-      crossOriginResourcePolicy: { policy: 'cross-origin' },
-    }),
-  );
-
-  // ========= CORS (solo orígenes explícitos por ENV) =========
-  const ORIGINS = new Set(
+  // --- Cargar whitelist desde ENV ---
+  // Ejemplo:
+  // CORS_ORIGINS=http://localhost:3000,https://qa.soe.la,https://qav2.soe.la,https://portal.soe.la,https://portalv2.soe.la
+  const ALLOWED_ORIGINS = new Set(
     (process.env.CORS_ORIGINS ?? '').split(',').map(norm).filter(Boolean),
   );
 
+  // --- CORTA-FUEGO: responder PRELIGHT OPTIONS antes de guards/interceptors ---
+  app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') {
+      const origin = (req.headers.origin as string | undefined) ?? '';
+      const o = norm(origin);
+      if (origin && ALLOWED_ORIGINS.has(o)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Vary', 'Origin');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader(
+          'Access-Control-Allow-Methods',
+          'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS',
+        );
+        res.setHeader(
+          'Access-Control-Allow-Headers',
+          'Authorization, Content-Type, Accept, X-Requested-With',
+        );
+      }
+      return res.status(204).send();
+    }
+    next();
+  });
+
+  // --- CORS estándar en Nest ---
   app.enableCors({
     origin: (origin, cb) => {
-      // Permite herramientas sin header Origin (curl/postman)
-      if (!origin) return cb(null, true);
-
+      if (!origin) return cb(null, true); // curl/postman
       const o = norm(origin);
-      if (ORIGINS.has(o)) return cb(null, true);
-
-      return cb(new Error(`CORS blocked for origin: ${origin}`), false);
+      return cb(null, ALLOWED_ORIGINS.has(o));
     },
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
@@ -50,46 +63,29 @@ async function bootstrap() {
       'X-Requested-With',
     ],
     exposedHeaders: ['Content-Disposition'],
-    credentials: true, // Permite cookies/credenciales si en el futuro las usas
+    credentials: true,
   });
 
-  // ========= Archivos estáticos (/uploads) con CORS y cache =========
+  // Estáticos (no afectan al login/CORS)
   app.useStaticAssets(join(process.cwd(), 'uploads'), {
     prefix: '/uploads/',
     index: false,
     setHeaders: (res) => {
-      const requestOrigin =
-        (res.req.headers.origin as string | undefined) ?? '';
-      const o = norm(requestOrigin);
-      const isAllowed = !!requestOrigin && ORIGINS.has(o);
-
-      if (isAllowed) {
-        res.setHeader('Access-Control-Allow-Origin', requestOrigin);
-        res.setHeader('Vary', 'Origin'); // Evita cache mixto por origen
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-      }
-
-      // Cache control (ajusta a tu necesidad)
       res.setHeader('Cache-Control', 'public, max-age=3600');
     },
   });
 
-  // ========= Validaciones globales =========
+  // Validaciones globales
   app.useGlobalPipes(
     new ValidationPipe({
-      transform: true, // Convierte payloads a instancias de DTO automáticamente
-      whitelist: true, // Elimina del payload propiedades que NO existan en el DTO
-      forbidNonWhitelisted: true, // Lanza 400 si llega una propiedad no permitida
-      transformOptions: {
-        enableImplicitConversion: true, // Permite conversiones de tipo implícitas (string->number, etc.)
-      },
+      whitelist: true, // elimina props no definidas en DTOs
+      transform: true, // convierte payloads a tipos de los DTOs
+      forbidNonWhitelisted: false, // no lanza 400 por props extra (como antes)
     }),
   );
 
-  const port = parseInt(process.env.PORT ?? '3000', 10);
+  const port = parseInt(process.env.PORT ?? '4000', 10);
   await app.listen(port, '0.0.0.0');
-  console.log(`[BOOT] API on ${await app.getUrl()}`);
+  console.log('[BOOT] API on', await app.getUrl());
 }
 bootstrap();
