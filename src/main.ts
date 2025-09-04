@@ -89,7 +89,7 @@ async function bootstrap() {
       );
       res.setHeader(
         'Access-Control-Allow-Headers',
-        'Authorization, Content-Type, Accept, X-Requested-With',
+        'Authorization, Content-Type, Accept, X-Requested-With,X-Business-Unit-Id',
       );
       return res.status(204).send(); // 204 No Content indica preflight OK
     }
@@ -114,7 +114,8 @@ async function bootstrap() {
       return cb(null, ALLOWED_ORIGINS.has(o)); // true=permitido, false=bloqueado
     },
     methods: 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS',
-    allowedHeaders: 'Authorization,Content-Type,Accept,X-Requested-With',
+    allowedHeaders:
+      'Authorization,Content-Type,Accept,X-Requested-With,X-Business-Unit-Id',
     exposedHeaders: ['Content-Disposition'],
     credentials: true,
   });
