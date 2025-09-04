@@ -11,42 +11,69 @@ function norm(o?: string) {
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    cors: false, // lo manejamos nosotros
+    cors: false, // seguimos manejando nosotros con enableCors
   });
 
   app.setGlobalPrefix('api/v1');
   // @ts-ignore
   app.set('trust proxy', 1);
 
-  // (Opcional) estáticos públicos con CORS abierto
-  app.useStaticAssets(join(__dirname, '..', 'public'), {
+  // (Opcional) estáticos (no afecta CORS del login)
+  app.useStaticAssets(join(process.cwd(), 'uploads'), {
+    prefix: '/uploads/',
+    index: false,
     setHeaders: (res) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Origin', '*'); // o limita a tus orígenes
       res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
     },
   });
 
-  // ✅ Lista "hardcoded" de orígenes permitidos
+  // ✅ Misma whitelist hardcoded que ya te funciona
   const ALLOWED_ORIGINS = new Set(
     ['https://qav2.soe.la', 'http://localhost:3000'].map(norm),
   );
 
+  // 🔹 Middleware Nest-only para asegurar CORS en TODAS las respuestas
+  app.use((req, res, next) => {
+    const origin = (req.headers.origin as string | undefined) ?? '';
+    const o = norm(origin);
+
+    // Refleja ACAO solo si el origen está permitido por tu lista
+    if (origin && ALLOWED_ORIGINS.has(o)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+
+    // Maneja el preflight aquí mismo (Nest-only)
+    if (req.method === 'OPTIONS') {
+      res.setHeader(
+        'Access-Control-Allow-Methods',
+        'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS',
+      );
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Authorization, Content-Type, Accept, X-Requested-With',
+      );
+      return res.status(204).send();
+    }
+
+    next();
+  });
+
+  // ✅ Tu enableCors de siempre (Nest controla CORS)
   app.enableCors({
     origin: (origin, cb) => {
-      // Permite SSR/health checks (no traen Origin)
-      if (!origin) return cb(null, true);
-
+      if (!origin) return cb(null, true); // curl/postman/health
       const o = norm(origin);
-      if (ALLOWED_ORIGINS.has(o)) return cb(null, true);
-
-      // ❌ No lanzar error: devolver false evita 500 en preflight
-      return cb(null, false);
+      return cb(null, ALLOWED_ORIGINS.has(o));
     },
     methods: 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS',
-    allowedHeaders: 'Authorization,Content-Type',
-    credentials: true, // pon false si NO usas cookies/sesión
+    allowedHeaders: 'Authorization,Content-Type,Accept,X-Requested-With',
+    exposedHeaders: ['Content-Disposition'],
+    credentials: true,
   });
 
   app.useGlobalPipes(
@@ -59,7 +86,6 @@ async function bootstrap() {
 
   const port = parseInt(process.env.PORT ?? '4000', 10);
   await app.listen(port, '0.0.0.0');
-
   console.log('[BOOT] API on', await app.getUrl());
 }
 bootstrap();
