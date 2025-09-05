@@ -91,6 +91,7 @@ async function bootstrap() {
         'Access-Control-Allow-Headers',
         'Authorization, Content-Type, Accept, X-Requested-With,X-Business-Unit-Id',
       );
+      res.setHeader('Access-Control-Max-Age', '600');
       return res.status(204).send(); // 204 No Content indica preflight OK
     }
 
@@ -131,6 +132,7 @@ async function bootstrap() {
       whitelist: true,
       transform: true,
       forbidNonWhitelisted: false,
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
 
