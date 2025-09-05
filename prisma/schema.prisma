@@ -47,8 +47,8 @@ datasource db {
 
 model Company {
   id                      String  @id @default(uuid()) @db.Uuid
-  name                    String  @db.VarChar(150)
-  description             String? @db.VarChar(500)
+  name                    String  @db.VarChar(500)
+  description             String? @db.VarChar(1000)
   ide                     String  @db.VarChar(13)
   legalRepresentativeName String? @db.VarChar(250)
   address                 String? @db.VarChar(250)
@@ -70,8 +70,8 @@ model Company {
 
 model BusinessUnit {
   id                      String             @id @default(uuid()) @db.Uuid
-  name                    String             @db.VarChar(150)
-  description             String?            @db.VarChar(500)
+  name                    String             @db.VarChar(500)
+  description             String?            @db.VarChar(1000)
   ide                     String?            @db.VarChar(13)
   legalRepresentativeName String?            @db.VarChar(250)
   address                 String?            @db.VarChar(250)
@@ -95,7 +95,7 @@ model BusinessUnit {
 
 model Position {
   id   String @id @default(uuid()) @db.Uuid
-  name String @db.VarChar(150)
+  name String @db.VarChar(500)
 
   businessUnitId String       @db.Uuid
   businessUnit   BusinessUnit @relation(fields: [businessUnitId], references: [id])
@@ -279,15 +279,15 @@ model UserPermission {
 
 model StrategicPlan {
   id                   String    @id @default(uuid()) @db.Uuid
-  name                 String    @db.VarChar(150)
-  description          String?   @db.VarChar(500)
+  name                 String    @db.VarChar(500)
+  description          String?   @db.VarChar(1000)
   order                Int       @default(0)
   period               Int
   fromAt               DateTime?
   untilAt              DateTime?
-  mission              String?   @db.VarChar(500)
-  vision               String?   @db.VarChar(500)
-  competitiveAdvantage String?   @db.VarChar(250)
+  mission              String?   @db.VarChar(5000)
+  vision               String?   @db.VarChar(5000)
+  competitiveAdvantage String?   @db.VarChar(5000)
   status               String    @default("OPE") @db.VarChar(3)
 
   businessUnitId String       @db.Uuid
@@ -309,8 +309,8 @@ model StrategicPlan {
 
 model StrategicValue {
   id          String  @id @default(uuid()) @db.Uuid
-  name        String  @db.VarChar(150)
-  description String? @db.VarChar(500)
+  name        String  @db.VarChar(500)
+  description String? @db.VarChar(1000)
   order       Int     @default(0)
 
   strategicPlanId String        @db.Uuid
@@ -325,8 +325,8 @@ model StrategicValue {
 
 model StrategicSuccessFactor {
   id          String  @id @default(uuid()) @db.Uuid
-  name        String  @db.VarChar(150)
-  description String? @db.VarChar(500)
+  name        String  @db.VarChar(500)
+  description String? @db.VarChar(1000)
   order       Int     @default(0)
 
   strategicPlanId String        @db.Uuid
@@ -341,8 +341,8 @@ model StrategicSuccessFactor {
 
 model Objective {
   id               String  @id @default(uuid()) @db.Uuid
-  name             String  @db.VarChar(150)
-  description      String? @db.VarChar(500)
+  name             String  @db.VarChar(500)
+  description      String? @db.VarChar(1000)
   order            Int     @default(0)
   perspective      String  @default("FIN") @db.VarChar(3)
   level            String  @default("EST") @db.VarChar(3)
@@ -377,10 +377,10 @@ model Objective {
 
 model Indicator {
   id           String    @id @default(uuid()) @db.Uuid
-  name         String    @db.VarChar(150)
-  description  String?   @db.VarChar(500)
+  name         String    @db.VarChar(500)
+  description  String?   @db.VarChar(1000)
   order        Int       @default(0)
-  formula      String?   @default("N/A")
+  formula      String?   @db.VarChar(1000) @default("N/A")
   isDefault    Boolean   @default(false)
   isConfigured Boolean   @default(false)
   origin       String?   @default("MAN")
@@ -471,8 +471,8 @@ model ObjectiveGoalHist {
 
 model StrategicProject {
   id          String    @id @default(uuid()) @db.Uuid
-  name        String    @db.VarChar(150)
-  description String?   @db.VarChar(500)
+  name        String    @db.VarChar(500)
+  description String?   @db.VarChar(1000)
   order       Int       @default(0)
   fromAt      DateTime?
   untilAt     DateTime?
@@ -502,9 +502,9 @@ model StrategicProject {
 
 model ProjectFactor {
   id          String  @id @default(uuid()) @db.Uuid
-  name        String
-  description String? @default("N/A")
-  result      String? @default("N/A") @db.VarChar(200)
+  name        String  @db.VarChar(500)
+  description String? @db.VarChar(1000) @default("N/A")
+  result      String? @db.VarChar(1000) @default("N/A")
   projectId   String  @db.Uuid
   order       Int     @default(0)
 
@@ -544,19 +544,19 @@ model ProjectParticipant {
 
 model ProjectTask {
   id                   String    @id @default(uuid()) @db.Uuid
-  name                 String    @db.VarChar(150)
-  description          String?   @db.VarChar(500)
+  name                 String    @db.VarChar(500)
+  description          String?   @db.VarChar(1000)
   order                Int       @default(0)
   fromAt               DateTime  @db.Date
   untilAt              DateTime  @db.Date
   finishedAt           DateTime? @db.Date
   status               String    @default("OPE") @db.VarChar(3)
-  props                String?   @default("N/A") @db.VarChar(250)
-  result               String?   @default("N/A") @db.VarChar(250)
-  methodology          String?   @default("N/A") @db.VarChar(100)
+  props                String?   @default("N/A") @db.VarChar(1000)
+  result               String?   @default("N/A") @db.VarChar(1000)
+  methodology          String?   @default("N/A") @db.VarChar(1000)
   budget               Decimal   @default(0)
-  limitation           String?   @default("N/A") @db.VarChar(250)
-  comments             String?   @default("N/A") @db.VarChar(500)
+  limitation           String?   @default("N/A") @db.VarChar(1000)
+  comments             String?   @default("N/A") @db.VarChar(1000)
   projectFactorId      String    @db.Uuid
   projectParticipantId String    @db.Uuid
 
@@ -575,8 +575,8 @@ model ProjectTask {
 
 model Lever {
   id          String  @id @default(uuid()) @db.Uuid
-  name        String  @db.VarChar(150)
-  description String? @db.VarChar(500)
+  name        String  @db.VarChar(500)
+  description String? @db.VarChar(1000)
   order       Int     @default(0)
 
   positionId String   @db.Uuid
@@ -593,7 +593,7 @@ model Priority {
   id       String  @id @default(uuid()) @db.Uuid
   isActive Boolean @default(true)
 
-  name        String  @db.VarChar(1000)
+  name        String  @db.VarChar(500)
   description String? @db.VarChar(1000)
   order       Int     @default(0)
 
@@ -656,8 +656,8 @@ model File {
 
 model NotificationTemplate {
   id            String   @id @default(uuid())
-  name          String   @db.VarChar(150)
-  subject       String?  @db.VarChar(150)
+  name          String   @db.VarChar(500)
+  subject       String?  @db.VarChar(1000)
   codeTemplate  String   @db.Char(3) @unique
   template      String   @db.Text
 

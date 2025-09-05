@@ -40,6 +40,16 @@ async function main() {
     { name: 'priorities', shortCode: 'priority' },
     { name: 'performance', shortCode: 'performance' },
     { name: 'levers', shortCode: 'lever' },
+    { name: 'task-participants', shortCode: 'taskParticipant' },
+    { name: 'resumes', shortCode: 'resume' },
+    { name: 'companies-management', shortCode: 'compnayManagement' },
+    { name: 'business-units-management', shortCode: 'businessUnitManagement' },
+    { name: 'users-management', shortCode: 'userManagement' },
+    { name: 'positions-management', shortCode: 'positionManagement' },
+    {
+      name: 'strategic-plans-management',
+      shortCode: 'strategicPlanManagement',
+    },
   ];
 
   // Matriz de permisos por rol (en el orden de actions[])
