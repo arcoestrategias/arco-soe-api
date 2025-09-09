@@ -17,10 +17,6 @@ export class CreatePositionDto {
   @IsNotEmpty()
   businessUnitId: string;
 
-  @IsUUID()
-  @IsOptional()
-  userId?: string;
-
   @IsBoolean()
   @IsOptional()
   isCeo?: boolean;
@@ -34,4 +30,17 @@ export class CreatePositionDto {
   @MaxLength(500)
   @IsOptional()
   vision?: string;
+
+  @IsString()
+  @MaxLength(500)
+  @IsOptional()
+  department?: string;
+
+  @IsUUID()
+  @IsOptional()
+  strategicPlanId?: string;
+
+  @IsUUID()
+  @IsOptional()
+  positionSuperiorId?: string;
 }

@@ -12,4 +12,9 @@ export class UpdateUserBusinessUnitDto {
   @IsOptional()
   @IsBoolean()
   isResponsible?: boolean;
+
+  //**"mover" desde esta BU a la nueva. Si fromBusinessUnitId no viene, el PATCH funciona como antes (actualiza el vínculo de la BU destino, sin “mover”).*/
+  @IsOptional()
+  @IsUUID()
+  fromBusinessUnitId?: string;
 }
