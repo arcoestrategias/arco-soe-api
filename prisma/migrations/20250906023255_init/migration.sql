@@ -1,8 +1,8 @@
 -- CreateTable
 CREATE TABLE "Company" (
     "id" UUID NOT NULL,
-    "name" VARCHAR(150) NOT NULL,
-    "description" VARCHAR(500),
+    "name" VARCHAR(500) NOT NULL,
+    "description" VARCHAR(1000),
     "ide" VARCHAR(13) NOT NULL,
     "legalRepresentativeName" VARCHAR(250),
     "address" VARCHAR(250),
@@ -22,8 +22,8 @@ CREATE TABLE "Company" (
 -- CreateTable
 CREATE TABLE "BusinessUnit" (
     "id" UUID NOT NULL,
-    "name" VARCHAR(150) NOT NULL,
-    "description" VARCHAR(500),
+    "name" VARCHAR(500) NOT NULL,
+    "description" VARCHAR(1000),
     "ide" VARCHAR(13),
     "legalRepresentativeName" VARCHAR(250),
     "address" VARCHAR(250),
@@ -43,9 +43,8 @@ CREATE TABLE "BusinessUnit" (
 -- CreateTable
 CREATE TABLE "Position" (
     "id" UUID NOT NULL,
-    "name" VARCHAR(150) NOT NULL,
+    "name" VARCHAR(500) NOT NULL,
     "businessUnitId" UUID NOT NULL,
-    "userId" UUID,
     "strategicPlanId" UUID,
     "mission" TEXT,
     "vision" TEXT,
@@ -130,6 +129,7 @@ CREATE TABLE "User" (
     "lastName" TEXT NOT NULL,
     "password" TEXT NOT NULL,
     "isPlatformAdmin" BOOLEAN NOT NULL DEFAULT false,
+    "tokenInvalidBeforeAt" TIMESTAMP(3),
     "resetToken" VARCHAR(255),
     "resetTokenExpiresAt" TIMESTAMP(3),
     "isEmailConfirmed" BOOLEAN NOT NULL DEFAULT false,
@@ -159,18 +159,13 @@ CREATE TABLE "UserCompany" (
 
 -- CreateTable
 CREATE TABLE "UserBusinessUnit" (
-    "id" UUID NOT NULL,
     "userId" UUID NOT NULL,
     "businessUnitId" UUID NOT NULL,
-    "isResponsible" BOOLEAN NOT NULL DEFAULT false,
     "positionId" UUID,
     "roleId" UUID,
-    "createdBy" UUID,
-    "updatedBy" UUID,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "isResponsible" BOOLEAN NOT NULL DEFAULT false,
 
-    CONSTRAINT "UserBusinessUnit_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "UserBusinessUnit_pkey" PRIMARY KEY ("userId","businessUnitId")
 );
 
 -- CreateTable
@@ -191,15 +186,15 @@ CREATE TABLE "UserPermission" (
 -- CreateTable
 CREATE TABLE "StrategicPlan" (
     "id" UUID NOT NULL,
-    "name" VARCHAR(150) NOT NULL,
-    "description" VARCHAR(500),
+    "name" VARCHAR(500) NOT NULL,
+    "description" VARCHAR(1000),
     "order" INTEGER NOT NULL DEFAULT 0,
     "period" INTEGER NOT NULL,
     "fromAt" TIMESTAMP(3),
     "untilAt" TIMESTAMP(3),
-    "mission" VARCHAR(500),
-    "vision" VARCHAR(500),
-    "competitiveAdvantage" VARCHAR(250),
+    "mission" VARCHAR(5000),
+    "vision" VARCHAR(5000),
+    "competitiveAdvantage" VARCHAR(5000),
     "status" VARCHAR(3) NOT NULL DEFAULT 'OPE',
     "businessUnitId" UUID NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
@@ -214,8 +209,8 @@ CREATE TABLE "StrategicPlan" (
 -- CreateTable
 CREATE TABLE "StrategicValue" (
     "id" UUID NOT NULL,
-    "name" VARCHAR(150) NOT NULL,
-    "description" VARCHAR(500),
+    "name" VARCHAR(500) NOT NULL,
+    "description" VARCHAR(1000),
     "order" INTEGER NOT NULL DEFAULT 0,
     "strategicPlanId" UUID NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
@@ -230,8 +225,8 @@ CREATE TABLE "StrategicValue" (
 -- CreateTable
 CREATE TABLE "StrategicSuccessFactor" (
     "id" UUID NOT NULL,
-    "name" VARCHAR(150) NOT NULL,
-    "description" VARCHAR(500),
+    "name" VARCHAR(500) NOT NULL,
+    "description" VARCHAR(1000),
     "order" INTEGER NOT NULL DEFAULT 0,
     "strategicPlanId" UUID NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
@@ -246,8 +241,8 @@ CREATE TABLE "StrategicSuccessFactor" (
 -- CreateTable
 CREATE TABLE "Objective" (
     "id" UUID NOT NULL,
-    "name" VARCHAR(150) NOT NULL,
-    "description" VARCHAR(500),
+    "name" VARCHAR(500) NOT NULL,
+    "description" VARCHAR(1000),
     "order" INTEGER NOT NULL DEFAULT 0,
     "perspective" VARCHAR(3) NOT NULL DEFAULT 'FIN',
     "level" VARCHAR(3) NOT NULL DEFAULT 'EST',
@@ -270,10 +265,10 @@ CREATE TABLE "Objective" (
 -- CreateTable
 CREATE TABLE "Indicator" (
     "id" UUID NOT NULL,
-    "name" VARCHAR(150) NOT NULL,
-    "description" VARCHAR(500),
+    "name" VARCHAR(500) NOT NULL,
+    "description" VARCHAR(1000),
     "order" INTEGER NOT NULL DEFAULT 0,
-    "formula" TEXT DEFAULT 'N/A',
+    "formula" VARCHAR(1000) DEFAULT 'N/A',
     "isDefault" BOOLEAN NOT NULL DEFAULT false,
     "isConfigured" BOOLEAN NOT NULL DEFAULT false,
     "origin" TEXT DEFAULT 'MAN',
@@ -354,8 +349,8 @@ CREATE TABLE "ObjectiveGoalHist" (
 -- CreateTable
 CREATE TABLE "StrategicProject" (
     "id" UUID NOT NULL,
-    "name" VARCHAR(150) NOT NULL,
-    "description" VARCHAR(500),
+    "name" VARCHAR(500) NOT NULL,
+    "description" VARCHAR(1000),
     "order" INTEGER NOT NULL DEFAULT 0,
     "fromAt" TIMESTAMP(3),
     "untilAt" TIMESTAMP(3),
@@ -378,9 +373,9 @@ CREATE TABLE "StrategicProject" (
 -- CreateTable
 CREATE TABLE "ProjectFactor" (
     "id" UUID NOT NULL,
-    "name" TEXT NOT NULL,
-    "description" TEXT DEFAULT 'N/A',
-    "result" VARCHAR(200) DEFAULT 'N/A',
+    "name" VARCHAR(500) NOT NULL,
+    "description" VARCHAR(1000) DEFAULT 'N/A',
+    "result" VARCHAR(1000) DEFAULT 'N/A',
     "projectId" UUID NOT NULL,
     "order" INTEGER NOT NULL DEFAULT 0,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
@@ -410,19 +405,19 @@ CREATE TABLE "ProjectParticipant" (
 -- CreateTable
 CREATE TABLE "ProjectTask" (
     "id" UUID NOT NULL,
-    "name" VARCHAR(150) NOT NULL,
-    "description" VARCHAR(500),
+    "name" VARCHAR(500) NOT NULL,
+    "description" VARCHAR(1000),
     "order" INTEGER NOT NULL DEFAULT 0,
     "fromAt" DATE NOT NULL,
     "untilAt" DATE NOT NULL,
     "finishedAt" DATE,
     "status" VARCHAR(3) NOT NULL DEFAULT 'OPE',
-    "props" VARCHAR(250) DEFAULT 'N/A',
-    "result" VARCHAR(250) DEFAULT 'N/A',
-    "methodology" VARCHAR(100) DEFAULT 'N/A',
+    "props" VARCHAR(1000) DEFAULT 'N/A',
+    "result" VARCHAR(1000) DEFAULT 'N/A',
+    "methodology" VARCHAR(1000) DEFAULT 'N/A',
     "budget" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "limitation" VARCHAR(250) DEFAULT 'N/A',
-    "comments" VARCHAR(500) DEFAULT 'N/A',
+    "limitation" VARCHAR(1000) DEFAULT 'N/A',
+    "comments" VARCHAR(1000) DEFAULT 'N/A',
     "projectFactorId" UUID NOT NULL,
     "projectParticipantId" UUID NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
@@ -433,6 +428,91 @@ CREATE TABLE "ProjectTask" (
 
     CONSTRAINT "ProjectTask_pkey" PRIMARY KEY ("id")
 );
+
+-- CreateTable
+CREATE TABLE "Lever" (
+    "id" UUID NOT NULL,
+    "name" VARCHAR(500) NOT NULL,
+    "description" VARCHAR(1000),
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "positionId" UUID NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdBy" UUID,
+    "updatedBy" UUID,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Lever_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Priority" (
+    "id" UUID NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "name" VARCHAR(500) NOT NULL,
+    "description" VARCHAR(1000),
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "fromAt" DATE NOT NULL,
+    "untilAt" DATE NOT NULL,
+    "finishedAt" DATE,
+    "canceledAt" DATE,
+    "month" INTEGER,
+    "year" INTEGER,
+    "status" VARCHAR(3) NOT NULL DEFAULT 'OPE',
+    "positionId" UUID NOT NULL,
+    "objectiveId" UUID,
+    "createdBy" UUID,
+    "updatedBy" UUID,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Priority_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "files" (
+    "id" TEXT NOT NULL,
+    "fieldName" TEXT,
+    "description" TEXT,
+    "originalName" TEXT,
+    "encoding" TEXT,
+    "mimeType" TEXT,
+    "destination" TEXT,
+    "fileName" TEXT,
+    "path" TEXT,
+    "sizeByte" DECIMAL(65,30),
+    "extension" TEXT,
+    "icon" TEXT,
+    "moduleShortcode" TEXT,
+    "referenceId" UUID,
+    "screenKey" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdBy" UUID,
+    "updatedBy" UUID,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "files_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "NotificationTemplate" (
+    "id" TEXT NOT NULL,
+    "name" VARCHAR(500) NOT NULL,
+    "subject" VARCHAR(1000),
+    "codeTemplate" CHAR(3) NOT NULL,
+    "template" TEXT NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdBy" TEXT,
+    "updatedBy" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "NotificationTemplate_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "Position_businessUnitId_idx" ON "Position"("businessUnitId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Role_name_key" ON "Role"("name");
@@ -459,7 +539,13 @@ CREATE UNIQUE INDEX "User_ide_key" ON "User"("ide");
 CREATE UNIQUE INDEX "UserCompany_userId_companyId_key" ON "UserCompany"("userId", "companyId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "UserBusinessUnit_userId_businessUnitId_key" ON "UserBusinessUnit"("userId", "businessUnitId");
+CREATE INDEX "UserBusinessUnit_businessUnitId_idx" ON "UserBusinessUnit"("businessUnitId");
+
+-- CreateIndex
+CREATE INDEX "UserBusinessUnit_userId_idx" ON "UserBusinessUnit"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UserBusinessUnit_positionId_key" ON "UserBusinessUnit"("positionId");
 
 -- CreateIndex
 CREATE INDEX "UserPermission_userId_businessUnitId_idx" ON "UserPermission"("userId", "businessUnitId");
@@ -491,14 +577,38 @@ CREATE INDEX "ProjectTask_projectFactorId_idx" ON "ProjectTask"("projectFactorId
 -- CreateIndex
 CREATE INDEX "ProjectTask_projectParticipantId_idx" ON "ProjectTask"("projectParticipantId");
 
+-- CreateIndex
+CREATE INDEX "Priority_positionId_idx" ON "Priority"("positionId");
+
+-- CreateIndex
+CREATE INDEX "Priority_objectiveId_idx" ON "Priority"("objectiveId");
+
+-- CreateIndex
+CREATE INDEX "Priority_status_idx" ON "Priority"("status");
+
+-- CreateIndex
+CREATE INDEX "Priority_year_month_idx" ON "Priority"("year", "month");
+
+-- CreateIndex
+CREATE INDEX "Priority_untilAt_idx" ON "Priority"("untilAt");
+
+-- CreateIndex
+CREATE INDEX "idx_files_module_ref" ON "files"("moduleShortcode", "referenceId");
+
+-- CreateIndex
+CREATE INDEX "idx_files_module_ref_screen" ON "files"("moduleShortcode", "referenceId", "screenKey");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "NotificationTemplate_codeTemplate_key" ON "NotificationTemplate"("codeTemplate");
+
+-- CreateIndex
+CREATE INDEX "NotificationTemplate_isActive_idx" ON "NotificationTemplate"("isActive");
+
 -- AddForeignKey
 ALTER TABLE "BusinessUnit" ADD CONSTRAINT "BusinessUnit_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Position" ADD CONSTRAINT "Position_businessUnitId_fkey" FOREIGN KEY ("businessUnitId") REFERENCES "BusinessUnit"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Position" ADD CONSTRAINT "Position_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Position" ADD CONSTRAINT "Position_strategicPlanId_fkey" FOREIGN KEY ("strategicPlanId") REFERENCES "StrategicPlan"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -592,3 +702,12 @@ ALTER TABLE "ProjectTask" ADD CONSTRAINT "ProjectTask_projectFactorId_fkey" FORE
 
 -- AddForeignKey
 ALTER TABLE "ProjectTask" ADD CONSTRAINT "ProjectTask_projectParticipantId_fkey" FOREIGN KEY ("projectParticipantId") REFERENCES "ProjectParticipant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Lever" ADD CONSTRAINT "Lever_positionId_fkey" FOREIGN KEY ("positionId") REFERENCES "Position"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Priority" ADD CONSTRAINT "Priority_positionId_fkey" FOREIGN KEY ("positionId") REFERENCES "Position"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Priority" ADD CONSTRAINT "Priority_objectiveId_fkey" FOREIGN KEY ("objectiveId") REFERENCES "Objective"("id") ON DELETE SET NULL ON UPDATE CASCADE;

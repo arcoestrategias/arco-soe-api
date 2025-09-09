@@ -170,7 +170,6 @@ export class CompaniesService {
             name: 'CEO',
             isCeo: true,
             businessUnitId: businessUnit.id,
-            userId: user.id,
           },
           userAdminId,
           tx,

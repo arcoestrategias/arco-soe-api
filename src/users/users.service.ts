@@ -20,11 +20,14 @@ import { RolesRepository } from 'src/roles/repositories/roles.repository';
 import { AssignUserToBusinessUnitDto } from './dto/assign-user-to-business-unit.dto';
 import { UserAssignmentRepository } from './repositories/user-assignment.repository';
 import { toResponseUserDto } from './mappers/to-response-user.dto';
+import { PositionsRepository } from 'src/position/repositories/positions.repository';
+import { generateSecurePassword } from 'src/common/helpers/generate-password';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly usersRepository: UsersRepository,
+    private readonly positionRepository: PositionsRepository,
     private readonly companiesRepository: CompaniesRepository,
     private readonly rolesRepository: RolesRepository,
     private readonly assignmentRepo: UserAssignmentRepository,
@@ -117,6 +120,14 @@ export class UsersService {
     }
   }
 
+  async listByCompanyGroupedByBusinessUnit(companyId: string) {
+    return this.usersRepository.findByCompanyGroupedByBusinessUnit(companyId);
+  }
+
+  async findByBusinessUnit(businessUnitId: string): Promise<UserEntity[]> {
+    return this.usersRepository.findByBusinessUnitId(businessUnitId);
+  }
+
   async update(id: string, updateUserDto: UpdateUserDto): Promise<UserEntity> {
     try {
       await this.findOne(id);
@@ -178,8 +189,9 @@ export class UsersService {
 
   async createUserWithRoleAndUnit(
     dto: CreateUserWithRoleAndUnitDto,
+    actorId?: string, // opcional si quieres trazar quién creó
   ): Promise<UserEntity> {
-    // 1. Validaciones únicas
+    // 1) Validaciones únicas (igual que ya tienes)
     const existingEmail = await this.usersRepository.findByEmail(dto.email);
     if (existingEmail)
       throw new ConflictException('El email ya está registrado');
@@ -198,98 +210,134 @@ export class UsersService {
         throw new ConflictException('El nombre de usuario ya está en uso');
     }
 
-    // 2. Generar contraseña por defecto
-    const rawPassword = `SOE_${dto.ide}`;
-    const hashedPassword = await hashPassword(rawPassword);
-    dto.password = hashedPassword;
+    // 2) Password por defecto o generada desde el front
+    console.log('Password front', dto.password);
+    const passwordToHash = dto.password || generateSecurePassword();
+    dto.password = await hashPassword(passwordToHash);
 
-    // 3. Crear usuario
+    // 3) Crear usuario
     const user = await this.usersRepository.createFull(dto);
 
-    // 4. Asignar a unidad y rol
-    await this.usersRepository.assignToBusinessUnit(
-      user.id,
-      dto.businessUnitId,
-      dto.roleId,
-    );
-
-    // 5. Clonar permisos del rol
-    const rolePermissions = await this.rolesRepository.findPermissions(
-      dto.roleId,
-    );
-
-    if (!rolePermissions.length) {
-      throw new BadRequestException(
-        'El rol seleccionado no tiene permisos asignados',
-      );
-    }
-
-    await this.usersRepository.bulkCreatePermissions(
-      rolePermissions.map((p) => ({
-        userId: user.id,
-        businessUnitId: dto.businessUnitId,
-        permissionId: p.permissionId,
-        isAllowed: true,
-      })),
-    );
+    // 4) Asignar a BU + rol (y copiar permisos del rol) en una sola operación
+    await this.assignmentRepo.assignExistingUserToBusinessUnit({
+      userId: user.id,
+      businessUnitId: dto.businessUnitId,
+      roleId: dto.roleId, // obligatorio según tu DTO
+      positionId: dto.positionId, // opcional; puede venir null/undefined
+      isResponsible: !!dto.isResponsible,
+      // para creación siempre copiamos permisos del rol
+      copyPermissions: true,
+      actorId,
+    });
 
     return user;
   }
 
-  async assignToBusinessUnit(dto: AssignUserToBusinessUnitDto) {
-    return this.assignmentRepo.assignExistingUserToBusinessUnit({
-      userId: dto.userId,
-      businessUnitId: dto.businessUnitId,
-      roleId: dto.roleId,
-      positionId: dto.positionId,
-      isResponsible: dto.isResponsible ?? false,
-      copyPermissions: dto.copyPermissions ?? true,
-    });
-  }
+  // async assignToBusinessUnit(dto: AssignUserToBusinessUnitDto) {
+  //   return this.assignmentRepo.assignExistingUserToBusinessUnit({
+  //     userId: dto.userId,
+  //     businessUnitId: dto.businessUnitId,
+  //     roleId: dto.roleId,
+  //     positionId: dto.positionId,
+  //     isResponsible: dto.isResponsible ?? false,
+  //     copyPermissions: dto.copyPermissions ?? true,
+  //   });
+  // }
 
   async updateUserBusinessUnit(
-    params: { userId: string; businessUnitId: string },
+    params: { userId: string; businessUnitId: string }, // BU destino
     dto: {
       roleId?: string | null;
       positionId?: string | null;
       isResponsible?: boolean;
+      fromBusinessUnitId?: string; // <- opcional para mover
     },
     actorId: string,
   ) {
-    const { userId, businessUnitId } = params;
+    const { userId, businessUnitId: toBusinessUnitId } = params;
 
-    // 1) Buscar vínculo
-    const link = await this.assignmentRepo.findByUserAndBusinessUnit(
+    // 1) Buscamos el vínculo destino (puede ser null)
+    const targetLink = await this.assignmentRepo.findByUserAndBusinessUnit(
       userId,
-      businessUnitId,
+      toBusinessUnitId,
     );
-    if (!link)
-      throw new NotFoundException(
-        'El vínculo usuario–unidad de negocio no existe',
+
+    // ===== Caso A: NO existe el vínculo en BU destino =====
+    if (!targetLink) {
+      // A.1) Si viene fromBusinessUnitId => MOVER (crea en destino y borra en origen)
+      if (dto.fromBusinessUnitId) {
+        await this.assignmentRepo.moveUserBetweenBusinessUnitsAtomic({
+          userId,
+          fromBusinessUnitId: dto.fromBusinessUnitId,
+          toBusinessUnitId: toBusinessUnitId,
+          roleId: dto.roleId ?? undefined, // normaliza null -> undefined
+          positionId: dto.positionId === null ? undefined : dto.positionId, // create no acepta disconnect
+          isResponsible: dto.isResponsible,
+          actorId,
+        });
+        return this.assignmentRepo.findByUserAndBusinessUnit(
+          userId,
+          toBusinessUnitId,
+        );
+      }
+
+      // A.2) Si NO viene fromBusinessUnitId => ASIGNACIÓN ADICIONAL (user en 2 BUs)
+      await this.assignmentRepo.assignExistingUserToBusinessUnit({
+        userId,
+        businessUnitId: toBusinessUnitId,
+        roleId: dto.roleId ?? undefined,
+        positionId: dto.positionId === null ? undefined : dto.positionId,
+        isResponsible: dto.isResponsible,
+        actorId,
+      });
+      return this.assignmentRepo.findByUserAndBusinessUnit(
+        userId,
+        toBusinessUnitId,
       );
-
-    // 2) Preparar update usando relaciones (NO roleId/positionId directos)
-    const data: any = {
-      isResponsible:
-        typeof dto.isResponsible === 'boolean' ? dto.isResponsible : undefined,
-      updatedBy: actorId,
-    };
-
-    if (dto.roleId !== undefined) {
-      data.role = dto.roleId
-        ? { connect: { id: dto.roleId } }
-        : { disconnect: true };
-    }
-    if (dto.positionId !== undefined) {
-      data.position = dto.positionId
-        ? { connect: { id: dto.positionId } }
-        : { disconnect: true };
     }
 
-    // 3) Actualizar
-    return this.assignmentRepo.updateByUserAndBusinessUnit(
-      { userId, businessUnitId },
-      data,
+    // ===== Caso B: SÍ existe el vínculo en BU destino =====
+    // (a partir de aquí, TypeScript ya sabe que targetLink no es null)
+    // Validaciones de posición si viene (puede mantener tus helpers actuales)
+    if (dto.positionId !== undefined && dto.positionId !== null) {
+      const pos = await this.positionRepository.findById(dto.positionId);
+      if (!pos) throw new NotFoundException('Posición no encontrada');
+      if (pos.businessUnitId !== toBusinessUnitId) {
+        throw new BadRequestException(
+          'La posición no pertenece a la unidad de negocio',
+        );
+      }
+      const taken = await this.usersRepository.findUBUByPositionId(
+        dto.positionId,
+      );
+      if (
+        taken &&
+        !(taken.userId === userId && taken.businessUnitId === toBusinessUnitId)
+      ) {
+        throw new ConflictException('La posición ya está ocupada');
+      }
+    }
+
+    // Reglas de cambio de rol (solo si realmente cambia y no es null)
+    const incomingRoleId = dto.roleId;
+    const currentRoleId = targetLink.role?.id ?? null;
+    const shouldChangeRole =
+      incomingRoleId !== undefined &&
+      incomingRoleId !== null &&
+      incomingRoleId !== currentRoleId;
+
+    await this.assignmentRepo.updateUserBusinessUnitAtomic({
+      userId,
+      businessUnitId: toBusinessUnitId,
+      roleId: shouldChangeRole ? incomingRoleId! : undefined,
+      positionId: dto.positionId, // undefined: no tocar; null: desconectar; string: conectar
+      isResponsible: dto.isResponsible,
+      actorId,
+    });
+
+    return this.assignmentRepo.findByUserAndBusinessUnit(
+      userId,
+      toBusinessUnitId,
     );
   }
 

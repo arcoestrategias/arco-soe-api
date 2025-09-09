@@ -38,6 +38,14 @@ export class PositionsController {
     return new ResponsePositionDto(position);
   }
 
+  @Get('company/:companyId/group-by-business-unit')
+  @Permissions(PERMISSIONS.POSITIONS.READ)
+  async listByCompanyGroupedByBusinessUnit(
+    @Param('companyId') companyId: string,
+  ) {
+    return this.positionsService.listByCompanyGroupedByBusinessUnit(companyId);
+  }
+
   @Permissions(PERMISSIONS.POSITIONS.READ)
   @Get()
   async findAll(

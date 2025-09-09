@@ -102,8 +102,8 @@ model Position {
 
   userLinks UserBusinessUnit[]
 
-  userId String? @db.Uuid
-  user   User?   @relation(fields: [userId], references: [id])
+  // userId String? @db.Uuid
+  // user   User?   @relation(fields: [userId], references: [id])
 
   strategicPlanId String?        @db.Uuid
   strategicPlan   StrategicPlan? @relation(fields: [strategicPlanId], references: [id])
@@ -129,6 +129,8 @@ model Position {
 
   objectives        Objective[]
   strategicProjects StrategicProject[]
+
+  @@index([businessUnitId])
 }
 
 model Role {
@@ -220,8 +222,6 @@ model User {
   updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  positions Position[]
 }
 
 model UserCompany {
@@ -236,25 +236,43 @@ model UserCompany {
   @@unique([userId, companyId])
 }
 
+// model UserBusinessUnit {
+//   id             String  @id @default(uuid()) @db.Uuid
+//   userId         String  @db.Uuid
+//   businessUnitId String  @db.Uuid
+//   isResponsible  Boolean @default(false)
+//   positionId     String? @db.Uuid
+//   roleId         String? @db.Uuid
+
+//   user         User         @relation(fields: [userId], references: [id])
+//   businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id])
+//   position     Position?    @relation(fields: [positionId], references: [id])
+//   role         Role?        @relation(fields: [roleId], references: [id])
+
+//   createdBy String?  @db.Uuid
+//   updatedBy String?  @db.Uuid
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+
+//   @@unique([userId, businessUnitId])
+// }
+
 model UserBusinessUnit {
-  id             String  @id @default(uuid()) @db.Uuid
-  userId         String  @db.Uuid
-  businessUnitId String  @db.Uuid
-  isResponsible  Boolean @default(false)
-  positionId     String? @db.Uuid
-  roleId         String? @db.Uuid
+  userId         String    @db.Uuid
+  businessUnitId String    @db.Uuid
+  positionId     String?   @db.Uuid
+  roleId         String?   @db.Uuid
+  isResponsible  Boolean   @default(false)
 
-  user         User         @relation(fields: [userId], references: [id])
-  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id])
-  position     Position?    @relation(fields: [positionId], references: [id])
-  role         Role?        @relation(fields: [roleId], references: [id])
+  user           User      @relation(fields: [userId], references: [id])
+  businessUnit   BusinessUnit @relation(fields: [businessUnitId], references: [id])
+  position       Position? @relation(fields: [positionId], references: [id])
+  role           Role?     @relation(fields: [roleId], references: [id])
 
-  createdBy String?  @db.Uuid
-  updatedBy String?  @db.Uuid
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([userId, businessUnitId])
+  @@id([userId, businessUnitId]) // un registro por usuario y BU
+  @@unique([positionId])         // una posición no puede tener 2 usuarios (permite null duplicado)
+  @@index([businessUnitId])
+  @@index([userId])
 }
 
 model UserPermission {
@@ -591,8 +609,6 @@ model Lever {
 
 model Priority {
   id       String  @id @default(uuid()) @db.Uuid
-  isActive Boolean @default(true)
-
   name        String  @db.VarChar(500)
   description String? @db.VarChar(1000)
   order       Int     @default(0)
@@ -613,6 +629,7 @@ model Priority {
   objectiveId String? @db.Uuid
   objective   Objective? @relation(fields: [objectiveId], references: [id])
 
+  isActive Boolean @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())

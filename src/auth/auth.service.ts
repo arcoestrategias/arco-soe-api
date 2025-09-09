@@ -99,7 +99,7 @@ export class AuthService {
 
     const resetUrl = buildUrl(`/auth/reset-password?token=${resetToken}`);
     await this.notificationService.sendByCode({
-      codeTemplate: 'RST',
+      codeTemplate: 'T03',
       to: user.email,
       variables: {
         firstname: user.firstName ?? user.username ?? 'usuario',
@@ -129,7 +129,7 @@ export class AuthService {
     } as any);
 
     await this.notificationService.sendByCode({
-      codeTemplate: 'RSD',
+      codeTemplate: 'T04',
       to: user.email,
       variables: {
         firstname: user.firstName ?? user.username ?? 'usuario',
@@ -169,7 +169,7 @@ export class AuthService {
     } as any);
 
     await this.notificationService.sendByCode({
-      codeTemplate: 'ACF',
+      codeTemplate: 'T02',
       to: user.email,
       variables: {
         firstname: user.firstName ?? user.username ?? 'usuario',

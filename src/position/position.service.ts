@@ -34,6 +34,10 @@ export class PositionsService {
     return position;
   }
 
+  async listByCompanyGroupedByBusinessUnit(companyId: string) {
+    return this.positionsRepo.findByCompanyGroupedByBusinessUnit(companyId);
+  }
+
   async update(
     id: string,
     dto: UpdatePositionDto,

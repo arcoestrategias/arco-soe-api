@@ -2,7 +2,6 @@ export class PositionEntity {
   readonly id: string;
   readonly name: string;
   readonly businessUnitId: string;
-  readonly userId?: string | null;
   readonly strategicPlanId?: string | null;
   readonly mission?: string | null;
   readonly vision?: string | null;
@@ -23,7 +22,6 @@ export class PositionEntity {
     this.id = position.id;
     this.name = position.name;
     this.businessUnitId = position.businessUnitId;
-    this.userId = position.userId ?? null;
     this.strategicPlanId = position.strategicPlanId ?? null;
     this.mission = position.mission ?? null;
     this.vision = position.vision ?? null;

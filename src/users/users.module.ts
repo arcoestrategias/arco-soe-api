@@ -8,6 +8,7 @@ import { CompaniesModule } from 'src/companies/companies.module';
 import { RolesModule } from 'src/roles/roles.module';
 import { UserAssignmentRepository } from './repositories/user-assignment.repository';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { PositionModule } from 'src/position/position.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
     CompaniesModule,
     RolesModule,
     NotificationsModule,
+    PositionModule,
   ],
   controllers: [UsersController],
   providers: [

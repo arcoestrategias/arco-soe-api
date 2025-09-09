@@ -4,7 +4,6 @@ export class ResponsePositionDto {
   id: string;
   name: string;
   businessUnitId: string;
-  userId: string | null;
   strategicPlanId: string | null;
   mission: string | null;
   vision: string | null;
@@ -16,14 +15,13 @@ export class ResponsePositionDto {
   updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
-  businessUnitName: string; 
-  userFullName: string | null; 
+  businessUnitName: string;
+  userFullName: string | null;
 
   constructor(position: PositionEntity) {
     this.id = position.id;
     this.name = position.name;
     this.businessUnitId = position.businessUnitId;
-    this.userId = position.userId ?? null;
     this.strategicPlanId = position.strategicPlanId ?? null;
     this.mission = position.mission ?? null;
     this.vision = position.vision ?? null;

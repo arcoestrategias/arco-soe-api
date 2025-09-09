@@ -17,6 +17,19 @@ const userBusinessUnitSelect = {
   },
 };
 
+type UsersByBusinessUnitGroup = {
+  businessUnitId: string;
+  businessUnitName: string;
+  users: Array<
+    UserEntity & {
+      roleId: string | null;
+      roleName: string | null;
+      positionId: string | null;
+      positionName: string | null;
+    }
+  >;
+};
+
 @Injectable()
 export class UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -120,6 +133,87 @@ export class UsersRepository {
     });
   }
 
+  async findByBusinessUnitId(businessUnitId: string): Promise<UserEntity[]> {
+    const users = await this.prisma.user.findMany({
+      where: { userBusinessUnits: { some: { businessUnitId } } },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+    });
+    return users.map((u) => new UserEntity(u));
+  }
+
+  /**
+   * Lista todos los usuarios de una company agrupados por unidad de negocio.
+   * Si un usuario pertenece a 2 BU, aparecerá en ambos grupos.
+   */
+  async findByCompanyGroupedByBusinessUnit(
+    companyId: string,
+  ): Promise<UsersByBusinessUnitGroup[]> {
+    try {
+      // 1) Traer TODAS las unidades de la compañía (aunque no tengan usuarios)
+      const businessUnits = await this.prisma.businessUnit.findMany({
+        where: { companyId },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      });
+
+      // 2) Traer los memberships que SÍ existen (usuarios por BU)
+      const memberships = await this.prisma.userBusinessUnit.findMany({
+        where: { businessUnit: { companyId } },
+        include: {
+          businessUnit: { select: { id: true, name: true } },
+          user: true, // UserEntity hará el shape estándar
+          role: { select: { id: true, name: true } },
+          position: { select: { id: true, name: true } },
+        },
+        orderBy: [
+          { businessUnit: { name: 'asc' } },
+          { user: { lastName: 'asc' } },
+          { user: { firstName: 'asc' } },
+        ],
+      });
+
+      // 3) Sembrar el mapa con TODAS las unidades (usuarios vacíos por defecto)
+      const map = new Map<string, UsersByBusinessUnitGroup>();
+      for (const bu of businessUnits) {
+        map.set(bu.id, {
+          businessUnitId: bu.id,
+          businessUnitName: bu.name,
+          users: [],
+        });
+      }
+
+      // 4) Rellenar con los usuarios encontrados
+      for (const m of memberships) {
+        const buId = m.businessUnit.id;
+
+        // (si por algún motivo llegó un membership de una BU que no vino arriba, la creamos)
+        if (!map.has(buId)) {
+          map.set(buId, {
+            businessUnitId: buId,
+            businessUnitName: m.businessUnit.name,
+            users: [],
+          });
+        }
+
+        const group = map.get(buId)!;
+        const userEntity = new UserEntity(m.user);
+
+        group.users.push({
+          ...(userEntity as any),
+          roleId: m.role?.id ?? null,
+          roleName: m.role?.name ?? null,
+          positionId: m.position?.id ?? null,
+          positionName: m.position?.name ?? null,
+        });
+      }
+
+      // 5) Devolver en el mismo orden de businessUnits (ya ordenadas por nombre)
+      return businessUnits.map((bu) => map.get(bu.id)!);
+    } catch (err) {
+      handleDatabaseErrors(err);
+    }
+  }
+
   async findBusinessUnitInfoWithPosition(
     userId: string,
     businessUnitId: string,
@@ -129,35 +223,22 @@ export class UsersRepository {
     positionId: string | null;
     positionName: string | null;
   } | null> {
-    const link = await this.prisma.userBusinessUnit.findFirst({
-      where: { userId, businessUnitId },
+    // Usar la PK compuesta; más preciso que findFirst
+    const link = await this.prisma.userBusinessUnit.findUnique({
+      where: { userId_businessUnitId: { userId, businessUnitId } },
       select: {
         businessUnit: { select: { id: true, name: true } },
-        position: { select: { id: true, name: true } },
+        position: { select: { id: true, name: true } }, // puede venir null y está OK
       },
     });
 
     if (!link) return null;
 
-    let positionId = link.position?.id ?? null;
-    let positionName = link.position?.name ?? null;
-
-    if (!positionId || !positionName) {
-      const pos = await this.prisma.position.findFirst({
-        where: { businessUnitId, userId },
-        select: { id: true, name: true },
-      });
-      if (pos) {
-        positionId = pos.id;
-        positionName = pos.name;
-      }
-    }
-
     return {
       id: link.businessUnit.id,
       name: link.businessUnit.name,
-      positionId,
-      positionName,
+      positionId: link.position?.id ?? null,
+      positionName: link.position?.name ?? null,
     };
   }
 
@@ -221,35 +302,35 @@ export class UsersRepository {
     return links.map((l) => l.businessUnit);
   }
 
-  async assignToBusinessUnit(
-    userId: string,
-    businessUnitId: string,
-    roleId: string,
-  ): Promise<void> {
-    await this.prisma.userBusinessUnit.create({
-      data: {
-        userId,
-        businessUnitId,
-        roleId,
-      },
-    });
-  }
+  // async assignToBusinessUnit(
+  //   userId: string,
+  //   businessUnitId: string,
+  //   roleId: string,
+  // ): Promise<void> {
+  //   await this.prisma.userBusinessUnit.create({
+  //     data: {
+  //       userId,
+  //       businessUnitId,
+  //       roleId,
+  //     },
+  //   });
+  // }
 
-  async bulkCreatePermissions(
-    data: {
-      userId: string;
-      businessUnitId: string;
-      permissionId: string;
-      isAllowed: boolean;
-    }[],
-  ): Promise<void> {
-    if (!data.length) return;
+  // async bulkCreatePermissions(
+  //   data: {
+  //     userId: string;
+  //     businessUnitId: string;
+  //     permissionId: string;
+  //     isAllowed: boolean;
+  //   }[],
+  // ): Promise<void> {
+  //   if (!data.length) return;
 
-    await this.prisma.userPermission.createMany({
-      data,
-      skipDuplicates: true,
-    });
-  }
+  //   await this.prisma.userPermission.createMany({
+  //     data,
+  //     skipDuplicates: true,
+  //   });
+  // }
 
   async findUsersGroupedByBusinessUnit(companyId: string) {
     return this.prisma.userBusinessUnit.findMany({
@@ -346,5 +427,41 @@ export class UsersRepository {
     });
 
     return links;
+  }
+
+  // **Nuevos helpers para asiganciones
+  findUBUByPositionId(positionId: string) {
+    return this.prisma.userBusinessUnit.findFirst({
+      where: { positionId },
+      select: { userId: true, businessUnitId: true },
+    });
+  }
+
+  // findPermissionsByRoleId(roleId: string) {
+  //   return this.prisma.rolePermission.findMany({
+  //     where: { roleId },
+  //     select: { permissionId: true },
+  //   });
+  // }
+
+  bulkUpsertUserPermissions(params: {
+    userId: string;
+    businessUnitId: string;
+    permissionIds: string[];
+    actorId?: string;
+  }) {
+    const { userId, businessUnitId, permissionIds, actorId } = params;
+    if (!permissionIds.length) return Promise.resolve();
+
+    return this.prisma.userPermission.createMany({
+      data: permissionIds.map((permissionId) => ({
+        userId,
+        businessUnitId,
+        permissionId,
+        createdBy: actorId ?? null,
+        updatedBy: actorId ?? null,
+      })),
+      skipDuplicates: true,
+    });
   }
 }

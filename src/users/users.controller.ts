@@ -61,7 +61,7 @@ export class UsersController {
     } as any);
 
     await this.notificationService.sendByCode({
-      codeTemplate: 'ACC',
+      codeTemplate: 'T01',
       to: user.email,
       variables: {
         firstname: user.firstName ?? user.username ?? 'usuario',
@@ -73,6 +73,27 @@ export class UsersController {
     return { success: true };
   }
 
+  @Get('company/:companyId/group-by-business-unit')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions(PERMISSIONS.USERS.READ)
+  @SuccessMessage('Operación exitosa')
+  async findByCompanyGroupedByBusinessUnit(
+    @Param('companyId') companyId: string,
+  ) {
+    return this.usersService.listByCompanyGroupedByBusinessUnit(companyId);
+  }
+
+  @Get('business-unit/:businessUnitId')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions(PERMISSIONS.USERS.READ)
+  @SuccessMessage('Users listados satisfactoriamente')
+  async findByBusinessUnit(
+    @Param('businessUnitId') businessUnitId: string,
+  ): Promise<ResponseUserDto[]> {
+    const users = await this.usersService.findByBusinessUnit(businessUnitId);
+    return users.map((u) => new ResponseUserDto(u));
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('me')
   async getProfile(
@@ -82,45 +103,45 @@ export class UsersController {
     const userId = user.sub;
     const userEntity = await this.usersService.findOne(userId);
 
-    // ✅ ADMIN: no exige BU y devuelve todas las compañías con sus unidades
+    // ADMIN
     const isAdmin = await this.permissionValidator.isPlatformAdmin(userId);
     if (isAdmin) {
       const companies = await this.companiesRepo.findAllWithUnits();
-
       return {
         ...userEntity.toResponse(),
         isPlatformAdmin: true,
         currentBusinessUnit: null,
-        permissions: null, // ⬅️ admin bypass → no calculamos permisos
-        needsBusinessUnit: false, // ⬅️ admin no necesita BU
-        businessUnits: [], // ⬅️ sin BUs propias
-        companies, // ⬅️ TODAS las compañías con sus BUs
+        permissions: null,
+        needsBusinessUnit: false, // ← admin: siempre false
+        businessUnits: [],
+        companies,
       };
     }
 
-    // === NO-ADMIN ===
+    // NO-ADMIN
     const units = await this.usersService.findUnitsForUser(userId);
+    const hasBusinessUnits = !!units?.length; // ← única fuente de verdad
 
-    // Sin unidades asignadas
-    if (!units || units.length === 0) {
+    // Sin unidades
+    if (!hasBusinessUnits) {
       return {
         ...userEntity.toResponse(),
         isPlatformAdmin: false,
         currentBusinessUnit: null,
-        permissions: null, // ⬅️ no hay BU → no hay permisos
-        needsBusinessUnit: true,
+        permissions: null,
+        needsBusinessUnit: false, // ← no tiene BUs
         businessUnits: [],
       };
     }
 
-    // Varias unidades y sin header → solo lista para selección
+    // Varias unidades y sin header → aún no seleccionada
     if (!businessUnitId && units.length > 1) {
       return {
         ...userEntity.toResponse(),
         isPlatformAdmin: false,
         currentBusinessUnit: null,
-        permissions: null, // ⬅️ aún no hay BU concreta
-        needsBusinessUnit: true,
+        permissions: null,
+        needsBusinessUnit: true, // ← sí tiene BUs
         businessUnits: units,
       };
     }
@@ -133,18 +154,17 @@ export class UsersController {
       businessUnitId,
     );
     if (!buWithPos) {
-      // Header inválido o usuario no asignado a esa BU -> lista para selección
+      // Header inválido o usuario no pertenece a esa BU
       return {
         ...userEntity.toResponse(),
         isPlatformAdmin: false,
         currentBusinessUnit: null,
         permissions: null,
-        needsBusinessUnit: true,
+        needsBusinessUnit: true, // ← sí tiene BUs (pero BU actual inválida)
         businessUnits: units,
       };
     }
 
-    // Con BU válida: calculamos permisos (manteniendo TU forma actual)
     const permissions =
       await this.businessUnitService.getUserPermissionsByModule(
         businessUnitId,
@@ -161,7 +181,7 @@ export class UsersController {
         positionName: buWithPos.positionName,
       },
       permissions,
-      needsBusinessUnit: true,
+      needsBusinessUnit: true, // ← sí tiene BUs (aunque ya esté resuelta)
       businessUnits: units,
     };
   }
@@ -188,7 +208,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions(PERMISSIONS.USERS.UPDATE)
   @Patch(':userId/business-units/:businessUnitId')
-  // @Permissions('user.assign') // ← si manejas permisos por decorador, ajusta el nombre si difiere
+  @Permissions(PERMISSIONS.USERS.ASSIGN)
   async updateUserBusinessUnit(
     @Param('userId') userId: string,
     @Param('businessUnitId') businessUnitId: string,
@@ -225,7 +245,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions(PERMISSIONS.USERS.CREATE, PERMISSIONS.ROLES.ASSIGN)
   @SuccessMessage('Usuario creado y asignado exitosamente')
-  @Post('assign')
+  @Post('create-user-with-role-business')
   async createUserWithRoleAndUnit(
     @Body() dto: CreateUserWithRoleAndUnitDto,
   ): Promise<ResponseUserDto> {
@@ -237,13 +257,13 @@ export class UsersController {
    * Asigna un usuario existente a una BU, con opción de copiar permisos desde un rol.
    * Requiere permiso (ej.) 'users.assign' en el contexto de la BU del header.
    */
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions(PERMISSIONS.USERS.ASSIGN, PERMISSIONS.ROLES.ASSIGN)
-  @Post('assign-to-business-unit')
-  @SuccessMessage('Usuario asignado a la unidad de negocio')
-  async assignToBusinessUnit(@Body() dto: AssignUserToBusinessUnitDto) {
-    return this.usersService.assignToBusinessUnit(dto);
-  }
+  // @UseGuards(JwtAuthGuard, PermissionsGuard)
+  // @Permissions(PERMISSIONS.USERS.ASSIGN, PERMISSIONS.ROLES.ASSIGN)
+  // @Post('assign-to-business-unit')
+  // @SuccessMessage('Usuario asignado a la unidad de negocio')
+  // async assignToBusinessUnit(@Body() dto: AssignUserToBusinessUnitDto) {
+  //   return this.usersService.assignToBusinessUnit(dto);
+  // }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions(PERMISSIONS.USERS.CREATE)
