@@ -1,13 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { IcoRepository } from './repositories/ico.repository';
-
-type IcoMode = 'all' | 'measured';
-
-const SEMAPHORE_COLOR_BY_NUM: Record<number, string> = {
-  1: '#39AD02', // GREEN
-  2: '#ECFF03', // YELLOW
-  3: '#FF0303', // RED
-};
+import { GetFilteredObjectivesMonthlySeriesDto } from './dto/get-filtered-objectives-monthly-series.dto';
 
 function resolveMonthYearFrom(
   inp?: { month?: number; year?: number },
@@ -42,6 +35,56 @@ function buildMonthSpan(fromYear: number, toYear: number) {
   }
   return months;
 }
+
+/** ===================== Helpers MES/AÑO ===================== **/
+const ymKey = (y: number, m: number) => `${y}-${m}`;
+const ymIndex = (y: number, m: number) => y * 12 + m; // para comparar meses
+
+function iterateYearMonth(fromYear: number, toYear: number) {
+  const out: Array<{ year: number; month: number; isCurrent: boolean }> = [];
+  const now = new Date();
+  const cy = now.getUTCFullYear();
+  const cm = now.getUTCMonth() + 1;
+  for (let y = fromYear; y <= toYear; y++) {
+    for (let m = 1; m <= 12; m++) {
+      out.push({ year: y, month: m, isCurrent: y === cy && m === cm });
+    }
+  }
+  return out;
+}
+
+/** ===================== Semáforo ===================== **/
+const SEMAPHORE_COLOR_BY_NUM: Record<number, string> = {
+  1: '#9aff6bff', // verde
+  2: '#f3ff71ff', // amarillo
+  3: '#f65c5cff', // rojo
+};
+const GRAY = '#9c9999ff';
+
+const getLightColor = (light?: number | null) =>
+  light ? (SEMAPHORE_COLOR_BY_NUM[light] ?? GRAY) : GRAY;
+
+function getLightNumericByIco(ico: number): 1 | 2 | 3 {
+  if (ico >= 95) return 1;
+  if (ico >= 85) return 2;
+  return 3;
+}
+
+const MONTH_LABELS_ES = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
+const monthLabel = (m: number) => MONTH_LABELS_ES[(m - 1 + 12) % 12];
 
 @Injectable()
 export class IcoService {
@@ -508,6 +551,177 @@ export class IcoService {
       month: resolvedMonth,
       year: resolvedYear,
       rows,
+    };
+  }
+
+  /**
+   * Serie mensual filtrando por plan/posición/años,
+   * devolviendo solo objetivos cuyos indicadores se solapan con el rango.
+   *
+   * Reglas:
+   * - isMeasured = true  ⇢ existe ObjectiveGoal para (año, mes)
+   * - hasCompliance = true ⇢ ese ObjectiveGoal tiene indexCompliance no nulo
+   * - Sin ObjectiveGoal → isMeasured=false, hasCompliance=false, ico=0, gris
+   * - Con ObjectiveGoal pero sin indexCompliance → isMeasured=true, hasCompliance=false, ico=0, color por light
+   * - Con ObjectiveGoal con indexCompliance → isMeasured=true, hasCompliance=true, ico=indexCompliance, color por light
+   */
+  async listFilteredObjectivesMonthlySeries(
+    dto: GetFilteredObjectivesMonthlySeriesDto,
+  ) {
+    const { strategicPlanId, positionId, fromYear, toYear, search } = dto;
+
+    const rows = await this.repo.listObjectivesWithIndicatorAndGoalsInYearRange(
+      {
+        strategicPlanId,
+        positionId,
+        fromYear,
+        toYear,
+        search,
+      },
+    );
+
+    const span = iterateYearMonth(fromYear, toYear);
+
+    // 1) Construir la lista de objetivos (cada uno con su icoMonthly)
+    const listObjectives = rows.map((objectiveRecord: any) => {
+      // Indexar goals por (year, month)
+      const goals = new Map<
+        string,
+        { indexCompliance: number | null; light: number | null }
+      >();
+      for (const g of objectiveRecord.objectiveGoals ?? []) {
+        goals.set(ymKey(g.year, g.month), {
+          indexCompliance: g.indexCompliance ?? null,
+          light: (g.light ?? null) as number | null,
+        });
+      }
+
+      const icoMonthly = span.map(({ year, month /* , isCurrent */ }) => {
+        const found = goals.get(ymKey(year, month)); // fila ObjectiveGoal si existe
+
+        const isMeasured = !!found; // existe ObjectiveGoal?
+        const hasCompliance = !!found && found.indexCompliance != null; // tiene indexCompliance?
+        const ico = hasCompliance
+          ? Number(found!.indexCompliance!.toFixed(2))
+          : 0;
+
+        let lightNumeric: number | null = null;
+        let lightColorHex = GRAY;
+        if (isMeasured) {
+          lightNumeric = found!.light ?? null;
+          lightColorHex = getLightColor(lightNumeric);
+        }
+
+        return {
+          month,
+          year,
+          ico,
+          // isCurrent fuera del payload
+          isMeasured,
+          hasCompliance,
+          lightNumeric,
+          lightColorHex,
+        };
+      });
+
+      const { objectiveGoals, indicatorId, indicator, ...objectiveSafe } =
+        objectiveRecord;
+
+      return {
+        objective: {
+          ...objectiveSafe,
+          indicator,
+          icoMonthly,
+        },
+      };
+    });
+
+    // 2) Calcular los promedios mensuales (solo con isMeasured = true) + semáforo
+    const totalObjectives = listObjectives.length;
+
+    const monthlyAverages = span.map(({ year, month }) => {
+      let sumIco = 0;
+      let measuredCount = 0;
+
+      for (const item of listObjectives) {
+        const rec = item.objective.icoMonthly.find(
+          (m: any) => m.year === year && m.month === month,
+        );
+        if (rec?.isMeasured) {
+          sumIco += rec.ico;
+          measuredCount++;
+        }
+      }
+
+      const averageIco =
+        measuredCount > 0 ? Number((sumIco / measuredCount).toFixed(2)) : 0;
+
+      // Semáforo mensual (mismos colores que icoMonthly)
+      let lightNumeric: number | null = null;
+      let lightColorHex = GRAY;
+      if (measuredCount > 0) {
+        lightNumeric = getLightNumericByIco(averageIco);
+        lightColorHex = SEMAPHORE_COLOR_BY_NUM[lightNumeric];
+      }
+
+      return {
+        month,
+        year,
+        averageIco,
+        totalObjectives,
+        measuredCount,
+        unmeasuredCount: totalObjectives - measuredCount,
+        lightNumeric,
+        lightColorHex,
+      };
+    });
+
+    // 3) Resume:
+    // - lastActiveMonth = mes actual (clamp dentro del rango solicitado)
+    const now = new Date();
+    const curY = now.getUTCFullYear();
+    const curM = now.getUTCMonth() + 1;
+
+    const firstIdx = ymIndex(fromYear, 1);
+    const lastIdx = ymIndex(toYear, 12);
+    const curIdx = ymIndex(curY, curM);
+
+    const targetIdx = Math.min(Math.max(curIdx, firstIdx), lastIdx);
+    const lastActiveY = Math.floor((targetIdx - 1) / 12);
+    const lastActiveM = targetIdx - lastActiveY * 12;
+
+    // - generalAverage = (suma de averageIco desde el inicio del rango hasta lastActiveMonth)
+    //                    dividido para la cantidad de MESES CON DATOS en ese subrango.
+    const monthsUpTo = monthlyAverages.filter(
+      (m) => ymIndex(m.year, m.month) <= targetIdx,
+    );
+    const monthsWithData = monthsUpTo.filter((m) => m.measuredCount > 0);
+
+    const generalAverage =
+      monthsWithData.length > 0
+        ? Number(
+            (
+              monthsWithData.reduce((acc, m) => acc + m.averageIco, 0) /
+              monthsWithData.length
+            ).toFixed(2),
+          )
+        : 0;
+
+    const resume = {
+      generalAverage, // en inglés, como pediste
+      activeIndicators: totalObjectives,
+      lastActiveMonth: {
+        month: lastActiveM,
+        year: lastActiveY,
+        label: monthLabel(lastActiveM),
+      },
+    };
+
+    // 4) Respuesta final (sin "promedioGeneral")
+    return {
+      resume,
+      listObjectives,
+      monthlyAverages,
     };
   }
 }

@@ -11,11 +11,20 @@ import {
   GetPositionObjectivesMonthlyIcoDto,
   GetPositionObjectivesStatusDto,
 } from './dto';
+import { GetFilteredObjectivesMonthlySeriesDto } from './dto/get-filtered-objectives-monthly-series.dto';
 
 @Controller('ico')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class IcoController {
   constructor(private readonly ico: IcoService) {}
+
+  @Get('objectives/ico-board')
+  @Permissions(PERMISSIONS.OBJECTIVES.READ)
+  async getFilteredObjectivesMonthlySeries(
+    @Query() query: GetFilteredObjectivesMonthlySeriesDto,
+  ) {
+    return this.ico.listFilteredObjectivesMonthlySeries(query);
+  }
 
   // 1) ICO del mes por Plan Estratégico
   @Get('strategic-plans/:strategicPlanId/monthly')

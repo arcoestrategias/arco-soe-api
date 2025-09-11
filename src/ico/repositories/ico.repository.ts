@@ -44,10 +44,18 @@ export class IcoRepository {
     strategicPlanId: string,
     month: number,
     year: number,
-  ): Promise<Array<{ positionId: string | null; positionName: string | null; indexCompliance: number | null }>> {
+  ): Promise<
+    Array<{
+      positionId: string | null;
+      positionName: string | null;
+      indexCompliance: number | null;
+    }>
+  > {
     const rows = await this.prisma.objectiveGoal.findMany({
       where: {
-        month, year, isActive: true,
+        month,
+        year,
+        isActive: true,
         objective: { strategicPlanId, isActive: true },
       },
       select: {
@@ -61,7 +69,7 @@ export class IcoRepository {
       },
     });
 
-    return rows.map(r => ({
+    return rows.map((r) => ({
       positionId: r.objective?.positionId ?? null,
       positionName: r.objective?.position?.name ?? null,
       indexCompliance: r.indexCompliance ?? null,
@@ -216,5 +224,58 @@ export class IcoRepository {
     const map = new Map<string, number>();
     for (const g of groups) map.set(g.objectiveId, g._count._all);
     return map;
+  }
+  //----------------------------------------------------------------------------------------------------
+  /**
+   * Objetivos (con su indicador) cuyo período del indicador se solapa con [fromYear..toYear].
+   * Incluye los ObjectiveGoal del rango para construir las series.
+   */
+  async listObjectivesWithIndicatorAndGoalsInYearRange(params: {
+    strategicPlanId: string;
+    positionId: string;
+    fromYear: number;
+    toYear: number;
+    search?: string;
+  }) {
+    const { strategicPlanId, positionId, fromYear, toYear, search } = params;
+
+    // Límites anclados al mes/año (primer día del mes) — ignoramos día/hora.
+    const rangeStart = new Date(Date.UTC(fromYear, 0, 1)); // 1/ene fromYear 00:00Z
+    const rangeEnd = new Date(Date.UTC(toYear, 11, 1)); // 1/dic toYear 00:00Z
+
+    return this.prisma.objective.findMany({
+      where: {
+        strategicPlanId,
+        positionId,
+        isActive: true,
+        ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
+        indicator: {
+          is: {
+            isActive: true,
+            // Solape del período del indicador con el rango de años solicitado.
+            // (por mes/año; tus periodStart/periodEnd ya guardan la semántica mensual)
+            periodStart: { lte: rangeEnd },
+            periodEnd: { gte: rangeStart },
+          },
+        },
+      },
+      include: {
+        indicator: true,
+        objectiveGoals: {
+          where: {
+            isActive: true,
+            year: { gte: fromYear, lte: toYear },
+          },
+          // IMPORTANTE: incluir 'light' para el semáforo, y 'indexCompliance' para el ICO.
+          select: {
+            month: true,
+            year: true,
+            indexCompliance: true,
+            light: true,
+          },
+        },
+      },
+      orderBy: [{ order: 'asc' }, { name: 'asc' }],
+    });
   }
 }
