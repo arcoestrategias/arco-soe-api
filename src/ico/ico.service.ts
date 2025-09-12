@@ -65,8 +65,8 @@ const getLightColor = (light?: number | null) =>
   light ? (SEMAPHORE_COLOR_BY_NUM[light] ?? GRAY) : GRAY;
 
 function getLightNumericByIco(ico: number): 1 | 2 | 3 {
-  if (ico >= 95) return 1;
-  if (ico >= 85) return 2;
+  if (ico >= 99) return 1;
+  if (ico >= 75.01 && ico < 98.99) return 2;
   return 3;
 }
 

@@ -46,6 +46,58 @@ export class PositionsController {
     return this.positionsService.listByCompanyGroupedByBusinessUnit(companyId);
   }
 
+  @Get('overview')
+  @Permissions(
+    PERMISSIONS.POSITIONS.READ,
+    PERMISSIONS.PRIORITIES.READ,
+    PERMISSIONS.OBJECTIVES.READ,
+    PERMISSIONS.STRATEGIC_PROJECTS.READ,
+  )
+  async listOverview(
+    @Query('companyId') companyId: string,
+    @Query('businessUnitId') businessUnitId: string,
+    @Query('strategicPlanId') strategicPlanId: string,
+    @Query('month') monthStr?: string,
+    @Query('year') yearStr?: string,
+    @Query('positionId') positionId?: string, // opcional
+  ) {
+    const now = new Date();
+    const month = Number(monthStr ?? now.getMonth() + 1);
+    const year = Number(yearStr ?? now.getFullYear());
+
+    return await this.positionsService.listOverview({
+      companyId,
+      businessUnitId,
+      strategicPlanId,
+      month,
+      year,
+      positionId,
+    });
+  }
+
+  @Get('org-chart-overview')
+  async orgChartOverview(
+    @Query('companyId') companyId: string,
+    @Query('businessUnitId') businessUnitId: string,
+    @Query('strategicPlanId') strategicPlanId: string,
+    @Query('month') monthStr?: string,
+    @Query('year') yearStr?: string,
+    @Query('positionId') positionId?: string, // ← NUEVO (opcional)
+  ) {
+    const now = new Date();
+    const month = Number(monthStr ?? now.getMonth() + 1);
+    const year = Number(yearStr ?? now.getFullYear());
+
+    return await this.positionsService.getOrgChartOverview({
+      companyId,
+      businessUnitId,
+      strategicPlanId,
+      month,
+      year,
+      positionId, // ← pásalo
+    });
+  }
+
   @Permissions(PERMISSIONS.POSITIONS.READ)
   @Get()
   async findAll(

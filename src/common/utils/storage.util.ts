@@ -19,7 +19,7 @@ export const buildPublicUrl = (
   ext: string,
 ) => {
   const origin =
-    process.env.PUBLIC_BASE_URL ?? `${req.protocol}://${req.get('host')}`;
+    process.env.PUBLIC_BACK_URL ?? `${req.protocol}://${req.get('host')}`;
   const sub = type === 'logo' ? 'images' : 'documents';
   return `${origin}/uploads/${sub}/${fileId}.${ext}`;
 };

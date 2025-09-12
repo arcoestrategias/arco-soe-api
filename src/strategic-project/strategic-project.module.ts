@@ -15,6 +15,6 @@ import { ProjectFactorModule } from 'src/project-factor/project-factor.module';
     PrismaService,
   ],
   imports: [StrategicPlanModule, ProjectFactorModule, ProjectParticipantModule],
-  exports: [StrategicProjectRepository],
+  exports: [StrategicProjectRepository, StrategicProjectService],
 })
 export class StrategicProjectModule {}

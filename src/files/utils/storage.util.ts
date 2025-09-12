@@ -46,7 +46,8 @@ export const buildPublicUrl = (
     fileName?: string | null;
   },
 ) => {
-  const origin = `${req.protocol}://${req.get('host')}`;
+  const origin =
+    process.env.PUBLIC_BACK_URL ?? `${req.protocol}://${req.get('host')}`;
   const subdir = subdirFromScreenKey(f.screenKey);
   return `${origin}/uploads/${f.moduleShortcode}/${f.referenceId}/${subdir}/${f.fileName}`;
 };

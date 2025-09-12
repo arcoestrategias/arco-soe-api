@@ -7,5 +7,6 @@ import { PrismaService } from 'src/prisma/prisma.service';
 @Module({
   controllers: [PriorityController],
   providers: [PriorityService, PriorityRepository, PrismaService],
+  exports: [PriorityService],
 })
 export class PriorityModule {}
