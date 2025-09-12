@@ -62,8 +62,14 @@ export class StrategicProjectController {
 
   @Permissions(PERMISSIONS.STRATEGIC_PROJECTS.READ)
   @Get('dashboard')
-  getDashboard(@Query() q: ListProjectStructureDto) {
-    return this.projectService.getProjectsDashboard(q);
+  getDashboard(
+    @Query() q: ListProjectStructureDto,
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+  ) {
+    const m = month ? Number(month) : undefined;
+    const y = year ? Number(year) : undefined;
+    return this.projectService.getProjectsDashboard(q, m, y);
   }
 
   @Permissions(PERMISSIONS.STRATEGIC_PROJECTS.READ)

@@ -7,5 +7,6 @@ import { PrismaService } from 'src/prisma/prisma.service';
 @Module({
   controllers: [IcoController],
   providers: [IcoService, IcoRepository, PrismaService],
+  exports: [IcoService],
 })
 export class IcoModule {}

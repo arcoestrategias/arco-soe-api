@@ -30,6 +30,32 @@ export class StrategicProjectService {
     private readonly projectParticipantRepository: ProjectParticipantRepository,
   ) {}
 
+  private resolveMonthYear(month?: number, year?: number) {
+    const now = new Date();
+    const m = month && month >= 1 && month <= 12 ? month : now.getMonth() + 1;
+    const y = year && year > 0 ? year : now.getFullYear();
+    return { month: m, year: y };
+  }
+
+  private monthRange(year: number, month: number) {
+    // trabajamos en UTC para evitar desfases
+    const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+    const end = new Date(Date.UTC(year, month, 0, 23, 59, 59));
+    return { start, end };
+  }
+
+  private overlapsMonth(
+    fromAt?: Date | string | null,
+    untilAt?: Date | string | null,
+    start?: Date,
+    end?: Date,
+  ) {
+    if (!fromAt || !untilAt || !start || !end) return false;
+    const f = new Date(fromAt);
+    const u = new Date(untilAt);
+    return f <= end && u >= start;
+  }
+
   // ---------- Create ----------
   async createStrategicProject(
     dto: CreateStrategicProjectDto,
@@ -269,14 +295,22 @@ export class StrategicProjectService {
     };
   }
 
-  async getProjectsDashboard(dto: ListProjectStructureDto) {
-    // 1) Reutilizamos tu estructura actual
+  async getProjectsDashboard(
+    dto: ListProjectStructureDto,
+    month?: number,
+    year?: number,
+  ) {
+    // 1) Traer estructura igual que antes
     const data = await this.listProjectStructure(dto);
     const items = dto.positionId
       ? (data.items ?? [])
       : Object.values(data.groups ?? {}).flat();
 
-    // 2) Mapear por proyecto lo que pide el front
+    // 2) Resolver mes/año (opcional) y armar rango
+    const { month: m, year: y } = this.resolveMonthYear(month, year);
+    const { start, end } = this.monthRange(y, m);
+
+    // 3) Mapeo "projects" (igual que antes, para no romper front):
     const projects = items.map((p: any) => {
       const factors = p.factors ?? [];
       const allTasks = factors.flatMap((f: any) => f.tasks ?? []);
@@ -299,21 +333,33 @@ export class StrategicProjectService {
         executed,
         tasksClosed,
         tasksTotal,
-        compliance: Number(p.progressProject ?? 0), // ya calculado por tu service
+        compliance: Number(p.progressProject ?? 0), // ya calculado
         objectiveId: p.objective?.id ?? p.objectiveId ?? null,
         objectiveName: p.objective?.name ?? null,
-
         factorsTotal: factors.length,
+        status: p.status ?? null,
       };
     });
 
-    // 3) KPIs del resumen
+    // 4) KPIs base (sin cambiar la semántica actual)
     const totalProjects = projects.length;
     const totalBudget = projects.reduce((a, x) => a + (x.budget ?? 0), 0);
     const totalExecuted = projects.reduce((a, x) => a + (x.executed ?? 0), 0);
-    const avgCompliance = totalProjects
+
+    // 5) NUEVO: avgCompliance SOLO con proyectos VIGENTES
+    //    Vigente ≡ status === 'IPR' y solapa con el mes (fromAt..untilAt)
+    const vigentes = items.filter(
+      (p: any) =>
+        p.status === 'IPR' &&
+        this.overlapsMonth(p.fromAt, p.untilAt, start, end),
+    );
+
+    const avgCompliance = vigentes.length
       ? +(
-          projects.reduce((a, x) => a + (x.compliance ?? 0), 0) / totalProjects
+          vigentes.reduce(
+            (acc: number, p: any) => acc + Number(p.progressProject ?? 0),
+            0,
+          ) / vigentes.length
         ).toFixed(2)
       : 0;
 
