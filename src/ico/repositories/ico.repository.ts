@@ -266,16 +266,66 @@ export class IcoRepository {
             isActive: true,
             year: { gte: fromYear, lte: toYear },
           },
-          // IMPORTANTE: incluir 'light' para el semáforo, y 'indexCompliance' para el ICO.
-          select: {
-            month: true,
-            year: true,
-            indexCompliance: true,
-            light: true,
-          },
         },
       },
       orderBy: [{ order: 'asc' }, { name: 'asc' }],
     });
+  }
+
+  /**
+   * Goals de un conjunto de objetivos para el MES/AÑO actual del board.
+   * Trae sólo los campos mínimos para calcular el estado.
+   */
+  async findGoalsForObjectivesAt(
+    objectiveIds: string[],
+    month: number,
+    year: number,
+  ) {
+    if (objectiveIds.length === 0) return [];
+
+    return this.prisma.objectiveGoal.findMany({
+      where: {
+        objectiveId: { in: objectiveIds },
+        month,
+        year,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        objectiveId: true,
+        month: true,
+        year: true,
+        // Campos mínimos para "medición":
+        // Usa los que tengas disponibles en tu modelo:
+        // indexCompliance, resultValue, measuredAt, etc.
+        indexCompliance: true, // si no existe, cambia por tu campo real
+      },
+    });
+  }
+
+  /**
+   * (Opcional) Goals pendientes acumulados hasta el mes/año consultado.
+   * Útil para `pendingCount`.
+   */
+  async countPendingUntil(objectiveIds: string[], month: number, year: number) {
+    if (objectiveIds.length === 0) return new Map<string, number>();
+
+    // Calcula el corte: todo <= (year, month)
+    const rows = await this.prisma.objectiveGoal.groupBy({
+      by: ['objectiveId'],
+      where: {
+        objectiveId: { in: objectiveIds },
+        isActive: true,
+        OR: [{ year: { lt: year } }, { year: year, month: { lte: month } }],
+        // "Pendiente" = no medido. Ajusta el criterio a tu modelo:
+        // si no tienes indexCompliance, usa measuredAt == null o similar.
+        indexCompliance: null,
+      },
+      _count: { _all: true },
+    });
+
+    const map = new Map<string, number>();
+    rows.forEach((r) => map.set(r.objectiveId, r._count._all));
+    return map;
   }
 }
