@@ -138,6 +138,7 @@ export class PriorityRepository {
         ...(q.positionId ? { positionId: q.positionId } : {}),
         ...(q.objectiveId ? { objectiveId: q.objectiveId } : {}),
       },
+      include: { objective: { select: { id: true, name: true } } },
       orderBy: [{ untilAt: 'asc' }, { order: 'asc' }, { createdAt: 'asc' }],
     });
     return rows.map((r) => new PriorityEntity(r));
