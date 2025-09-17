@@ -1,0 +1,47 @@
+services:
+  postgres-soe-demo:
+    image: postgres:16
+    container_name: postgres-soe-demo
+    restart: unless-stopped
+    ports:
+      - '${HOST_DOCKER_PG_PORT}:${DB_PORT}'
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - postgres-soe-demo-data:/var/lib/postgresql/data
+    networks:
+      - soe-demo-network
+
+  backend-demo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: backend-demo
+    restart: unless-stopped
+    ports:
+      - '${HOST_DOCKER_BACKEND_PORT}:${PORT}'
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      NODE_ENV: development
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN}
+      PORT: ${PORT}
+    depends_on:
+      - postgres-soe-demo
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    networks:
+      - soe-demo-network
+
+volumes:
+  postgres-soe-demo-data:
+
+networks:
+  soe-demo-network:
+    name: soe-demo-network
+    driver: bridge
