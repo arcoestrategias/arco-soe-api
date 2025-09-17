@@ -61,7 +61,11 @@ async function bootstrap() {
    * Si quieres parametrizar en el futuro: leer de process.env.CORS_ORIGINS.
    */
   const ALLOWED_ORIGINS = new Set(
-    ['https://qav2.soe.la', 'http://localhost:3000'].map(norm),
+    [
+      'https://qav2.soe.la',
+      'https://demov2.soe.la',
+      'http://localhost:3000',
+    ].map(norm),
   );
 
   /**
