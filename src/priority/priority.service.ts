@@ -16,7 +16,10 @@ import {
   ResponsePriorityIcpDto,
 } from './dto';
 import { GetIcpSeriesDto } from './dto/get-icp-series.dto';
-import { IcpSeriesItemDto, IcpSeriesResponseDto } from './dto/icp-series-response.dto';
+import {
+  IcpSeriesItemDto,
+  IcpSeriesResponseDto,
+} from './dto/icp-series-response.dto';
 
 @Injectable()
 export class PriorityService {
@@ -290,7 +293,7 @@ export class PriorityService {
         tag(e, 'CUMPLIDAS_ATRASADAS_MESES_ANTERIORES', '100%'),
       ),
       ...ds.completedInOtherMonth.map((e) =>
-        tag(e, 'CUMPLIDAS_OTRO_MES', '100%'),
+        tag(e, 'CUMPLIDAS_DE_OTRO_MES', '100%'),
       ),
       ...completedOnTime.map((e) => tag(e, 'CUMPLIDAS_A_TIEMPO', '100%')),
       ...ds.canceledInMonth.map((e) => tag(e, 'ANULADAS', '-')),
