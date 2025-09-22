@@ -13,6 +13,7 @@ import { ObjectiveRepository } from './repositories/objective.repository';
 import { ObjectiveEntity } from './entities/objective.entity';
 import { IndicatorRepository } from 'src/indicator/repositories/indicator.repository';
 import { ObjectiveGoalRepository } from 'src/objective-goal/repositories/objective-goal.repository';
+import { ResponseObjectiveWithIndicatorDto } from './dto/response-objective-with-indicator.dto';
 
 @Injectable()
 export class ObjectiveService {
@@ -346,5 +347,17 @@ export class ObjectiveService {
     }
 
     return normalized;
+  }
+
+  async findUnconfiguredByPlanAndPosition(
+    strategicPlanId: string,
+    positionId: string,
+  ): Promise<ResponseObjectiveWithIndicatorDto[]> {
+    const rows = await this.objectiveRepo.findUnconfiguredByPlanAndPosition({
+      strategicPlanId,
+      positionId,
+    });
+
+    return rows.map((r) => new ResponseObjectiveWithIndicatorDto(r));
   }
 }
