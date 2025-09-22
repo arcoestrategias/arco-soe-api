@@ -5,6 +5,10 @@ import { CreateObjectiveDto, ReorderObjectiveDto } from '../dto';
 import { ObjectiveEntity } from '../entities/objective.entity';
 import { Objective, Prisma } from '@prisma/client';
 
+export type ObjectiveWithIndicator = Prisma.ObjectiveGetPayload<{
+  include: { indicator: true };
+}>;
+
 @Injectable()
 export class ObjectiveRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -35,7 +39,10 @@ export class ObjectiveRepository {
     }
   }
 
-  async findAll(strategicPlanId: string, positionId: string): Promise<ObjectiveEntity[]> {
+  async findAll(
+    strategicPlanId: string,
+    positionId: string,
+  ): Promise<ObjectiveEntity[]> {
     const items = await this.prisma.objective.findMany({
       where: { strategicPlanId, positionId, isActive: true },
       orderBy: { order: 'asc' },
@@ -134,6 +141,38 @@ export class ObjectiveRepository {
             },
           },
         },
+      });
+    } catch (e) {
+      handleDatabaseErrors(e);
+    }
+  }
+
+  /**
+   * Objetivos con indicador NO configurado para un plan y posición.
+   * Considera dos casos:
+   *  - indicator.isConfigured === false
+   *  - indicator inexistente (por si algún dato legacy quedó sin autocreación)
+   */
+  async findUnconfiguredByPlanAndPosition(params: {
+    strategicPlanId: string;
+    positionId: string;
+  }): Promise<ObjectiveWithIndicator[]> {
+    const { strategicPlanId, positionId } = params;
+    try {
+      return await this.prisma.objective.findMany({
+        where: {
+          strategicPlanId,
+          positionId,
+          isActive: true,
+          OR: [
+            { indicator: { is: { isActive: true, isConfigured: false } } },
+            { indicator: { is: null } },
+          ],
+        },
+        include: {
+          indicator: true, // toda la info del indicador
+        },
+        orderBy: [{ order: 'asc' }, { name: 'asc' }],
       });
     } catch (e) {
       handleDatabaseErrors(e);

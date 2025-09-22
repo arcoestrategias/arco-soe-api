@@ -42,6 +42,25 @@ export class ObjectiveController {
     return new ResponseObjectiveDto(objective);
   }
 
+  /**
+   * Devuelve los objetivos cuyo indicador NO está configurado
+   * para un strategicPlanId y un positionId específicos.
+   * GET /objectives/unconfigured?strategicPlanId=...&positionId=...
+   */
+  @Get('unconfigured')
+  @Permissions(PERMISSIONS.OBJECTIVES.READ)
+  @SuccessMessage('Lista de objetivos no configurados') // opcional
+  async listUnconfigured(
+    @Query('strategicPlanId') strategicPlanId: string,
+    @Query('positionId') positionId: string,
+  ) {
+    const rows = await this.objectiveService.findUnconfiguredByPlanAndPosition(
+      strategicPlanId,
+      positionId,
+    );
+    return rows; // tu interceptor de response se encarga del envelope
+  }
+
   @Permissions(PERMISSIONS.OBJECTIVES.READ)
   @Get()
   async findAll(
