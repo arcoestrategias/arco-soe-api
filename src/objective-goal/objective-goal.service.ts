@@ -43,6 +43,11 @@ export class ObjectiveGoalService {
     const nextR2 = dto.rangeInacceptable ?? current.rangeInacceptable ?? null;
 
     // 2) Cálculo (idéntico al legado: indexCompliance = realPercentage; semáforo solo si llega realValue)
+    const shouldRecalcLight =
+      'realValue' in dto ||
+      'rangeExceptional' in dto ||
+      'rangeInacceptable' in dto;
+
     const { realPercentage, indexCompliance, lightNumeric, action } =
       computeGoalMetrics({
         tendence: indicator.tendence as any,
@@ -53,7 +58,7 @@ export class ObjectiveGoalService {
         rangeInacceptable: nextR2,
         month: current.month,
         year: current.year,
-        shouldRecalcLight: 'realValue' in dto,
+        shouldRecalcLight,
       });
 
     // 3) Datos a persistir (mantén otros campos del DTO tal cual)
@@ -70,10 +75,10 @@ export class ObjectiveGoalService {
       baseValue: dto.baseValue ?? current.baseValue,
 
       // light ahora es numérico (Float en tu tabla)
-      light: 'realValue' in dto ? lightNumeric : current.light,
+      light: shouldRecalcLight ? lightNumeric : current.light,
 
       observation: dto.observation ?? current.observation,
-      action: 'realValue' in dto ? action : current.action,
+      action: shouldRecalcLight ? action : current.action,
     } as any;
 
     // 4) Transacción: update + snapshot en historial

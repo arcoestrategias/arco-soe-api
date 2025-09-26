@@ -14,6 +14,7 @@ import { ObjectiveEntity } from './entities/objective.entity';
 import { IndicatorRepository } from 'src/indicator/repositories/indicator.repository';
 import { ObjectiveGoalRepository } from 'src/objective-goal/repositories/objective-goal.repository';
 import { ResponseObjectiveWithIndicatorDto } from './dto/response-objective-with-indicator.dto';
+import { ObjectiveGoalService } from 'src/objective-goal/objective-goal.service';
 
 @Injectable()
 export class ObjectiveService {
@@ -21,6 +22,7 @@ export class ObjectiveService {
     private readonly objectiveRepo: ObjectiveRepository,
     private readonly indicatorRepo: IndicatorRepository,
     private readonly objectiveGoalRepo: ObjectiveGoalRepository,
+    private readonly objectiveGoalService: ObjectiveGoalService,
   ) {}
 
   async create(
@@ -108,7 +110,11 @@ export class ObjectiveService {
     if (!currentIndicator)
       throw new NotFoundException('Indicador para el objetivo no encontrado');
 
-    // 1) Detectar cambios críticos
+    // ---- helper fecha ----
+    const toDate = (d: any) =>
+      d instanceof Date ? d : typeof d === 'string' ? new Date(d) : null;
+
+    // ========== 1) Detectar CAMBIO CRÍTICO (solo goalValue / tendence / measurement) ==========
     const goalValueChanged =
       dto.objective?.goalValue !== undefined
         ? dto.objective.goalValue !== currentObjective.goalValue
@@ -124,13 +130,14 @@ export class ObjectiveService {
         ? dto.indicator.measurement !== currentIndicator.measurement
         : false;
 
+    // ⚠️ periodStart/periodEnd/frequency NO cuentan como críticos (según tu regla)
     const criticalChange = !!(
       goalValueChanged ||
       tendenceChanged ||
       measurementChanged
     );
 
-    // 1.1) Validar umbrales si vienen ambos
+    // ========== 1.1) Validar umbrales si vienen ambos ==========
     if (dto.rangeExceptional != null && dto.rangeInacceptable != null) {
       if (dto.rangeInacceptable > dto.rangeExceptional) {
         throw new BadRequestException(
@@ -139,11 +146,22 @@ export class ObjectiveService {
       }
     }
 
-    // 1.2) Validar/normalizar months ANTES de cualquier escritura (PER no exige progresión)
+    // ========== 1.2) Construir estado EFECTIVO del indicador (merge dto + actual) ==========
+    const i = dto.indicator ?? {};
+    const effectiveIndicator = {
+      tendence: i.tendence ?? currentIndicator.tendence,
+      measurement: i.measurement ?? currentIndicator.measurement,
+      frequency: i.frequency ?? currentIndicator.frequency,
+      type: i.type ?? currentIndicator.type,
+      periodStart: toDate(i.periodStart ?? currentIndicator.periodStart),
+      periodEnd: toDate(i.periodEnd ?? currentIndicator.periodEnd),
+    };
+
+    // ========== 1.3) Validar/normalizar months (si vienen) contra frecuencia/período EFECTIVOS ==========
     let monthsCount = 0;
     let normalizedMonths: Array<{ month: number; year: number }> = [];
 
-    // Si hay cambio crítico, se requieren months para regenerar
+    // En cambio crítico, months es obligatorio
     if (criticalChange && (!dto.months || dto.months.length === 0)) {
       throw new BadRequestException(
         'Debe enviar "months" para regenerar objetivos en un cambio crítico.',
@@ -151,55 +169,47 @@ export class ObjectiveService {
     }
 
     if (dto.months && dto.months.length) {
-      const frequency = (dto.indicator?.frequency ??
-        currentIndicator.frequency) as any;
-      const periodStart = (dto.indicator?.periodStart ??
-        currentIndicator.periodStart) as Date | null | undefined;
-      const periodEnd = (dto.indicator?.periodEnd ??
-        currentIndicator.periodEnd) as Date | null | undefined;
-
       normalizedMonths = this.normalizeAndValidateMonths(
-        frequency,
-        periodStart,
-        periodEnd,
+        effectiveIndicator.frequency as any,
+        effectiveIndicator.periodStart as Date,
+        effectiveIndicator.periodEnd as Date,
         dto.months,
       );
     }
 
-    // 2) Actualizar Objective
+    // ========== 2) Actualizar Objective ==========
     const updatedObjective = await this.objectiveRepo.update(
       dto.objectiveId,
       { ...dto.objective, updatedBy: userId },
       userId,
     );
 
-    // 3) Actualizar Indicator
+    // ========== 3) Actualizar Indicator ==========
     const indicatorId = dto.indicatorId ?? currentIndicator.id;
-    const i = dto.indicator ?? {};
-    const isFullyConfig =
-      i.tendence !== undefined &&
-      i.measurement !== undefined &&
-      i.frequency !== undefined &&
-      i.type !== undefined &&
-      i.periodStart instanceof Date &&
-      i.periodEnd instanceof Date;
 
-    const indicatorPayload = {
-      ...dto.indicator,
-      isConfigured: isFullyConfig ? true : currentIndicator.isConfigured,
+    // Por tu regla: isConfigured SOLO cambia a true si llegaron months[]
+    const willConfigureNow = !!normalizedMonths.length;
+
+    const indicatorPayload: any = {
+      ...dto.indicator, // solo escribe lo que vino
+      // aseguramos que se persistan las fechas efectivas parseadas si vinieron
+      periodStart:
+        i.periodStart !== undefined
+          ? effectiveIndicator.periodStart
+          : currentIndicator.periodStart,
+      periodEnd:
+        i.periodEnd !== undefined
+          ? effectiveIndicator.periodEnd
+          : currentIndicator.periodEnd,
+      isConfigured: willConfigureNow ? true : currentIndicator.isConfigured,
       updatedBy: userId,
     };
 
-    await this.indicatorRepo.update(
-      indicatorId,
-      indicatorPayload as any,
-      userId,
-    );
+    await this.indicatorRepo.update(indicatorId, indicatorPayload, userId);
 
+    // ========== 3.1) Resolver thresholds (rangos) para creaciones ==========
     const existingForThresholds =
       await this.objectiveGoalRepo.findOneActiveByObjectiveId(dto.objectiveId);
-
-    // Resolve thresholds to use on creation
     const resolvedThresholds = {
       rangeExceptional:
         dto.rangeExceptional ?? existingForThresholds?.rangeExceptional ?? null,
@@ -209,9 +219,9 @@ export class ObjectiveService {
         null,
     };
 
-    // 4) Validar/normalizar months SIEMPRE que vengan (PER no exige progresión) — ya validado arriba
+    // ========== 4) Metas: regeneración (solo si crítico) o SYNC parcial ==========
     if (criticalChange && normalizedMonths.length) {
-      // Regeneración total (ya lo tenías así)
+      // Regeneración total (por cambio crítico)
       await this.objectiveGoalRepo.archiveAndReplaceGoals(
         dto.objectiveId,
         normalizedMonths,
@@ -221,8 +231,7 @@ export class ObjectiveService {
       );
       monthsCount = normalizedMonths.length;
     } else if (!criticalChange && normalizedMonths.length) {
-      // === SYNC PARCIAL: mantener solo los enviados ===
-      // 1) Calcular diferencias
+      // SYNC PARCIAL: mantener EXACTAMENTE los months enviados (agrega nuevos y elimina sobrantes)
       const currentActive =
         await this.objectiveGoalRepo.findActiveMonthYearList(dto.objectiveId);
       const key = (m: number, y: number) => `${y}-${m}`;
@@ -240,7 +249,6 @@ export class ObjectiveService {
         (m) => !desiredSet.has(key(m.month, m.year)),
       );
 
-      // 2) Agregar los nuevos faltantes
       if (toAdd.length) {
         await this.objectiveGoalRepo.createManyIfNotExists(
           dto.objectiveId,
@@ -251,7 +259,6 @@ export class ObjectiveService {
         );
       }
 
-      // 3) Archivar + eliminar los que sobran
       if (toRemove.length) {
         await this.objectiveGoalRepo.archiveAndDeleteByMonths(
           dto.objectiveId,
@@ -259,6 +266,44 @@ export class ObjectiveService {
           userId,
         );
       }
+
+      monthsCount = normalizedMonths.length; // procesados en esta sync
+    }
+
+    // ----- 5) Si llegaron rangos, actualizarlos en cada goal y recalcular 'light' -----
+    const hasRanges = 'rangeExceptional' in dto || 'rangeInacceptable' in dto;
+    if (hasRanges) {
+      // Si enviaste months en esta llamada, aplicamos sobre ellos (después de regenerar/sync)
+      // Si NO enviaste months, puedes decidir: aplicar a TODOS los activos del objetivo.
+      const targetMonths = normalizedMonths.length
+        ? normalizedMonths
+        : await this.objectiveGoalRepo.findActiveMonthYearList(dto.objectiveId);
+
+      const goalIds =
+        await this.objectiveGoalRepo.findActiveIdsByObjectiveAndMonths(
+          dto.objectiveId,
+          targetMonths,
+        );
+
+      // Bulk en transacción por seguridad
+      await this.objectiveGoalRepo.runInTransaction(async (tx) => {
+        for (const goalId of goalIds) {
+          // Usamos el service.update para que:
+          //  - mezcle estado actual + payload
+          //  - recalcule métricas con computeGoalMetrics
+          //  - inserte historia
+          await this.objectiveGoalService.update(
+            goalId,
+            {
+              rangeExceptional: dto.rangeExceptional ?? undefined,
+              rangeInacceptable: dto.rangeInacceptable ?? undefined,
+              // TIP: si quieres forzar recálculo de 'light' sí o sí,
+              // puedes agregar un flag 'force' y manejarlo, pero con el cambio (1) ya recalcula por rangos.
+            } as any,
+            userId,
+          );
+        }
+      });
     }
 
     return {
