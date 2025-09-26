@@ -72,6 +72,7 @@ export class ObjectiveRepository {
       });
       return new ObjectiveEntity(updated);
     } catch (error) {
+      console.log(error);
       handleDatabaseErrors(error);
     }
   }

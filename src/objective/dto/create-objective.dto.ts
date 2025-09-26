@@ -47,7 +47,7 @@ export class CreateObjectiveDto {
 
   @IsUUID()
   @IsOptional()
-  parentId?: string;
+  objectiveParentId?: string;
 
   @IsOptional()
   @Type(() => Number)

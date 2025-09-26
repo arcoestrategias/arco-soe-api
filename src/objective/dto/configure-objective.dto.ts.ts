@@ -35,6 +35,7 @@ export class ConfigureObjectiveDto {
   indicator!: UpdateIndicatorDto;
 
   // Array exacto calculado en el front según frequency + fromAt/untilAt del indicador
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => MonthYearDto)

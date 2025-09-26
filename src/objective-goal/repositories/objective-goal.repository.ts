@@ -391,4 +391,17 @@ export class ObjectiveGoalRepository {
       }
     });
   }
+
+  async findActiveIdsByObjectiveAndMonths(
+    objectiveId: string,
+    months: Array<{ month: number; year: number }>,
+  ): Promise<string[]> {
+    if (!months?.length) return [];
+    const orFilter = months.map((m) => ({ month: m.month, year: m.year }));
+    const rows = await this.prisma.objectiveGoal.findMany({
+      where: { objectiveId, isActive: true, OR: orFilter },
+      select: { id: true },
+    });
+    return rows.map((r) => r.id);
+  }
 }
