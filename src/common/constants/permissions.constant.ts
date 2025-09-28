@@ -211,4 +211,14 @@ export const PERMISSIONS = {
     APPROVE: 'performance.approve',
     ASSIGN: 'performance.assign',
   },
+  COMMENTS: {
+    ACCESS: 'comment.access',
+    READ: 'comment.read',
+    CREATE: 'comment.create',
+    UPDATE: 'comment.update',
+    DELETE: 'comment.delete',
+    EXPORT: 'comment.export',
+    APPROVE: 'comment.approve',
+    ASSIGN: 'comment.assign',
+  },
 };
