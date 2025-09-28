@@ -300,7 +300,7 @@ model StrategicPlan {
   name                 String    @db.VarChar(500)
   description          String?   @db.VarChar(1000)
   order                Int       @default(0)
-  period               Int
+  period               Int?
   fromAt               DateTime?
   untilAt              DateTime?
   mission              String?   @db.VarChar(5000)
