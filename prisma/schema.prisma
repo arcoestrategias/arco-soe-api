@@ -398,7 +398,7 @@ model Indicator {
   name         String    @db.VarChar(500)
   description  String?   @db.VarChar(1000)
   order        Int       @default(0)
-  formula      String?   @db.VarChar(1000) @default("N/A")
+  formula      String?   @db.VarChar(1000)
   isDefault    Boolean   @default(false)
   isConfigured Boolean   @default(false)
   origin       String?   @default("MAN")
@@ -406,7 +406,7 @@ model Indicator {
   frequency    String?   @default("MES")
   measurement  String?   @default("POR")
   type         String?   @default("GES")
-  reference    String?   @default("MAN")
+  reference    String? 
   periodStart  DateTime?
   periodEnd    DateTime?
 

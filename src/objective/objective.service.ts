@@ -29,20 +29,21 @@ export class ObjectiveService {
     dto: CreateObjectiveDto,
     userId: string,
   ): Promise<ObjectiveEntity> {
+    const { indicatorName, ...objectiveDto } = dto;
+
     const input = {
-      ...dto,
+      ...objectiveDto,
       level: dto.level ?? 'OPE',
       valueOrientation: dto.valueOrientation ?? 'CRE',
     };
 
-    // 1. Crear el objetivo
-
+    // 1) crear objetivo SIN indicatorName
     const objective = await this.objectiveRepo.create(input, userId);
 
     // 2. Crear el indicador asociado
     const indicator = await this.indicatorRepo.create(
       {
-        name: `${objective.name}`,
+        name: dto.indicatorName ?? '',
         isDefault: true,
         isConfigured: false,
       },

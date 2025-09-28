@@ -35,6 +35,7 @@ export class ObjectiveRepository {
 
       return new ObjectiveEntity(objective);
     } catch (error) {
+      console.log(error);
       handleDatabaseErrors(error);
     }
   }
@@ -44,7 +45,12 @@ export class ObjectiveRepository {
     positionId: string,
   ): Promise<ObjectiveEntity[]> {
     const items = await this.prisma.objective.findMany({
-      where: { strategicPlanId, positionId, isActive: true },
+      where: {
+        strategicPlanId,
+        positionId,
+        isActive: true,
+        indicator: { isConfigured: true },
+      },
       orderBy: { order: 'asc' },
     });
     return items.map((o) => new ObjectiveEntity(o));

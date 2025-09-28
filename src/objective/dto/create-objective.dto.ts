@@ -14,12 +14,12 @@ export class CreateObjectiveDto {
   @IsString()
   @IsNotEmpty()
   @MinLength(3)
-  @MaxLength(150)
+  @MaxLength(500)
   name: string;
 
   @IsString()
   @IsOptional()
-  @MaxLength(500)
+  @MaxLength(1000)
   description?: string;
 
   @IsString()
@@ -58,4 +58,10 @@ export class CreateObjectiveDto {
   @IsIn(['OPE', 'CLO'])
   @IsOptional()
   status?: string;
+
+  @IsString()
+  @IsOptional()
+  @MinLength(3)
+  @MaxLength(500)
+  indicatorName?: string;
 }
