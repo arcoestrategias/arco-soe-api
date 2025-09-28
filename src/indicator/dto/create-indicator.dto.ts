@@ -13,16 +13,17 @@ import {
 export class CreateIndicatorDto {
   @IsString()
   @IsNotEmpty()
-  @MaxLength(150)
+  @MaxLength(500)
   name: string;
 
   @IsString()
   @IsOptional()
-  @MaxLength(500)
+  @MaxLength(1000)
   description?: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(1000)
   formula?: string;
 
   @IsBoolean()
@@ -65,6 +66,7 @@ export class CreateIndicatorDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(1000)
   reference?: string;
 
   @IsOptional()
