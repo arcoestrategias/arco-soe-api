@@ -14,12 +14,12 @@ import { Type } from 'class-transformer';
 
 export class CreateProjectTaskDto {
   @IsString()
-  @Length(3, 150)
+  @Length(3, 500)
   name!: string;
 
   @IsOptional()
   @IsString()
-  @Length(0, 500)
+  @Length(0, 1000)
   description?: string | null;
 
   @Type(() => Date)
@@ -41,17 +41,17 @@ export class CreateProjectTaskDto {
 
   @IsOptional()
   @IsString()
-  @Length(0, 250)
+  @Length(0, 1000)
   props?: string | null;
 
   @IsOptional()
   @IsString()
-  @Length(0, 250)
+  @Length(0, 1000)
   result?: string | null;
 
   @IsOptional()
   @IsString()
-  @Length(0, 100)
+  @Length(0, 1000)
   methodology?: string | null;
 
   @IsOptional()
@@ -61,12 +61,12 @@ export class CreateProjectTaskDto {
 
   @IsOptional()
   @IsString()
-  @Length(0, 250)
+  @Length(0, 1000)
   limitation?: string | null;
 
   @IsOptional()
   @IsString()
-  @Length(0, 500)
+  @Length(0, 1000)
   comments?: string | null;
 
   @IsUUID()

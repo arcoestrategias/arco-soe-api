@@ -1,0 +1,10 @@
+-- AlterTable
+ALTER TABLE "ProjectFactor" ALTER COLUMN "description" DROP DEFAULT,
+ALTER COLUMN "result" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "ProjectTask" ALTER COLUMN "props" DROP DEFAULT,
+ALTER COLUMN "result" DROP DEFAULT,
+ALTER COLUMN "methodology" DROP DEFAULT,
+ALTER COLUMN "limitation" DROP DEFAULT,
+ALTER COLUMN "comments" DROP DEFAULT;

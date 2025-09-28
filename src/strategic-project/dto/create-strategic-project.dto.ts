@@ -13,12 +13,12 @@ import { Type } from 'class-transformer';
 
 export class CreateStrategicProjectDto {
   @IsString()
-  @Length(3, 150)
+  @Length(1, 500)
   name!: string;
 
   @IsOptional()
   @IsString()
-  @Length(0, 500)
+  @Length(0, 1000)
   description?: string | null;
 
   @IsOptional()

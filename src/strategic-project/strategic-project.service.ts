@@ -108,6 +108,11 @@ export class StrategicProjectService {
       dto.positionId,
     );
 
+    await this.projectParticipantRepository.setLeaderExclusive(
+      project.id,
+      participant.id,
+    );
+
     return Object.assign(new StrategicProjectEntity(project), {
       projectParticipantId: participant.id,
     });
@@ -441,11 +446,12 @@ export class StrategicProjectService {
     const startsBeforePlan = fromAt < plan.fromAt;
     const endsAfterPlan = untilAt > plan.untilAt;
 
-    if (startsBeforePlan || endsAfterPlan) {
-      throw new BadRequestException(
-        'Project dates must be inside StrategicPlan range (fromAt/untilAt out of bounds)',
-      );
-    }
+    // Se comenta para evitar validacion de fecha del plan estrategico
+    // if (startsBeforePlan || endsAfterPlan) {
+    //   throw new BadRequestException(
+    //     'Project dates must be inside StrategicPlan range (fromAt/untilAt out of bounds)',
+    //   );
+    // }
   }
 
   private async validateExistingIds(projectIds: string[]): Promise<void> {
