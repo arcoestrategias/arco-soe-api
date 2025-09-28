@@ -521,8 +521,8 @@ model StrategicProject {
 model ProjectFactor {
   id          String  @id @default(uuid()) @db.Uuid
   name        String  @db.VarChar(500)
-  description String? @db.VarChar(1000) @default("N/A")
-  result      String? @db.VarChar(1000) @default("N/A")
+  description String? @db.VarChar(1000)
+  result      String? @db.VarChar(1000)
   projectId   String  @db.Uuid
   order       Int     @default(0)
 
@@ -569,12 +569,12 @@ model ProjectTask {
   untilAt              DateTime  @db.Date
   finishedAt           DateTime? @db.Date
   status               String    @default("OPE") @db.VarChar(3)
-  props                String?   @default("N/A") @db.VarChar(1000)
-  result               String?   @default("N/A") @db.VarChar(1000)
-  methodology          String?   @default("N/A") @db.VarChar(1000)
+  props                String?   @db.VarChar(1000)
+  result               String?   @db.VarChar(1000)
+  methodology          String?   @db.VarChar(1000)
   budget               Decimal   @default(0)
-  limitation           String?   @default("N/A") @db.VarChar(1000)
-  comments             String?   @default("N/A") @db.VarChar(1000)
+  limitation           String?   @db.VarChar(1000)
+  comments             String?   @db.VarChar(1000)
   projectFactorId      String    @db.Uuid
   projectParticipantId String    @db.Uuid
 

@@ -356,7 +356,7 @@ export class StrategicProjectRepository {
 
     return this.prisma.strategicProject.findMany({
       where,
-      orderBy: { createdAt: 'asc' },
+      orderBy: { order: 'asc' },
       include: {
         objective: { select: { id: true, name: true } },
 
