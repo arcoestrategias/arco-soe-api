@@ -23,8 +23,8 @@ export class CreateStrategicPlanDto {
   description?: string;
 
   @IsInt()
-  @IsNotEmpty()
-  period: number;
+  @IsOptional()
+  period?: number;
 
   @Type(() => Date)
   @IsDate()

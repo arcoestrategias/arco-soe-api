@@ -5,7 +5,7 @@ export class ResponseStrategicPlanDto {
   name: string;
   description?: string | null;
   order: number;
-  period: number;
+  period?: number;
   fromAt?: Date | null;
   untilAt?: Date | null;
   mission?: string | null;

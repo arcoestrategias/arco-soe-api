@@ -37,7 +37,7 @@ export class StrategicPlanRepository {
     businessUnitId: string,
   ): Promise<StrategicPlanEntity[]> {
     const plans = await this.prisma.strategicPlan.findMany({
-      where: { businessUnitId },
+      where: { businessUnitId, isActive: true },
       orderBy: { createdAt: 'asc' },
     });
     return plans.map((p) => new StrategicPlanEntity(p));

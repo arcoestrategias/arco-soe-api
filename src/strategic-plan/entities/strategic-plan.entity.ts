@@ -3,7 +3,7 @@ export class StrategicPlanEntity {
   readonly name: string;
   readonly description?: string | null;
   readonly order: number;
-  readonly period: number;
+  readonly period?: number;
   readonly fromAt?: Date | null;
   readonly untilAt?: Date | null;
   readonly mission?: string | null;
