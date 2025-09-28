@@ -28,6 +28,7 @@ export class StrategicPlanRepository {
 
   async findAll(): Promise<StrategicPlanEntity[]> {
     const plans = await this.prisma.strategicPlan.findMany({
+      where: { isActive: true },
       orderBy: { createdAt: 'asc' },
     });
     return plans.map((p) => new StrategicPlanEntity(p));
