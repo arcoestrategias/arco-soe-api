@@ -26,6 +26,7 @@ import { FilesModule } from './files/files.module';
 import { MailModule } from './mail/mail.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { LeversModule } from './levers/levers.module';
+import { CommentsModule } from './comments/comments.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { LeversModule } from './levers/levers.module';
     MailModule,
     NotificationsModule,
     LeversModule,
+    CommentsModule,
   ],
   controllers: [],
 })

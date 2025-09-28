@@ -686,3 +686,18 @@ model NotificationTemplate {
 
   @@index([isActive])
 }
+
+model Comment {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String   @db.VarChar(1000)
+  moduleShortcode String?   @db.VarChar(20)
+  referenceId     String   @db.Uuid
+
+  isActive        Boolean  @default(true)
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([referenceId])
+}
