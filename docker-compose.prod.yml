@@ -14,11 +14,11 @@ services:
     networks:
       - soe-production-network
 
-  backend-prod:
+  backend-prod-soev2:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: backend-prod
+    container_name: backend-prod-soev2
     restart: unless-stopped
     ports:
       - '${PORT}:${PORT}'
