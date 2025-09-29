@@ -185,4 +185,57 @@ export class ObjectiveRepository {
       handleDatabaseErrors(e);
     }
   }
+
+  async findActiveAssociations(objectiveId: string): Promise<{
+    projects: Array<{
+      id: string;
+      name: string;
+      status: string;
+      fromAt: Date | null;
+      untilAt: Date | null;
+      isActive: boolean;
+    }>;
+    priorities: Array<{
+      id: string;
+      name: string;
+      status: string;
+      fromAt: Date;
+      untilAt: Date;
+      isActive: boolean;
+    }>;
+  }> {
+    const [projects, priorities] = await this.prisma.$transaction([
+      this.prisma.strategicProject.findMany({
+        where: { objectiveId, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          fromAt: true,
+          untilAt: true,
+          isActive: true,
+        },
+      }),
+      this.prisma.priority.findMany({
+        where: { objectiveId, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          fromAt: true,
+          untilAt: true,
+          isActive: true,
+        },
+      }),
+    ]);
+
+    return { projects, priorities };
+  }
+
+  async inactivate(id: string, userId: string): Promise<void> {
+    await this.prisma.objective.update({
+      where: { id },
+      data: { isActive: false, updatedBy: userId },
+    });
+  }
 }

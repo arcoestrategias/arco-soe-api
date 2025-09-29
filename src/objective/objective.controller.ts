@@ -9,6 +9,7 @@ import {
   UseGuards,
   Query,
   BadRequestException,
+  Req,
 } from '@nestjs/common';
 import {
   CreateObjectiveDto,
@@ -88,6 +89,13 @@ export class ObjectiveController {
   async findById(@Param('id') id: string): Promise<ResponseObjectiveDto> {
     const objective = await this.objectiveService.findById(id);
     return new ResponseObjectiveDto(objective);
+  }
+
+  @Patch(':id/inactivate')
+  @Permissions(PERMISSIONS.OBJECTIVES.DELETE)
+  async inactivate(@Param('id') id: string, @UserId() userId: string) {
+    // devolvemos un body con blocked/message/associations (200 siempre)
+    return await this.objectiveService.inactivate(id, userId);
   }
 
   @Permissions(PERMISSIONS.OBJECTIVES.UPDATE)
