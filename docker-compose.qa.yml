@@ -33,13 +33,15 @@ services:
     depends_on:
       - postgres-soe-qa
     volumes:
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs
+      - /uploads:/app/uploads
+      - /logs:/app/logs
     networks:
       - soe-qa-network
 
 volumes:
   postgres-soe-qa-data:
+  uploads-data:
+  logs-data:
 
 networks:
   soe-qa-network:

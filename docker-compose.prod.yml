@@ -33,13 +33,15 @@ services:
     depends_on:
       - postgres-soe-prod
     volumes:
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs
+      - /uploads:/app/uploads
+      - /logs:/app/logs
     networks:
       - soe-production-network
 
 volumes:
   postgres-soe-prod-data:
+  uploads-data:
+  logs-data:
 
 networks:
   soe-production-network:

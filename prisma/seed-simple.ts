@@ -50,14 +50,18 @@ async function main() {
       name: 'strategic-plans-management',
       shortCode: 'strategicPlanManagement',
     },
+    {
+      name: 'comments',
+      shortCode: 'comment',
+    },
   ];
 
   // Matriz de permisos por rol (en el orden de actions[])
   const roleMatrix: Record<string, number[]> = {
     Admin: [1, 1, 1, 1, 1, 1, 1, 1],
-    Manager: [1, 1, 1, 1, 1, 1, 1, 1],
-    Specialist: [1, 1, 1, 1, 1, 1, 1, 1],
-    Client: [1, 1, 1, 1, 0, 0, 0, 0],
+    Manager: [0, 1, 1, 1, 1, 1, 1, 1],
+    Specialist: [0, 1, 1, 1, 1, 1, 1, 1],
+    Client: [0, 0, 1, 0, 0, 0, 0, 0],
   };
 
   // 1) Admin (upsert por email)
