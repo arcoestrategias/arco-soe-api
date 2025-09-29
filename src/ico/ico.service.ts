@@ -582,7 +582,7 @@ export class IcoService {
 
     const span = iterateYearMonth(fromYear, toYear);
 
-    // === Calcular mes/año "activo" (mes actual clamp dentro del rango) ===
+    // === Mes/año "activo" GLOBAL (mes actual clamp dentro del rango) ===
     const now = new Date();
     const curY = now.getUTCFullYear();
     const curM = now.getUTCMonth() + 1;
@@ -598,13 +598,12 @@ export class IcoService {
     // 1) Construir la lista de objetivos (cada uno con su icoMonthly + goalStatus)
     const listObjectives = rows.map((objectiveRecord: any) => {
       // Indexar goals por (year, month)
-      const goals = new Map<string, any>(); // ⬅️ CAMBIO: tipo sencillo
-
+      const goals = new Map<string, any>();
       for (const g of objectiveRecord.objectiveGoals ?? []) {
-        goals.set(ymKey(g.year, g.month), g); // ⬅️ CAMBIO: guardar TODO el ObjectiveGoal
+        goals.set(ymKey(g.year, g.month), g);
       }
 
-      const icoMonthly = span.map(({ year, month /* , isCurrent */ }) => {
+      const icoMonthly = span.map(({ year, month }) => {
         const found: any = goals.get(ymKey(year, month)); // fila ObjectiveGoal si existe
 
         if (!found) {
@@ -619,20 +618,19 @@ export class IcoService {
           };
         }
 
-        const isMeasured = true; // hay meta configurada ese mes
-        const hasCompliance = (found.realValue ?? 0) > 0; // ⬅️ CAMBIO: única regla
+        const isMeasured = true; // hay registro ObjectiveGoal ese mes
+        const hasCompliance = (found.realValue ?? 0) > 0;
         const ico = hasCompliance
           ? Number((found.indexCompliance ?? 0).toFixed(2))
           : 0;
 
-        let lightNumeric: number | null = null;
-        let lightColorHex = GRAY;
-        lightNumeric = (found.light ?? null) as number | null;
-        lightColorHex = getLightColor(lightNumeric);
+        const lightNumeric: number | null = (found.light ?? null) as
+          | number
+          | null;
+        const lightColorHex = getLightColor(lightNumeric);
 
-        // ⬅️ CAMBIO: devolver el registro ObjectiveGoal completo + tus campos derivados
         return {
-          ...found, // incluye TODAS las columnas de ObjectiveGoal (auditoría incluida)
+          ...found, // todas las columnas del ObjectiveGoal
           month,
           year,
           ico,
@@ -643,17 +641,36 @@ export class IcoService {
         };
       });
 
-      // === goalStatus basado en icoMonthly (prioriza mes activo) ===
+      // === Mes activo EFECTIVO por objetivo (clamp al periodo del indicador) ===
+      const ind = objectiveRecord.indicator;
+      const ps = ind?.periodStart
+        ? new Date(ind.periodStart)
+        : new Date(fromYear, 0, 1);
+      const pe = ind?.periodEnd
+        ? new Date(ind.periodEnd)
+        : new Date(toYear, 11, 1);
+
+      const psY = ps.getUTCFullYear();
+      const psM = ps.getUTCMonth() + 1;
+      const peY = pe.getUTCFullYear();
+      const peM = pe.getUTCMonth() + 1;
+
+      const startIdx = ymIndex(psY, psM);
+      const endIdx = ymIndex(peY, peM);
+      const effIdx = Math.min(Math.max(targetIdx, startIdx), endIdx);
+      const effY = Math.floor((effIdx - 1) / 12);
+      const effM = effIdx - effY * 12;
+
+      // === goalStatus basado en icoMonthly (prioriza pendientes) ===
       const monthsUpToActive = icoMonthly.filter(
-        (m) => ymIndex(m.year, m.month) <= targetIdx,
+        (m) => ymIndex(m.year, m.month) <= effIdx,
       );
 
-      // registro del mes activo (actual clamp dentro del rango)
       const currentRec = icoMonthly.find(
-        (m) => m.year === lastActiveY && m.month === lastActiveM,
+        (m) => m.year === effY && m.month === effM,
       );
 
-      // pendientes = meses configurados SIN cumplimiento hasta el mes activo
+      // pendientes = meses con registro (isMeasured) SIN cumplimiento hasta el mes activo efectivo
       const pendingCount = monthsUpToActive.filter(
         (m) => m.isMeasured && !m.hasCompliance,
       ).length;
@@ -664,31 +681,22 @@ export class IcoService {
         green: '#22C55E', // Medido
       };
 
-      let statusLabel = 'No se mide';
-      let lightColorHex = GOAL_STATUS_COLORS.blue;
+      // 🔧 Prioridad corregida:
+      // 1) Si hay pendientes acumulados -> "Pendiente: N"
+      // 2) Si el mes activo efectivo se midió -> "Medido"
+      // 3) En otro caso -> "No se mide"
+      let statusLabel: string;
+      let lightColorHex: string;
 
-      // 1) Si el mes activo no se mide -> "No se mide"
-      if (currentRec && currentRec.isMeasured === false) {
-        statusLabel = 'No se mide';
-        lightColorHex = GOAL_STATUS_COLORS.blue;
-      }
-      // 2) Si el mes activo se mide y hay pendientes -> "Pendiente: N"
-      else if (
-        currentRec &&
-        currentRec.isMeasured === true &&
-        pendingCount > 0
-      ) {
+      if (pendingCount > 0) {
         statusLabel = `Pendiente: ${pendingCount}`;
         lightColorHex = GOAL_STATUS_COLORS.yellow;
-      }
-      // 3) Si el mes activo se mide y no hay pendientes -> "Medido"
-      else if (
-        currentRec &&
-        currentRec.isMeasured === true &&
-        pendingCount === 0
-      ) {
+      } else if (currentRec?.isMeasured === true) {
         statusLabel = 'Medido';
         lightColorHex = GOAL_STATUS_COLORS.green;
+      } else {
+        statusLabel = 'No se mide';
+        lightColorHex = GOAL_STATUS_COLORS.blue;
       }
 
       const goalStatus = {
@@ -730,7 +738,6 @@ export class IcoService {
       const averageIco =
         measuredCount > 0 ? Number((sumIco / measuredCount).toFixed(2)) : 0;
 
-      // Semáforo mensual (mismos colores que icoMonthly)
       let lightNumeric: number | null = null;
       let lightColorHex = GRAY;
       if (measuredCount > 0) {
@@ -750,7 +757,7 @@ export class IcoService {
       };
     });
 
-    // 3) Resume
+    // 3) Resume (global, mantiene el mes activo GLOBAL para cabecera)
     const monthsUpTo = monthlyAverages.filter(
       (m) => ymIndex(m.year, m.month) <= targetIdx,
     );
