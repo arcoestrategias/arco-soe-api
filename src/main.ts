@@ -62,6 +62,7 @@ async function bootstrap() {
    */
   const ALLOWED_ORIGINS = new Set(
     [
+      'https://portal.soe.la',
       'https://qav2.soe.la',
       'https://demov2.soe.la',
       'http://localhost:3000',
