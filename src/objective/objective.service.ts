@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -405,5 +406,55 @@ export class ObjectiveService {
     });
 
     return rows.map((r) => new ResponseObjectiveWithIndicatorDto(r));
+  }
+
+  async inactivate(
+    id: string,
+    userId: string,
+  ): Promise<{
+    blocked: boolean;
+    message: string;
+    associations?: {
+      projects: Array<{
+        id: string;
+        name: string;
+        status: string;
+        fromAt: Date | null;
+        untilAt: Date | null;
+        isActive: boolean;
+      }>;
+      priorities: Array<{
+        id: string;
+        name: string;
+        status: string;
+        fromAt: Date;
+        untilAt: Date;
+        isActive: boolean;
+      }>;
+    };
+  }> {
+    // (opcional) valida existencia si lo necesitas
+    // const obj = await this.objectiveRepo.findById(id);
+    // if (!obj) throw new NotFoundException('El objetivo no existe');
+
+    const { projects, priorities } =
+      await this.objectiveRepo.findActiveAssociations(id);
+
+    if ((projects?.length ?? 0) > 0 || (priorities?.length ?? 0) > 0) {
+      // ✅ 200 OK con detalle (no lanzamos excepción)
+      return {
+        blocked: true,
+        message:
+          'El objetivo no se inactivó porque tiene asociaciones activas.',
+        associations: { projects, priorities },
+      };
+    }
+
+    await this.objectiveRepo.inactivate(id, userId);
+
+    return {
+      blocked: false,
+      message: 'Objetivo inactivado correctamente',
+    };
   }
 }
