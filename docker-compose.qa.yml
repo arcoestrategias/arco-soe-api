@@ -24,12 +24,19 @@ services:
       - '${HOST_DOCKER_BACKEND_PORT}:${PORT}'
     environment:
       DATABASE_URL: ${DATABASE_URL}
-      NODE_ENV: development
+      NODE_ENV: qa
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN}
       PORT: ${PORT}
+      MAIL_API_KEY: ${MAIL_API_KEY}
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT}
+      MAIL_USER: ${MAIL_USER}
+      MAIL_USER_PWD: ${MAIL_USER_PWD}
+      MAIL_SECURE: ${MAIL_SECURE}
+      MAIL_FROM: ${MAIL_FROM}
     depends_on:
       - postgres-soe-qa
     volumes:
