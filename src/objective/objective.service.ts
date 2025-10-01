@@ -61,11 +61,12 @@ export class ObjectiveService {
     );
   }
 
-  async findAll(
+  findAll(
     strategicPlanId: string,
     positionId: string,
+    year?: number,
   ): Promise<ObjectiveEntity[]> {
-    return this.objectiveRepo.findAll(strategicPlanId, positionId);
+    return this.objectiveRepo.findAll(strategicPlanId, positionId, year);
   }
 
   async findById(id: string): Promise<ObjectiveEntity> {
