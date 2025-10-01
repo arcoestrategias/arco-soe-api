@@ -40,20 +40,36 @@ export class ObjectiveRepository {
     }
   }
 
-  async findAll(
+  findAll(
     strategicPlanId: string,
     positionId: string,
+    year?: number,
   ): Promise<ObjectiveEntity[]> {
-    const items = await this.prisma.objective.findMany({
-      where: {
-        strategicPlanId,
-        positionId,
-        isActive: true,
-        indicator: { isConfigured: true },
-      },
-      orderBy: { order: 'asc' },
-    });
-    return items.map((o) => new ObjectiveEntity(o));
+    // Si hay year, armamos rango [1-ene-year, 1-ene-(year+1)) en UTC
+    const whereIndicator: any = {
+      isConfigured: true,
+      isActive: true,
+      ...(typeof year === 'number'
+        ? {
+            periodEnd: {
+              gte: new Date(Date.UTC(year, 0, 1)), // 1/ene/year 00:00Z
+              lt: new Date(Date.UTC(year + 1, 0, 1)), // 1/ene/(year+1) 00:00Z
+            },
+          }
+        : {}),
+    };
+
+    return this.prisma.objective
+      .findMany({
+        where: {
+          strategicPlanId,
+          positionId,
+          isActive: true,
+          indicator: { is: whereIndicator },
+        },
+        orderBy: { order: 'asc' },
+      })
+      .then((items) => items.map((o) => new ObjectiveEntity(o)));
   }
 
   async findById(id: string): Promise<ObjectiveEntity | null> {

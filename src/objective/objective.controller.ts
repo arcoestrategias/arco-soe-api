@@ -18,6 +18,7 @@ import {
   ReorderObjectiveWrapperDto,
   ConfigureObjectiveDto,
   ResponseConfigureObjectiveDto,
+  GetObjectivesDto,
 } from './dto';
 import { ObjectiveService } from './objective.service';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -65,23 +66,25 @@ export class ObjectiveController {
   @Permissions(PERMISSIONS.OBJECTIVES.READ)
   @Get()
   async findAll(
-    @Query('strategicPlanId') strategicPlanId: string,
-    @Query('positionId') positionId: string,
+    @Query() query: GetObjectivesDto,
   ): Promise<ResponseObjectiveDto[]> {
+    const { strategicPlanId, positionId, year } = query;
+
     if (!strategicPlanId) {
       throw new BadRequestException(
         'El parámetro strategicPlanId es requerido',
       );
     }
-
     if (!positionId) {
       throw new BadRequestException('El parámetro positionId es requerido');
     }
-    const result = await this.objectiveService.findAll(
+
+    const items = await this.objectiveService.findAll(
       strategicPlanId,
       positionId,
+      year,
     );
-    return result.map((o) => new ResponseObjectiveDto(o));
+    return items.map((o) => new ResponseObjectiveDto(o));
   }
 
   @Permissions(PERMISSIONS.OBJECTIVES.READ)
