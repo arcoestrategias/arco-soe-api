@@ -21,6 +21,28 @@ type PositionsByBusinessUnitGroup = {
   >;
 };
 
+type Nullable<T> = { [K in keyof T]: T[K] | null };
+
+export type PersonRolePosition = {
+  idUser: string | null;
+  nameUser: string | null;
+  idRole: string | null;
+  nameRole: string | null;
+  idPosition: string | null;
+  namePosition: string | null;
+};
+
+export type CeoAndSpecialist = {
+  ceo: PersonRolePosition;
+  specialist: PersonRolePosition;
+};
+
+// Puedes centralizar estos shortcodes si ya existen en tus constants
+const ROLE_SC = {
+  CEO: 'CEO',
+  SPECIALIST: 'SPECIALIST',
+};
+
 @Injectable()
 export class PositionsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -253,6 +275,95 @@ export class PositionsRepository {
       return new PositionEntity(position);
     } catch (error) {
       handleDatabaseErrors(error);
+    }
+  }
+
+  /**
+   * Devuelve, para una company+BU, la persona/rol/posición del CEO y del Especialista.
+   * - CEO: por convención tuya, es la posición con isCeo=true en la BU, y su ocupante actual (vía UserBusinessUnit).
+   * - Especialista: ocupante en esa BU cuyo rol tenga shortCode = 'SPECIALIST' (fallback: name LIKE '%especialista%').
+   * - Si algo falta, los campos se devuelven como null (no rompe el reporte).
+   */
+  async findCeoAndSpecialistByCompanyAndBU(
+    companyId: string,
+    businessUnitId: string,
+  ): Promise<CeoAndSpecialist> {
+    try {
+      // 1) Posición CEO en la BU (según tu modelo)
+      const ceoPosition = await this.prisma.position.findFirst({
+        where: { businessUnitId, isCeo: true, businessUnit: { companyId } },
+        select: { id: true, name: true },
+      });
+
+      // 2) Ocupante de esa posición (si existe)
+      // Nota: si manejas "vigencia" o múltiples ocupantes, aquí tomamos el más reciente
+      const ceoUBU = ceoPosition
+        ? await this.prisma.userBusinessUnit.findFirst({
+            where: { positionId: ceoPosition.id },
+            select: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  username: true,
+                  email: true,
+                },
+              },
+              role: { select: { id: true, name: true } },
+            },
+          })
+        : null;
+
+      const ceo: PersonRolePosition = {
+        idUser: ceoUBU?.user?.id ?? null,
+        nameUser: this.buildUserFullName(ceoUBU?.user ?? null),
+        idRole: ceoUBU?.role?.id ?? null,
+        nameRole: ceoUBU?.role?.name ?? null,
+        idPosition: ceoPosition?.id ?? null,
+        namePosition: ceoPosition?.name ?? null,
+      };
+
+      // 3) Especialista en la BU (por rol del UBU)
+      // Preferimos shortCode = 'SPECIALIST'; si tu data aún no lo tiene homogéneo, hacemos fallback por nombre.
+      const specialistUBU = await this.prisma.userBusinessUnit.findFirst({
+        where: {
+          businessUnitId,
+          // posición pertenece a la misma company (protección extra):
+          position: { businessUnit: { companyId } },
+          OR: [
+            {
+              role: { name: { contains: 'specialist', mode: 'insensitive' } },
+            },
+          ],
+        },
+        select: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              username: true,
+              email: true,
+            },
+          },
+          role: { select: { id: true, name: true } },
+          position: { select: { id: true, name: true } },
+        },
+      });
+
+      const specialist: PersonRolePosition = {
+        idUser: specialistUBU?.user?.id ?? null,
+        nameUser: this.buildUserFullName(specialistUBU?.user ?? null),
+        idRole: specialistUBU?.role?.id ?? null,
+        nameRole: specialistUBU?.role?.name ?? null,
+        idPosition: specialistUBU?.position?.id ?? null,
+        namePosition: specialistUBU?.position?.name ?? null,
+      };
+
+      return { ceo, specialist };
+    } catch (err) {
+      handleDatabaseErrors(err);
     }
   }
 }

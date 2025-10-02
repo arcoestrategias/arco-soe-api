@@ -9,6 +9,7 @@ import { PositionEntity } from './entities/position.entity';
 import { PriorityService } from 'src/priority/priority.service';
 import { IcoService } from 'src/ico/ico.service';
 import { StrategicProjectService } from 'src/strategic-project/strategic-project.service';
+import { CeoAndSpecialistDto } from './dto/ceo-specialist.dto';
 
 export type OrgNode = {
   idPosition: string;
@@ -407,5 +408,16 @@ export class PositionsService {
     }
 
     return { root, orphans };
+  }
+
+  async getCeoAndSpecialist(
+    companyId: string,
+    businessUnitId: string,
+  ): Promise<CeoAndSpecialistDto> {
+    // Llama al método nuevo del repo (que ya definimos antes)
+    return this.positionsRepo.findCeoAndSpecialistByCompanyAndBU(
+      companyId,
+      businessUnitId,
+    );
   }
 }
