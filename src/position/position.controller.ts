@@ -23,7 +23,8 @@ import { UserId } from 'src/common/decorators/user-id.decorator';
 import { PositionsService } from './position.service';
 import {
   CeoAndSpecialistDto,
-  CeoSpecialistQueryDto,
+  personQueryDto,
+  PersonRolePositionDto,
 } from './dto/ceo-specialist.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -45,11 +46,21 @@ export class PositionsController {
   @Permissions(PERMISSIONS.POSITIONS.READ)
   @Get('ceo-specialist')
   async ceoAndSpecialist(
-    @Query() q: CeoSpecialistQueryDto,
+    @Query() q: personQueryDto,
   ): Promise<CeoAndSpecialistDto> {
     return this.positionsService.getCeoAndSpecialist(
       q.companyId,
       q.businessUnitId,
+    );
+  }
+
+  @Permissions(PERMISSIONS.POSITIONS.READ)
+  @Get('person-info-by-position')
+  async byPosition(@Query() q: personQueryDto): Promise<PersonRolePositionDto> {
+    return this.positionsService.getPersonByCompanyBUAndPosition(
+      q.companyId,
+      q.businessUnitId,
+      q.positionId!,
     );
   }
 

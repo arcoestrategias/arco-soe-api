@@ -6,6 +6,7 @@ import { CommentsRepository } from './repository/comments.repository';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Module({
+  exports: [CommentsRepository],
   imports: [UsersModule],
   controllers: [CommentsController],
   providers: [CommentsService, CommentsRepository, PrismaService],

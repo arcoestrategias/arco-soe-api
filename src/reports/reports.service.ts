@@ -102,7 +102,6 @@ export class ReportsService {
       );
 
     const approverName = ceo?.nameUser ?? '—';
-    // Si el rol viene bien, úsalo; si no, el estándar del formato
     const approverPosition = ceo?.namePosition ?? 'Gerente General';
 
     const reviewerName = specialist?.nameUser ?? '—';

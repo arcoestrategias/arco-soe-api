@@ -14,6 +14,8 @@ import { PERMISSIONS } from 'src/common/constants/permissions.constant';
 import { UserId } from 'src/common/decorators/user-id.decorator';
 import { ReportsService } from './reports.service';
 import { DefinitionsReportDto } from './dto/definitions-report.dto';
+import { PrioritiesReportDto } from './dto/priorities-report.dto';
+import { ReportsPrioritiesService } from './reports-priorities.service';
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
@@ -25,7 +27,10 @@ function yyyymmdd(d: Date): string {
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('reports')
 export class ReportsController {
-  constructor(private readonly reportsService: ReportsService) {}
+  constructor(
+    private readonly reportsService: ReportsService,
+    private readonly reportsPrioritiesService: ReportsPrioritiesService,
+  ) {}
 
   @Permissions(PERMISSIONS.STRATEGIC_PLANS.READ)
   @Post('strategic-plans/definitions/pdf')
@@ -42,5 +47,21 @@ export class ReportsController {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
     res.send(pdfBuffer);
+  }
+
+  @Permissions(PERMISSIONS.STRATEGIC_PLANS.READ) // o un REPORTS.GENERATE si lo tienes
+  @Post('priorities/pdf')
+  async generatePrioritiesPdf(
+    @Body() dto: PrioritiesReportDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const pdf = await this.reportsPrioritiesService.generatePdf(dto);
+    const today = new Date();
+    const filename = `matriz-prioridades-${yyyymmdd(today)}.pdf`;
+
+    res.status(HttpStatus.OK);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    res.send(pdf);
   }
 }
