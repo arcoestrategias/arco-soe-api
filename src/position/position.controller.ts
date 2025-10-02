@@ -21,6 +21,10 @@ import { SuccessMessage } from 'src/core/decorators/success-message.decorator';
 import { PERMISSIONS } from 'src/common/constants/permissions.constant';
 import { UserId } from 'src/common/decorators/user-id.decorator';
 import { PositionsService } from './position.service';
+import {
+  CeoAndSpecialistDto,
+  CeoSpecialistQueryDto,
+} from './dto/ceo-specialist.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('positions')
@@ -36,6 +40,17 @@ export class PositionsController {
   ): Promise<ResponsePositionDto> {
     const position = await this.positionsService.create(dto, userId);
     return new ResponsePositionDto(position);
+  }
+
+  @Permissions(PERMISSIONS.POSITIONS.READ)
+  @Get('ceo-specialist')
+  async ceoAndSpecialist(
+    @Query() q: CeoSpecialistQueryDto,
+  ): Promise<CeoAndSpecialistDto> {
+    return this.positionsService.getCeoAndSpecialist(
+      q.companyId,
+      q.businessUnitId,
+    );
   }
 
   @Get('company/:companyId/group-by-business-unit')
