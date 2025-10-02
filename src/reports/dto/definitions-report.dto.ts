@@ -36,7 +36,9 @@ export class ItemDto {
 }
 
 export class DefinitionsReportDto {
-  @IsUUID() companyId: string;
+  @IsUUID()
+  @IsOptional()
+  companyId?: string;
 
   @IsUUID() businessUnitId: string;
 

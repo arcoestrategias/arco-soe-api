@@ -74,7 +74,9 @@ export class PriorityRowDto {
 }
 
 export class PrioritiesReportDto {
-  @IsUUID() companyId: string;
+  @IsUUID()
+  @IsOptional()
+  companyId?: string;
   @IsUUID() businessUnitId: string;
   @IsUUID() positionId: string;
 

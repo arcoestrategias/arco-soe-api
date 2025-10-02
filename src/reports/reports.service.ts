@@ -7,6 +7,7 @@ import { PositionsRepository } from 'src/position/repositories/positions.reposit
 import { FilesService } from 'src/files/files.service';
 import * as fs from 'fs';
 import * as path from 'path';
+import { BusinessUnitsRepository } from 'src/business-unit/repositories/business-units.repository';
 
 // ====== Paleta / constantes visuales ======
 const HEX = {
@@ -79,11 +80,21 @@ export class ReportsService {
   constructor(
     private readonly positionsRepo: PositionsRepository,
     private readonly filesService: FilesService,
+    private readonly businessUnitsRepo: BusinessUnitsRepository,
   ) {}
 
-  async generateDefinitionsPdf(
-    dto: DefinitionsReportDto,
-  ): Promise<Buffer> {
+  async generateDefinitionsPdf(dto: DefinitionsReportDto): Promise<Buffer> {
+    // 1) Resolver companyId (si no viene en dto)
+    let companyId: string | null | undefined = dto.companyId;
+    if (!companyId && dto.businessUnitId) {
+      companyId = await this.businessUnitsRepo.findCompanyIdByBusinessUnit(
+        dto.businessUnitId,
+      );
+    }
+    if (!companyId) {
+      throw new Error('No se pudo determinar el companyId');
+    }
+
     // 2) Datos desde repos
     const now = new Date();
     const version = '0.1v';
@@ -91,13 +102,13 @@ export class ReportsService {
     // 2.1 Logo
     const logoImage: Buffer | null = await resolveLogoBuffer(
       this.filesService,
-      dto.companyId,
+      companyId,
     );
 
     // 2.2 Firmas (CEO / Especialista)
     const { ceo, specialist } =
       await this.positionsRepo.findCeoAndSpecialistByCompanyAndBU(
-        dto.companyId,
+        companyId,
         dto.businessUnitId,
       );
 
