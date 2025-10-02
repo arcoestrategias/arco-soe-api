@@ -150,4 +150,14 @@ export class BusinessUnitsRepository {
       return { shortCode: m.shortCode, actions };
     });
   }
+
+  async findCompanyIdByBusinessUnit(
+    businessUnitId: string,
+  ): Promise<string | null> {
+    const row = await this.prisma.businessUnit.findUnique({
+      where: { id: businessUnitId },
+      select: { companyId: true },
+    });
+    return row?.companyId ?? null;
+  }
 }

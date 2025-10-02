@@ -5,9 +5,11 @@ import { PositionModule } from 'src/position/position.module';
 import { FilesModule } from 'src/files/files.module';
 import { ReportsPrioritiesService } from './reports-priorities.service';
 import { CommentsModule } from 'src/comments/comments.module';
+import { BusinessUnitsRepository } from 'src/business-unit/repositories/business-units.repository';
+import { BusinessUnitsModule } from 'src/business-unit/business-unit.module';
 
 @Module({
-  imports: [PositionModule, FilesModule, CommentsModule],
+  imports: [PositionModule, FilesModule, CommentsModule, BusinessUnitsModule],
   controllers: [ReportsController],
   providers: [ReportsService, ReportsPrioritiesService],
 })

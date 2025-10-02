@@ -10,6 +10,6 @@ import { UsersModule } from 'src/users/users.module';
   imports: [PermissionsModule, forwardRef(() => UsersModule)],
   controllers: [BusinessUnitsController],
   providers: [BusinessUnitsService, BusinessUnitsRepository, PrismaService],
-  exports: [BusinessUnitsService],
+  exports: [BusinessUnitsService, BusinessUnitsRepository],
 })
 export class BusinessUnitsModule {}

@@ -9,6 +9,7 @@ import { PrioritiesReportDto } from './dto/priorities-report.dto';
 import { FilesService } from 'src/files/files.service';
 import { PositionsRepository } from 'src/position/repositories/positions.repository';
 import { CommentsRepository } from 'src/comments/repository/comments.repository';
+import { BusinessUnitsRepository } from 'src/business-unit/repositories/business-units.repository';
 
 // ====== Paleta / constantes visuales ======
 const HEX = {
@@ -94,18 +95,30 @@ export class ReportsPrioritiesService {
   constructor(
     private readonly filesService: FilesService,
     private readonly positionsRepo: PositionsRepository,
+    private readonly businessUnitsRepo: BusinessUnitsRepository,
     private readonly commentsRepo: CommentsRepository,
   ) {}
 
   async generatePdf(dto: PrioritiesReportDto): Promise<Buffer> {
+    // 1) Resolver companyId (si no viene en dto)
+    let companyId: string | null | undefined = dto.companyId;
+    if (!companyId && dto.businessUnitId) {
+      companyId = await this.businessUnitsRepo.findCompanyIdByBusinessUnit(
+        dto.businessUnitId,
+      );
+    }
+    if (!companyId) {
+      throw new Error('No se pudo determinar el companyId');
+    }
+
     // 1) Datos back
     const now = new Date();
-    const logoImage = await resolveLogoBuffer(this.filesService, dto.companyId);
+    const logoImage = await resolveLogoBuffer(this.filesService, companyId);
 
     // Datos de la posición y usuario
     const positionPerson =
       await this.positionsRepo.findUserRolePositionByCompanyBUPosition(
-        dto.companyId,
+        companyId,
         dto.businessUnitId,
         dto.positionId,
       );
@@ -113,7 +126,7 @@ export class ReportsPrioritiesService {
     // Datos Firmas (CEO / Especialista)
     const { ceo, specialist } =
       await this.positionsRepo.findCeoAndSpecialistByCompanyAndBU(
-        dto.companyId,
+        companyId,
         dto.businessUnitId,
       );
     const approverName = ceo?.nameUser ?? '—';
