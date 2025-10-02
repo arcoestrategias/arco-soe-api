@@ -247,7 +247,7 @@ export class PriorityService {
       }
     }
 
-    // ---------- 2) OPE del mes: inProgress vs overdue ----------
+    // ---------- 2) OPE del mes: ABIERTAS vs NO_CUMPLIDAS_ATRASADAS_DEL_MES ----------
     const now = new Date();
     const targetIdx = scope.year * 12 + (scope.month - 1);
     const currentIdx = now.getUTCFullYear() * 12 + now.getUTCMonth();
@@ -255,15 +255,28 @@ export class PriorityService {
     const inProgress: PriorityEntity[] = [];
     const notCompletedOverdue: PriorityEntity[] = [];
 
+    // ¿El mes consultado ya terminó respecto a "hoy"?
+    const isPastMonth = targetIdx < currentIdx;
+
+    // Referencia de corte:
+    // - Mes PASADO  -> fin de mes (periodEnd)
+    // - Mes ACTUAL/FUTURO -> hoy (normalizado solo fecha)
+    const ref = isPastMonth ? periodEnd : this.onlyDate(now);
+
     if (targetIdx > currentIdx) {
       // MES FUTURO: todo OPE del mes = en progreso (0 overdue)
       inProgress.push(...ds.openInMonth);
     } else {
-      // MES PASADO -> fin de mes; MES ACTUAL -> hoy
-      const ref = targetIdx < currentIdx ? periodEnd : this.onlyDate(now);
+      // MES PASADO o ACTUAL: decidir por comparación con 'ref'
       for (const r of ds.openInMonth) {
         const lim = this.onlyDate(r.untilAt!);
-        if (lim < ref) notCompletedOverdue.push(r);
+
+        // ❗ FIX off-by-one:
+        // - Si el mes consultado YA TERMINÓ → atrasada si lim <= finDeMes
+        // - Si es ACTUAL → atrasada si lim < hoy
+        const isOverdue = isPastMonth ? lim <= ref : lim < ref;
+
+        if (isOverdue) notCompletedOverdue.push(r);
         else inProgress.push(r);
       }
     }

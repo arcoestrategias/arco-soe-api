@@ -366,4 +366,62 @@ export class PositionsRepository {
       handleDatabaseErrors(err);
     }
   }
+
+  /**
+   * Dado companyId + businessUnitId + positionId, retorna datos del ocupante actual
+   * (usuario + rol) y la posición. Si no hay ocupante/rol, esos campos van null.
+   */
+  async findUserRolePositionByCompanyBUPosition(
+    companyId: string,
+    businessUnitId: string,
+    positionId: string,
+  ): Promise<PersonRolePosition> {
+    try {
+      // Validar que la posición pertenezca a la BU y a la company
+      const pos = await this.prisma.position.findFirst({
+        where: { id: positionId, businessUnitId, businessUnit: { companyId } },
+        select: { id: true, name: true },
+      });
+
+      if (!pos) {
+        // Posición inválida para la BU/Company: devolvemos objeto nulo con idPosition null
+        return {
+          idUser: null,
+          nameUser: null,
+          idRole: null,
+          nameRole: null,
+          idPosition: null,
+          namePosition: null,
+        };
+      }
+
+      // Buscar el vínculo UBU más reciente (ocupante actual)
+      const ubu = await this.prisma.userBusinessUnit.findFirst({
+        where: { positionId: pos.id },
+        select: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              username: true,
+              email: true,
+            },
+          },
+          role: { select: { id: true, name: true } },
+        },
+      });
+
+      return {
+        idUser: ubu?.user?.id ?? null,
+        nameUser: this.buildUserFullName(ubu?.user ?? null),
+        idRole: ubu?.role?.id ?? null,
+        nameRole: ubu?.role?.name ?? null,
+        idPosition: pos.id,
+        namePosition: pos.name,
+      };
+    } catch (err) {
+      handleDatabaseErrors(err);
+    }
+  }
 }

@@ -9,7 +9,10 @@ import { PositionEntity } from './entities/position.entity';
 import { PriorityService } from 'src/priority/priority.service';
 import { IcoService } from 'src/ico/ico.service';
 import { StrategicProjectService } from 'src/strategic-project/strategic-project.service';
-import { CeoAndSpecialistDto } from './dto/ceo-specialist.dto';
+import {
+  CeoAndSpecialistDto,
+  PersonRolePositionDto,
+} from './dto/ceo-specialist.dto';
 
 export type OrgNode = {
   idPosition: string;
@@ -418,6 +421,18 @@ export class PositionsService {
     return this.positionsRepo.findCeoAndSpecialistByCompanyAndBU(
       companyId,
       businessUnitId,
+    );
+  }
+
+  async getPersonByCompanyBUAndPosition(
+    companyId: string,
+    businessUnitId: string,
+    positionId: string,
+  ): Promise<PersonRolePositionDto> {
+    return this.positionsRepo.findUserRolePositionByCompanyBUPosition(
+      companyId,
+      businessUnitId,
+      positionId,
     );
   }
 }

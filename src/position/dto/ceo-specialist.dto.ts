@@ -1,14 +1,18 @@
-import { IsUUID } from 'class-validator';
+import { IsOptional, IsUUID } from 'class-validator';
 
-export class CeoSpecialistQueryDto {
+export class personQueryDto {
   @IsUUID()
   companyId: string;
 
   @IsUUID()
   businessUnitId: string;
+
+  @IsUUID()
+  @IsOptional()
+  positionId?: string;
 }
 
-export type PersonRolePosition = {
+export type PersonRolePositionDto = {
   idUser: string | null;
   nameUser: string | null;
   idRole: string | null;
@@ -18,6 +22,6 @@ export type PersonRolePosition = {
 };
 
 export type CeoAndSpecialistDto = {
-  ceo: PersonRolePosition;
-  specialist: PersonRolePosition;
+  ceo: PersonRolePositionDto;
+  specialist: PersonRolePositionDto;
 };
