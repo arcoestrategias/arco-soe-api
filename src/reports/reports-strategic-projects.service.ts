@@ -43,7 +43,8 @@ function parseISO(s?: string | Date | null) {
   return isNaN(d.getTime()) ? null : d;
 }
 function safe(v: any, fb = '—') {
-  return (v ?? '') === '' || v == null ? fb : String(v);
+  if ((v ?? '') === '' || v == null) return fb;
+  return String(v).trim();
 }
 
 // ========= Helpers (logo) =========

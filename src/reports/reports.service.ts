@@ -37,7 +37,8 @@ function parseISO(s?: string | null) {
   return isNaN(d.getTime()) ? null : d;
 }
 function safe(v: any, fb = '—') {
-  return (v ?? '') === '' ? fb : String(v ?? fb);
+  if ((v ?? '') === '' || v == null) return fb;
+  return String(v).trim();
 }
 
 type Rect = { x: number; y: number; w: number; h: number };
