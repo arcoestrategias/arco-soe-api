@@ -217,6 +217,8 @@ export class ObjectiveRepository {
       status: string;
       fromAt: Date;
       untilAt: Date;
+      positionId: string;
+      position: { id: string; name: string };
       isActive: boolean;
     }>;
   }> {
@@ -241,6 +243,8 @@ export class ObjectiveRepository {
           fromAt: true,
           untilAt: true,
           isActive: true,
+          positionId: true,
+          position: { select: { id: true, name: true } },
         },
       }),
     ]);
