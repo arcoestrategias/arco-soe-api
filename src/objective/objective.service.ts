@@ -424,30 +424,75 @@ export class ObjectiveService {
         untilAt: Date | null;
         isActive: boolean;
       }>;
-      priorities: Array<{
-        id: string;
-        name: string;
-        status: string;
-        fromAt: Date;
-        untilAt: Date;
-        isActive: boolean;
+      prioritiesByPosition: Array<{
+        positionId: string;
+        positionName: string;
+        priorities: Array<{
+          id: string;
+          name: string;
+          status: string;
+          fromAt: Date;
+          untilAt: Date;
+          isActive: boolean;
+        }>;
       }>;
     };
   }> {
-    // (opcional) valida existencia si lo necesitas
-    // const obj = await this.objectiveRepo.findById(id);
-    // if (!obj) throw new NotFoundException('El objetivo no existe');
-
     const { projects, priorities } =
       await this.objectiveRepo.findActiveAssociations(id);
 
+    // Agrupación en memoria por posición de la prioridad (puede ser otra posición distinta a la del objetivo)
+    const groupsMap = new Map<
+      string,
+      {
+        positionId: string;
+        positionName: string;
+        priorities: Array<{
+          id: string;
+          name: string;
+          status: string;
+          fromAt: Date;
+          untilAt: Date;
+          isActive: boolean;
+        }>;
+      }
+    >();
+
+    for (const p of priorities) {
+      const pid = p.positionId;
+      const pname = p.position?.name ?? '(Sin nombre)';
+      if (!groupsMap.has(pid)) {
+        groupsMap.set(pid, {
+          positionId: pid,
+          positionName: pname,
+          priorities: [],
+        });
+      }
+      groupsMap.get(pid)!.priorities.push({
+        id: p.id,
+        name: p.name,
+        status: p.status,
+        fromAt: p.fromAt,
+        untilAt: p.untilAt,
+        isActive: p.isActive,
+      });
+    }
+
+    // Orden opcional por nombre de posición para UX estable
+    const prioritiesByPosition = Array.from(groupsMap.values()).sort((a, b) =>
+      a.positionName.localeCompare(b.positionName),
+    );
+
     if ((projects?.length ?? 0) > 0 || (priorities?.length ?? 0) > 0) {
-      // ✅ 200 OK con detalle (no lanzamos excepción)
+      // ⚠️ Hay asociaciones → bloqueado (200 OK con detalle)
       return {
         blocked: true,
         message:
           'El objetivo no se inactivó porque tiene asociaciones activas.',
-        associations: { projects, priorities },
+        associations: {
+          projects,
+          prioritiesByPosition,
+        },
       };
     }
 
