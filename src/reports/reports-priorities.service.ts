@@ -40,8 +40,9 @@ function parseISO(s?: string | null) {
   const d = new Date(s);
   return isNaN(d.getTime()) ? null : d;
 }
-function safe(v: any, fb = ' - ') {
-  return (v ?? '') === '' || v == null ? fb : String(v);
+function safe(v: any, fb = '—') {
+  if ((v ?? '') === '' || v == null) return fb;
+  return String(v).trim();
 }
 function formatNoteLine(d: Date, text: string) {
   return `${fmtDate(d)}: ${text}`;
