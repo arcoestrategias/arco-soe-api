@@ -24,12 +24,12 @@ const FOOTER_ZONE = 18;
 function mm(v: number) {
   return (v / 25.4) * 72;
 } // mm → pt
-function pad(n: number) {
-  return String(n).padStart(2, '0');
-}
 function fmtDate(d?: Date | null) {
   if (!d || isNaN(d.getTime())) return '—';
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const year = d.getUTCFullYear();
+  return `${day}/${month}/${year}`;
 }
 function parseISO(s?: string | null) {
   if (!s) return null;
@@ -267,7 +267,7 @@ export class ReportsService {
       doc
         .save()
         .font('Helvetica')
-        .fontSize(10)
+        .fontSize(7)
         .fillColor(HEX.black)
         .text(text, x, y, {
           width: contentW,

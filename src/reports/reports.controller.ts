@@ -16,6 +16,8 @@ import { ReportsService } from './reports.service';
 import { DefinitionsReportDto } from './dto/definitions-report.dto';
 import { PrioritiesReportDto } from './dto/priorities-report.dto';
 import { ReportsPrioritiesService } from './reports-priorities.service';
+import { StrategicProjectsReportDto } from './dto/strategic-projects-report.dto';
+import { ReportsStrategicProjectsService } from './reports-strategic-projects.service';
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
@@ -30,6 +32,7 @@ export class ReportsController {
   constructor(
     private readonly reportsService: ReportsService,
     private readonly reportsPrioritiesService: ReportsPrioritiesService,
+    private readonly reportsStrategicProjectsService: ReportsStrategicProjectsService,
   ) {}
 
   @Permissions(PERMISSIONS.STRATEGIC_PLANS.READ)
@@ -49,7 +52,7 @@ export class ReportsController {
     res.send(pdfBuffer);
   }
 
-  @Permissions(PERMISSIONS.STRATEGIC_PLANS.READ) // o un REPORTS.GENERATE si lo tienes
+  @Permissions(PERMISSIONS.PRIORITIES.READ) // o un REPORTS.GENERATE si lo tienes
   @Post('priorities/pdf')
   async generatePrioritiesPdf(
     @Body() dto: PrioritiesReportDto,
@@ -58,6 +61,22 @@ export class ReportsController {
     const pdf = await this.reportsPrioritiesService.generatePdf(dto);
     const today = new Date();
     const filename = `matriz-prioridades-${yyyymmdd(today)}.pdf`;
+
+    res.status(HttpStatus.OK);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    res.send(pdf);
+  }
+
+  @Permissions(PERMISSIONS.STRATEGIC_PROJECTS.READ) // o un REPORTS.GENERATE si lo tienes
+  @Post('strategic-projects/pdf')
+  async generateStrategicProjectsPdf(
+    @Body() dto: StrategicProjectsReportDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const pdf = await this.reportsStrategicProjectsService.generatePdf(dto);
+    const today = new Date();
+    const filename = `proyectos-estrategicos-${yyyymmdd(today)}.pdf`;
 
     res.status(HttpStatus.OK);
     res.setHeader('Content-Type', 'application/pdf');
