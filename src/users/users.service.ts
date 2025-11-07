@@ -167,6 +167,7 @@ export class UsersService {
   ): Promise<{
     id: string;
     name: string;
+    companyId: string;
     positionId: string | null;
     positionName: string | null;
   } | null> {
@@ -178,7 +179,7 @@ export class UsersService {
 
   async findUnitsForUser(
     userId: string,
-  ): Promise<{ id: string; name: string }[]> {
+  ): Promise<{ id: string; name: string; companyId: string }[]> {
     try {
       const units = await this.usersRepository.findUnitsForUser(userId);
       return units;

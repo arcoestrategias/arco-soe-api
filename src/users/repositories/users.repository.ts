@@ -220,6 +220,7 @@ export class UsersRepository {
   ): Promise<{
     id: string;
     name: string;
+    companyId: string;
     positionId: string | null;
     positionName: string | null;
   } | null> {
@@ -227,7 +228,7 @@ export class UsersRepository {
     const link = await this.prisma.userBusinessUnit.findUnique({
       where: { userId_businessUnitId: { userId, businessUnitId } },
       select: {
-        businessUnit: { select: { id: true, name: true } },
+        businessUnit: { select: { id: true, name: true, companyId: true } },
         position: { select: { id: true, name: true } }, // puede venir null y está OK
       },
     });
@@ -237,6 +238,7 @@ export class UsersRepository {
     return {
       id: link.businessUnit.id,
       name: link.businessUnit.name,
+      companyId: link.businessUnit.companyId,
       positionId: link.position?.id ?? null,
       positionName: link.position?.name ?? null,
     };
@@ -286,7 +288,7 @@ export class UsersRepository {
 
   async findUnitsForUser(
     userId: string,
-  ): Promise<{ id: string; name: string }[]> {
+  ): Promise<{ id: string; name: string; companyId: string }[]> {
     const links = await this.prisma.userBusinessUnit.findMany({
       where: { userId },
       select: {
@@ -294,6 +296,7 @@ export class UsersRepository {
           select: {
             id: true,
             name: true,
+            companyId: true,
           },
         },
       },

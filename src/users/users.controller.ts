@@ -110,6 +110,7 @@ export class UsersController {
       return {
         ...userEntity.toResponse(),
         isPlatformAdmin: true,
+        currentCompanyId: null,
         currentBusinessUnit: null,
         permissions: null,
         needsBusinessUnit: false, // ← admin: siempre false
@@ -127,6 +128,7 @@ export class UsersController {
       return {
         ...userEntity.toResponse(),
         isPlatformAdmin: false,
+        currentCompanyId: null,
         currentBusinessUnit: null,
         permissions: null,
         needsBusinessUnit: false, // ← no tiene BUs
@@ -139,6 +141,7 @@ export class UsersController {
       return {
         ...userEntity.toResponse(),
         isPlatformAdmin: false,
+        currentCompanyId: null,
         currentBusinessUnit: null,
         permissions: null,
         needsBusinessUnit: true, // ← sí tiene BUs
@@ -158,10 +161,11 @@ export class UsersController {
       return {
         ...userEntity.toResponse(),
         isPlatformAdmin: false,
+        currentCompanyId: null,
         currentBusinessUnit: null,
         permissions: null,
         needsBusinessUnit: true, // ← sí tiene BUs (pero BU actual inválida)
-        businessUnits: units,
+        businessUnits: units, // ← ya incluyen companyId
       };
     }
 
@@ -174,9 +178,11 @@ export class UsersController {
     return {
       ...userEntity.toResponse(),
       isPlatformAdmin: false,
+      currentCompanyId: buWithPos.companyId,
       currentBusinessUnit: {
         id: buWithPos.id,
         name: buWithPos.name,
+        companyId: buWithPos.companyId,
         positionId: buWithPos.positionId,
         positionName: buWithPos.positionName,
       },
