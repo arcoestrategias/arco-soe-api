@@ -1,3 +1,6 @@
+// ============================================================================
+// Prisma Client & Datasource
+// ============================================================================
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,44 +10,33 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// -----------------------------------------------------------------------------
-/// 📘 CONVENCIONES Y NOMENCLATURA — SOE BACKEND
-/// -----------------------------------------------------------------------------
+// ============================================================================
+// CONVENCIONES Y NOMENCLATURA — SOE BACKEND
+// ----------------------------------------------------------------------------
+// Nombres de modelos:
+// - Inglés, PascalCase (Company, BusinessUnit, UserPermission)
+//
+// Relaciones y campos inversos (buena práctica):
+// - Prisma permite 1:N unidireccionales, pero **mantenemos inversos** para
+//   claridad de navegación, legibilidad y consistencia.
+//
+// Multiempresa:
+// - Cada Company puede tener varias BusinessUnit
+// - Contexto de usuario con UserBusinessUnit (composite key)
+//
+// Acceso:
+// - UserPermission otorga permisos efectivos; Role es plantilla
+//
+// Estilo:
+// - Campos camelCase, Tablas PascalCase
+// - Auditoría: isActive, createdBy, updatedBy, createdAt, updatedAt
+// ============================================================================
 
-/// 🔠 Nombres de modelos:
-/// - En inglés, en PascalCase (Company, UserPermission)
+// ============================================================================
+// CORE: Company, BusinessUnit, Position, Roles & Permissions, Users
+// ============================================================================
 
-/// 🔁 Relaciones y campos inversos:
-/// Prisma requiere que todas las relaciones sean bidireccionales.
-///
-/// - Uno a muchos directo:
-///   - Ejemplo: `Company` → `BusinessUnit[]`
-///   - El campo inverso en el lado "muchos" debe tener `@relation(...)`
-///   - El nombre pluralizado debe reflejar el tipo exacto: `businessUnits`, `users`
-///
-/// - Muchos a muchos con tabla intermedia personalizada:
-///   - Ejemplo: `UserPermission`, `RolePermission`, `UserBusinessUnit`
-///   - En estos casos, el campo inverso suele llamarse `userPermissions`, `roleLinks`, etc.
-///   - Se prefiere usar nombres descriptivos del join (no necesariamente `users`, `roles`) para evitar confusión
-///
-/// - Si un campo apunta a una entidad principal directamente → usar plural natural (`users`, `permissions`)
-/// - Si un campo apunta a una tabla intermedia o relación específica → usar nombres semánticos (`userLinks`, `rolePermissions`, `userBusinessUnits`)
-
-/// 🔐 Control de acceso:
-/// - Los permisos se otorgan por `UserPermission`, con `userId + businessUnitId + permissionId`
-/// - Los `Role` funcionan como plantillas y no se usan en tiempo de ejecución
-/// - La tabla `UserBusinessUnit` define el contexto de acción del usuario en el sistema
-
-/// 🧱 Diseño multiempresa:
-/// - Cada `Company` puede tener varias `BusinessUnit`
-/// - Los usuarios se asocian a una o varias unidades de negocio mediante `UserBusinessUnit`
-/// - Los cargos (`Position`) son estructurales, no de control de acceso
-
-/// 🧼 Estilo:
-/// - Campos: camelCase
-/// - Tablas: PascalCase
-/// - Auditar con campos createdAt, updatedAt, createdBy, updatedBy si aplica
-
+/// Organización (tenant). Agrupa unidades de negocio.
 model Company {
   id                      String  @id @default(uuid()) @db.Uuid
   name                    String  @db.VarChar(500)
@@ -57,57 +49,71 @@ model Company {
   isPrivate               Boolean @default(false)
   isGroup                 Boolean @default(false)
 
+  // Relaciones 1:N
   businessUnits BusinessUnit[]
   userCompanies UserCompany[]
 
+  // Inversos para módulos de Sistema/Notificaciones
+  systemSettings SystemSetting[] // inverso de SystemSetting.company
+  notifications  Notification[] // inverso de Notification.company
+
   // Auditoría
-  isActive  Boolean  @default(true)
-  createdBy String?
-  updatedBy String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model BusinessUnit {
-  id                      String             @id @default(uuid()) @db.Uuid
-  name                    String             @db.VarChar(500)
-  description             String?            @db.VarChar(1000)
-  ide                     String?            @db.VarChar(13)
-  legalRepresentativeName String?            @db.VarChar(250)
-  address                 String?            @db.VarChar(250)
-  phone                   String?            @db.VarChar(50)
-  order                   Int?
-  isMain                  Boolean            @default(false)
-  companyId               String             @db.Uuid
-  company                 Company            @relation(fields: [companyId], references: [id])
-  positions               Position[]
-  userLinks               UserBusinessUnit[]
-  userPermissions         UserPermission[]
-
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  strategicPlans StrategicPlan[]
 }
 
+/// Unidad de negocio. Contiene posiciones, planes, etc.
+model BusinessUnit {
+  id                      String  @id @default(uuid()) @db.Uuid
+  name                    String  @db.VarChar(500)
+  description             String? @db.VarChar(1000)
+  ide                     String? @db.VarChar(13)
+  legalRepresentativeName String? @db.VarChar(250)
+  address                 String? @db.VarChar(250)
+  phone                   String? @db.VarChar(50)
+  order                   Int?
+  isMain                  Boolean @default(false)
+
+  // Relación con Company
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Relaciones 1:N
+  positions       Position[]
+  userLinks       UserBusinessUnit[]
+  userPermissions UserPermission[]
+  strategicPlans  StrategicPlan[]
+
+  // Inversos para módulos de Sistema/Notificaciones
+  systemSettings SystemSetting[] // inverso de SystemSetting.businessUnit
+  notifications  Notification[] // inverso de Notification.businessUnit
+
+  // Auditoría
+  isActive  Boolean  @default(true)
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Cargo/posición. Puede ligarse a objetivos, proyectos, prioridades, palancas.
 model Position {
   id   String @id @default(uuid()) @db.Uuid
   name String @db.VarChar(500)
 
+  // Pertenencia a BU
   businessUnitId String       @db.Uuid
   businessUnit   BusinessUnit @relation(fields: [businessUnitId], references: [id])
 
-  userLinks UserBusinessUnit[]
+  // Relaciones con usuarios y planes
+  userLinks       UserBusinessUnit[]
+  strategicPlanId String?            @db.Uuid
+  strategicPlan   StrategicPlan?     @relation(fields: [strategicPlanId], references: [id])
 
-  // userId String? @db.Uuid
-  // user   User?   @relation(fields: [userId], references: [id])
-
-  strategicPlanId String?        @db.Uuid
-  strategicPlan   StrategicPlan? @relation(fields: [strategicPlanId], references: [id])
-
+  // Jerarquía interna de posiciones
   mission    String?
   vision     String?
   department String?
@@ -117,30 +123,36 @@ model Position {
   superior           Position?  @relation("PositionHierarchy", fields: [positionSuperiorId], references: [id])
   subordinates       Position[] @relation("PositionHierarchy")
 
+  // Otras relaciones
   projectParticipants ProjectParticipant[]
   priorities          Priority[]
-  levers Lever[]
+  levers              Lever[]
+  objectives          Objective[]
+  strategicProjects   StrategicProject[]
 
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  objectives        Objective[]
-  strategicProjects StrategicProject[]
 
   @@index([businessUnitId])
 }
 
+/// Plantilla de rol (no ejecuta permisos en runtime; se copian a UserPermission).
 model Role {
-  id          String           @id @default(uuid()) @db.Uuid
-  name        String           @unique
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @unique
   description String?
+
+  // Relación con permisos (m2m explícita)
   permissions RolePermission[]
 
+  // Usuarios vinculados (contexto BU)
   userLinks UserBusinessUnit[]
 
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
@@ -148,13 +160,17 @@ model Role {
   updatedAt DateTime @updatedAt
 }
 
+/// Módulos funcionales del sistema
 model Module {
-  id          String       @id @default(uuid()) @db.Uuid
-  name        String       @unique
-  shortCode   String       @unique
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @unique
+  shortCode   String  @unique
   description String?
+
+  // Relación con permisos
   permissions Permission[]
 
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
@@ -162,15 +178,20 @@ model Module {
   updatedAt DateTime @updatedAt
 }
 
+/// Permiso granular asociado a un módulo.
 model Permission {
-  id          String           @id @default(uuid()) @db.Uuid
-  name        String           @unique
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @unique
   description String?
-  moduleId    String           @db.Uuid
-  module      Module           @relation(fields: [moduleId], references: [id])
-  roleLinks   RolePermission[]
-  userLinks   UserPermission[]
 
+  moduleId String @db.Uuid
+  module   Module @relation(fields: [moduleId], references: [id])
+
+  // Relaciones intermedias
+  roleLinks RolePermission[]
+  userLinks UserPermission[]
+
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
@@ -178,13 +199,16 @@ model Permission {
   updatedAt DateTime @updatedAt
 }
 
+/// Relación m2m explícita entre Role y Permission (plantillas).
 model RolePermission {
-  id           String     @id @default(uuid()) @db.Uuid
+  id String @id @default(uuid()) @db.Uuid
+
   roleId       String     @db.Uuid
   permissionId String     @db.Uuid
   role         Role       @relation(fields: [roleId], references: [id])
   permission   Permission @relation(fields: [permissionId], references: [id])
 
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
@@ -192,20 +216,26 @@ model RolePermission {
   updatedAt DateTime @updatedAt
 }
 
+/// Usuario del sistema (multi-empresa).
 model User {
-  id                String             @id @default(uuid()) @db.Uuid
-  email             String             @unique
-  username          String?            @unique
-  ide               String             @unique
-  telephone         String?
-  firstName         String
-  lastName          String
-  password          String
+  id        String  @id @default(uuid()) @db.Uuid
+  email     String  @unique
+  username  String? @unique
+  ide       String  @unique
+  telephone String?
+  firstName String
+  lastName  String
+  password  String
+
+  // Contexto multi-empresa
   userCompanies     UserCompany[]
   userBusinessUnits UserBusinessUnit[]
   userPermissions   UserPermission[]
-  isPlatformAdmin   Boolean            @default(false)
 
+  // Admin plataforma
+  isPlatformAdmin Boolean @default(false)
+
+  // Seguridad / tokens
   tokenInvalidBeforeAt  DateTime?
   resetToken            String?   @db.VarChar(255)
   resetTokenExpiresAt   DateTime?
@@ -217,6 +247,10 @@ model User {
   loginAttempts Int       @default(0)
   lockedUntil   DateTime?
 
+  // Inverso de Notificaciones recibidas
+  notificationsReceived Notification[] // ← inverso de Notification.recipient
+
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
@@ -224,6 +258,7 @@ model User {
   updatedAt DateTime @updatedAt
 }
 
+/// Asociación Usuario-Compañía.
 model UserCompany {
   id        String  @id @default(uuid()) @db.Uuid
   userId    String  @db.Uuid
@@ -236,45 +271,26 @@ model UserCompany {
   @@unique([userId, companyId])
 }
 
-// model UserBusinessUnit {
-//   id             String  @id @default(uuid()) @db.Uuid
-//   userId         String  @db.Uuid
-//   businessUnitId String  @db.Uuid
-//   isResponsible  Boolean @default(false)
-//   positionId     String? @db.Uuid
-//   roleId         String? @db.Uuid
-
-//   user         User         @relation(fields: [userId], references: [id])
-//   businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id])
-//   position     Position?    @relation(fields: [positionId], references: [id])
-//   role         Role?        @relation(fields: [roleId], references: [id])
-
-//   createdBy String?  @db.Uuid
-//   updatedBy String?  @db.Uuid
-//   createdAt DateTime @default(now())
-//   updatedAt DateTime @updatedAt
-
-//   @@unique([userId, businessUnitId])
-// }
-
+/// Asociación Usuario-BusinessUnit (contexto operativo).
 model UserBusinessUnit {
-  userId         String    @db.Uuid
-  businessUnitId String    @db.Uuid
-  positionId     String?   @db.Uuid
-  roleId         String?   @db.Uuid
-  isResponsible  Boolean   @default(false)
+  userId         String  @db.Uuid
+  businessUnitId String  @db.Uuid
+  positionId     String? @db.Uuid
+  roleId         String? @db.Uuid
+  isResponsible  Boolean @default(false)
 
-  user           User      @relation(fields: [userId], references: [id])
-  businessUnit   BusinessUnit @relation(fields: [businessUnitId], references: [id])
-  position       Position? @relation(fields: [positionId], references: [id])
-  role           Role?     @relation(fields: [roleId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id])
+  position     Position?    @relation(fields: [positionId], references: [id])
+  role         Role?        @relation(fields: [roleId], references: [id])
 
   @@id([userId, businessUnitId]) // un registro por usuario y BU
-  @@unique([positionId])         // una posición no puede tener 2 usuarios (permite null duplicado)
+  @@unique([positionId]) // una posición no puede tener 2 usuarios (permite null duplicado)
   @@index([businessUnitId])
   @@index([userId])
 }
 
+/// Permisos efectivos por usuario y BU (override a plantillas).
 model UserPermission {
   id             String  @id @default(uuid()) @db.Uuid
   userId         String  @db.Uuid
@@ -295,6 +311,11 @@ model UserPermission {
   @@index([userId, businessUnitId])
 }
 
+// ============================================================================
+// STRATEGIC PLANNING: StrategicPlan, Values, Factors, Objectives, Indicators
+// ============================================================================
+
+/// Plan estratégico de una BU (dueña del plan).
 model StrategicPlan {
   id                   String    @id @default(uuid()) @db.Uuid
   name                 String    @db.VarChar(500)
@@ -311,20 +332,24 @@ model StrategicPlan {
   businessUnitId String       @db.Uuid
   businessUnit   BusinessUnit @relation(fields: [businessUnitId], references: [id])
 
+  // Relaciones
   values     StrategicValue[]
   factors    StrategicSuccessFactor[]
   objectives Objective[]
   projects   StrategicProject[]
 
+  // Inverso hacia Position (posiciones que “pertenecen” al plan)
+  positions Position[]
+
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  positions Position[]
 }
 
+/// Valores corporativos del plan.
 model StrategicValue {
   id          String  @id @default(uuid()) @db.Uuid
   name        String  @db.VarChar(500)
@@ -334,6 +359,7 @@ model StrategicValue {
   strategicPlanId String        @db.Uuid
   strategicPlan   StrategicPlan @relation(fields: [strategicPlanId], references: [id])
 
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
@@ -341,6 +367,7 @@ model StrategicValue {
   updatedAt DateTime @updatedAt
 }
 
+/// Factores clave de éxito del plan.
 model StrategicSuccessFactor {
   id          String  @id @default(uuid()) @db.Uuid
   name        String  @db.VarChar(500)
@@ -350,6 +377,7 @@ model StrategicSuccessFactor {
   strategicPlanId String        @db.Uuid
   strategicPlan   StrategicPlan @relation(fields: [strategicPlanId], references: [id])
 
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
@@ -357,6 +385,7 @@ model StrategicSuccessFactor {
   updatedAt DateTime @updatedAt
 }
 
+/// Objetivo estratégico (con jerarquía e indicador).
 model Objective {
   id               String  @id @default(uuid()) @db.Uuid
   name             String  @db.VarChar(500)
@@ -368,31 +397,38 @@ model Objective {
   goalValue        Float?  @default(0)
   status           String  @default("OPE")
 
+  // Dueño del objetivo
   positionId String   @db.Uuid
   position   Position @relation(fields: [positionId], references: [id])
 
+  // Plan al que pertenece
   strategicPlanId String        @db.Uuid
   strategicPlan   StrategicPlan @relation(fields: [strategicPlanId], references: [id])
 
+  // Indicador 1:1 (configurable)
   indicatorId String?    @db.Uuid
   indicator   Indicator? @relation(fields: [indicatorId], references: [id])
 
+  // Jerarquía de objetivos
   objectiveParentId String?     @db.Uuid
   parent            Objective?  @relation("ObjectiveHierarchy", fields: [objectiveParentId], references: [id])
   children          Objective[] @relation("ObjectiveHierarchy")
 
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Relaciones derivadas
   objectiveGoals    ObjectiveGoal[]
   objectiveGoalsHis ObjectiveGoalHist[]
   strategicProjects StrategicProject[]
   priorities        Priority[]
 }
 
+/// Indicador de desempeño (periodicidad, tendencia, etc.).
 model Indicator {
   id           String    @id @default(uuid()) @db.Uuid
   name         String    @db.VarChar(500)
@@ -406,19 +442,22 @@ model Indicator {
   frequency    String?   @default("MES")
   measurement  String?   @default("POR")
   type         String?   @default("GES")
-  reference    String? 
+  reference    String?
   periodStart  DateTime?
   periodEnd    DateTime?
 
+  // Inverso a objetivos (1 indicador puede usarse en varios)
+  objectives Objective[]
+
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  objectives Objective[]
 }
 
+/// Meta mensualizada de un objetivo (clave: objectiveId + month + year).
 model ObjectiveGoal {
   id String @id @default(uuid()) @db.Uuid
 
@@ -443,6 +482,7 @@ model ObjectiveGoal {
   objectiveId String    @db.Uuid
   objective   Objective @relation(fields: [objectiveId], references: [id])
 
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
@@ -452,6 +492,7 @@ model ObjectiveGoal {
   @@unique([objectiveId, month, year])
 }
 
+/// Historial de metas (versionado soft).
 model ObjectiveGoalHist {
   id          String @id @default(uuid()) @db.Uuid
   objectiveId String @db.Uuid
@@ -487,18 +528,26 @@ model ObjectiveGoalHist {
   @@index([objectiveId, year, month])
 }
 
-model StrategicProject {
-  id          String    @id @default(uuid()) @db.Uuid
-  name        String    @db.VarChar(500)
-  description String?   @db.VarChar(1000)
-  order       Int       @default(0)
-  fromAt      DateTime?
-  untilAt     DateTime?
-  finishedAt  DateTime?
-  canceledAt  DateTime?
-  status      String    @default("OPE")
-  budget      Float?
+// ============================================================================
+// PROJECTS: StrategicProject, Factors, Participants, Tasks
+// ============================================================================
 
+/// Proyecto estratégico ligado a un plan/posición/objetivo (opcional).
+model StrategicProject {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @db.VarChar(500)
+  description String? @db.VarChar(1000)
+  order       Int     @default(0)
+
+  // Fechas y estado
+  fromAt     DateTime?
+  untilAt    DateTime?
+  finishedAt DateTime?
+  canceledAt DateTime?
+  status     String    @default("OPE")
+  budget     Float?
+
+  // Pertenencia
   strategicPlanId String        @db.Uuid
   strategicPlan   StrategicPlan @relation(fields: [strategicPlanId], references: [id])
 
@@ -508,9 +557,11 @@ model StrategicProject {
   objectiveId String?    @db.Uuid
   objective   Objective? @relation(fields: [objectiveId], references: [id])
 
+  // Relaciones
   factors      ProjectFactor[]
   participants ProjectParticipant[]
 
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
@@ -518,6 +569,7 @@ model StrategicProject {
   updatedAt DateTime @updatedAt
 }
 
+/// Factor/entregable del proyecto.
 model ProjectFactor {
   id          String  @id @default(uuid()) @db.Uuid
   name        String  @db.VarChar(500)
@@ -526,30 +578,36 @@ model ProjectFactor {
   projectId   String  @db.Uuid
   order       Int     @default(0)
 
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Relaciones
   project StrategicProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks   ProjectTask[]
 
   @@index([projectId])
 }
 
+/// Participante (posición) del proyecto.
 model ProjectParticipant {
-  id         String  @id @default(uuid()) @db.Uuid
-  isLeader   Boolean @default(false)
-  projectId  String  @db.Uuid
-  positionId String  @db.Uuid
+  id       String  @id @default(uuid()) @db.Uuid
+  isLeader Boolean @default(false)
 
+  projectId  String @db.Uuid
+  positionId String @db.Uuid
+
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Relaciones
   project  StrategicProject @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   position Position         @relation(fields: [positionId], references: [id])
 
@@ -560,30 +618,36 @@ model ProjectParticipant {
   @@index([positionId])
 }
 
+/// Tarea del proyecto (con fechas y estado).
 model ProjectTask {
-  id                   String    @id @default(uuid()) @db.Uuid
-  name                 String    @db.VarChar(500)
-  description          String?   @db.VarChar(1000)
-  order                Int       @default(0)
-  fromAt               DateTime  @db.Date
-  untilAt              DateTime  @db.Date
-  finishedAt           DateTime? @db.Date
-  status               String    @default("OPE") @db.VarChar(3)
-  props                String?   @db.VarChar(1000)
-  result               String?   @db.VarChar(1000)
-  methodology          String?   @db.VarChar(1000)
-  budget               Decimal   @default(0)
-  limitation           String?   @db.VarChar(1000)
-  comments             String?   @db.VarChar(1000)
-  projectFactorId      String    @db.Uuid
-  projectParticipantId String    @db.Uuid
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @db.VarChar(500)
+  description String? @db.VarChar(1000)
+  order       Int     @default(0)
 
+  fromAt     DateTime  @db.Date
+  untilAt    DateTime  @db.Date
+  finishedAt DateTime? @db.Date
+
+  status      String  @default("OPE") @db.VarChar(3)
+  props       String? @db.VarChar(1000)
+  result      String? @db.VarChar(1000)
+  methodology String? @db.VarChar(1000)
+  budget      Decimal @default(0)
+  limitation  String? @db.VarChar(1000)
+  comments    String? @db.VarChar(1000)
+
+  projectFactorId      String @db.Uuid
+  projectParticipantId String @db.Uuid
+
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Relaciones
   factor      ProjectFactor      @relation(fields: [projectFactorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   participant ProjectParticipant @relation(fields: [projectParticipantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
@@ -591,6 +655,7 @@ model ProjectTask {
   @@index([projectParticipantId])
 }
 
+/// Palanca (lever) asociada a una posición.
 model Lever {
   id          String  @id @default(uuid()) @db.Uuid
   name        String  @db.VarChar(500)
@@ -600,6 +665,7 @@ model Lever {
   positionId String   @db.Uuid
   position   Position @relation(fields: [positionId], references: [id])
 
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
@@ -607,8 +673,9 @@ model Lever {
   updatedAt DateTime @updatedAt
 }
 
+/// Prioridad con fecha y estado.
 model Priority {
-  id       String  @id @default(uuid()) @db.Uuid
+  id          String  @id @default(uuid()) @db.Uuid
   name        String  @db.VarChar(500)
   description String? @db.VarChar(1000)
   order       Int     @default(0)
@@ -623,13 +690,14 @@ model Priority {
 
   status String @default("OPE") @db.VarChar(3) // OPE | CLO | CAN
 
-  positionId String @db.Uuid
+  positionId String   @db.Uuid
   position   Position @relation(fields: [positionId], references: [id])
 
-  objectiveId String? @db.Uuid
+  objectiveId String?    @db.Uuid
   objective   Objective? @relation(fields: [objectiveId], references: [id])
 
-  isActive Boolean @default(true)
+  // Auditoría
+  isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
@@ -642,23 +710,29 @@ model Priority {
   @@index([untilAt])
 }
 
+// ============================================================================
+// FILES & COMMENTS
+// ============================================================================
+
+/// Archivos adjuntos/medios relacionados a entidades (por shortcode+referenceId).
 model File {
-  id               String   @id @default(uuid())
-  fieldName        String?                         
-  description      String?
-  originalName     String?                           
-  encoding         String?
-  mimeType         String?                          
-  destination      String?
-  fileName         String?                          
-  path             String?
-  sizeByte         Decimal?                         
-  extension        String?
-  icon             String?
-  moduleShortcode  String?   
-  referenceId      String? @db.Uuid
-  screenKey        String?          // ← p.ej. "logo", "avatar", "attachments", "banner"
-  
+  id              String   @id @default(uuid())
+  fieldName       String?
+  description     String?
+  originalName    String?
+  encoding        String?
+  mimeType        String?
+  destination     String?
+  fileName        String?
+  path            String?
+  sizeByte        Decimal?
+  extension       String?
+  icon            String?
+  moduleShortcode String?
+  referenceId     String?  @db.Uuid
+  screenKey       String? // p.ej. "logo", "avatar", "attachments", "banner"
+
+  // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
@@ -666,38 +740,197 @@ model File {
   updatedAt DateTime @updatedAt
 
   @@index([moduleShortcode, referenceId], name: "idx_files_module_ref")
-  @@index([moduleShortcode, referenceId, screenKey], name: "idx_files_module_ref_screen") // ← nuevo
-
+  @@index([moduleShortcode, referenceId, screenKey], name: "idx_files_module_ref_screen")
   @@map("files")
 }
 
+/// Plantillas de notificación (texto/subject/plantilla parametrizable).
 model NotificationTemplate {
-  id            String   @id @default(uuid())
-  name          String   @db.VarChar(500)
-  subject       String?  @db.VarChar(1000)
-  codeTemplate  String   @db.Char(3) @unique
-  template      String   @db.Text
+  id           String  @id @default(uuid())
+  name         String  @db.VarChar(500)
+  subject      String? @db.VarChar(1000)
+  codeTemplate String  @unique @db.Char(3)
+  template     String  @db.Text
 
-  isActive      Boolean  @default(true)
-  createdBy     String?
-  updatedBy     String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isActive  Boolean  @default(true)
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([isActive])
 }
 
+/// Comentarios genéricos por referencia (módulo+referencia).
 model Comment {
-  id              String   @id @default(uuid()) @db.Uuid
-  name            String   @db.VarChar(1000)
-  moduleShortcode String?   @db.VarChar(20)
-  referenceId     String   @db.Uuid
+  id              String  @id @default(uuid()) @db.Uuid
+  name            String  @db.VarChar(1000)
+  moduleShortcode String? @db.VarChar(20)
+  referenceId     String  @db.Uuid
 
-  isActive        Boolean  @default(true)
-  createdBy       String?  @db.Uuid
-  updatedBy       String?  @db.Uuid
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  // Auditoría
+  isActive  Boolean  @default(true)
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([referenceId])
+}
+
+// ============================================================================
+// SYSTEM SETTINGS (Parámetros por Company + BusinessUnit)
+// ============================================================================
+
+/// Parámetros por Compañía + Unidad de Negocio (scoping obligatorio).
+/// Ejemplos:
+/// - NOTIF_EMAIL_ENABLED → { "enabled": false }
+/// - NOTIF_QUIET_HOURS   → { "start":"22:00","end":"07:00","timezone":"America/Guayaquil" }
+/// - NOTIF_DEFAULT_CHANNELS → reglas de canales por evento
+model SystemSetting {
+  id String @id @default(uuid()) @db.Uuid
+
+  companyId      String @db.Uuid
+  businessUnitId String @db.Uuid
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id])
+
+  key      String  @db.VarChar(80)
+  value    Json
+  isActive Boolean @default(true)
+
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, businessUnitId, key])
+  @@index([companyId, businessUnitId, key])
+}
+
+// ============================================================================
+// NOTIFICATIONS MODULE
+// ----------------------------------------------------------------------------
+// - Notification: 1 fila por canal (IN_APP, EMAIL, ...)
+// - NotificationDelivery: trazabilidad por proveedor/canal
+// - Usa DB+Cron para scheduling; escalable a BullMQ
+// - Dedupe por usuario+entidad+evento+día+canal (dedupeKey)
+// - Relacionado a Company y BusinessUnit con inversos en ambos
+// ============================================================================
+
+/// Entidad origen de la notificación.
+enum NotificationEntity {
+  PRIORITY
+  TASK
+  OBJECTIVE_GOAL
+  PROJECT
+}
+
+/// Eventos soportados por el sistema de notificaciones.
+/// ASSIGNED           → inmediata
+/// UPDATED            → cambios relevantes (fecha/owner)
+/// DUE_SOON          → programada (-4d, -1d)
+/// OVERDUE           → programada (al vencer)
+/// COMPLETED         → cierre
+/// APPROVAL_*        → flujos de aprobación
+enum NotificationEvent {
+  ASSIGNED
+  UPDATED
+  DUE_SOON
+  OVERDUE
+  COMPLETED
+  APPROVAL_REQUESTED
+  APPROVED
+  REJECTED
+}
+
+/// Canales de entrega. V1: IN_APP + EMAIL. Futuro: PUSH/SMS/WH/WEBHOOK.
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  PUSH
+  SMS
+  WHATSAPP
+  WEBHOOK
+}
+
+/// Estado del job de notificación.
+/// PEN → pendiente; SENT → enviada; READ → leída; EXP → expirada; FLD → fallida.
+enum NotificationStatus {
+  PEN
+  SENT
+  READ
+  EXP
+  FLD
+}
+
+/// Registro de notificación (una fila por canal).
+model Notification {
+  id String @id @default(uuid()) @db.Uuid
+
+  // Scoping multiempresa
+  companyId      String       @db.Uuid
+  businessUnitId String       @db.Uuid
+  company        Company      @relation(fields: [companyId], references: [id])
+  businessUnit   BusinessUnit @relation(fields: [businessUnitId], references: [id])
+
+  // Destinatario
+  recipientId String @db.Uuid
+  recipient   User   @relation(fields: [recipientId], references: [id])
+
+  // Origen del evento
+  entityType NotificationEntity
+  entityId   String             @db.Uuid
+
+  // Evento y canal
+  event   NotificationEvent
+  channel NotificationChannel
+
+  // Contenido resuelto (desde plantilla + variables)
+  title   String @db.VarChar(500)
+  message String @db.VarChar(1000)
+  payload Json?
+
+  // Estado y programación
+  status      NotificationStatus @default(PEN)
+  scheduledAt DateTime? // si es programada (DUE_SOON/OVERDUE)
+  sentAt      DateTime?
+  readAt      DateTime?
+  expiresAt   DateTime?
+
+  // Dedupe: usuario + entidad + evento + día + canal
+  dedupeKey String @db.VarChar(160)
+
+  // Auditoría
+  isActive  Boolean  @default(true)
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Trazabilidad de envío por proveedor/canal
+  deliveries NotificationDelivery[]
+
+  @@unique([recipientId, entityType, entityId, event, channel, dedupeKey])
+  @@index([recipientId, status, scheduledAt])
+  @@index([companyId, businessUnitId])
+  @@index([entityType, entityId, event])
+}
+
+/// Log de entrega por proveedor (SES/SendGrid/FCM…).
+model NotificationDelivery {
+  id String @id @default(uuid()) @db.Uuid
+
+  notificationId String       @db.Uuid
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  provider          String  @db.VarChar(50) // "ses", "sendgrid", "fcm"...
+  providerMessageId String? @db.VarChar(120)
+  status            String  @db.VarChar(30) // delivered, bounced, complaint...
+  meta              Json? // payloads de webhook / detalles
+
+  createdAt DateTime @default(now())
+
+  @@index([notificationId])
 }
