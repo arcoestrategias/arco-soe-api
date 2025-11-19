@@ -364,4 +364,71 @@ export class PriorityRepository {
       total,
     };
   }
+
+  // === Notificaciones: helpers de scope (Prisma only) ===
+
+  /**
+   * Resuelve el contexto mínimo para notificar a dueño de una posición:
+   * - companyId / businessUnitId (desde la BU de la posición)
+   * - responsibleUserId (usuario responsable de esa posición)
+   */
+  async getNotificationScopeByPosition(positionId: string) {
+    const position = await this.prisma.position.findUnique({
+      where: { id: positionId },
+      select: { businessUnitId: true },
+    });
+    if (!position) return null;
+
+    const businessUnit = await this.prisma.businessUnit.findUnique({
+      where: { id: position.businessUnitId },
+      select: { id: true, companyId: true },
+    });
+
+    const userBusinessUnit = await this.prisma.userBusinessUnit.findFirst({
+      where: { positionId },
+      select: { userId: true },
+    });
+
+    return {
+      companyId: businessUnit?.companyId ?? null,
+      businessUnitId: businessUnit?.id ?? null,
+      responsibleUserId: userBusinessUnit?.userId ?? null,
+    };
+  }
+
+  /**
+   * Resuelve el contexto mínimo para notificar a partir de una prioridad:
+   * Incluye datos básicos de la prioridad (nombre y fecha de vencimiento).
+   */
+  async getNotificationScopeByPriority(priorityId: string) {
+    const priority = await this.prisma.priority.findUnique({
+      where: { id: priorityId },
+      select: { id: true, name: true, untilAt: true, positionId: true },
+    });
+    if (!priority) return null;
+
+    const scope = await this.getNotificationScopeByPosition(
+      priority.positionId,
+    );
+    return {
+      ...scope,
+      priorityId: priority.id,
+      priorityName: priority.name,
+      dueDate: priority.untilAt ?? null,
+    };
+  }
+
+  /** Select ligero por id (útil para comparar fechas previas). */
+  async findLightById(priorityId: string) {
+    return this.prisma.priority.findUnique({
+      where: { id: priorityId },
+      select: {
+        id: true,
+        name: true,
+        untilAt: true,
+        status: true,
+        positionId: true,
+      },
+    });
+  }
 }

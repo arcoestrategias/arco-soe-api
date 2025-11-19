@@ -221,4 +221,14 @@ export const PERMISSIONS = {
     APPROVE: 'comment.approve',
     ASSIGN: 'comment.assign',
   },
+  NOTIFICATIONS: {
+    ACCESS: 'notification.access',
+    READ: 'notification.read',
+    CREATE: 'notification.create',
+    UPDATE: 'notification.update',
+    DELETE: 'notification.delete',
+    EXPORT: 'notification.export',
+    APPROVE: 'notification.approve',
+    ASSIGN: 'notification.assign',
+  },
 };

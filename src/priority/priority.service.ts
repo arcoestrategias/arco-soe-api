@@ -20,26 +20,135 @@ import {
   IcpSeriesItemDto,
   IcpSeriesResponseDto,
 } from './dto/icp-series-response.dto';
+import { NotificationService } from 'src/notifications/notifications.service';
+import { NotificationEvent } from '@prisma/client';
+import { UsersRepository } from 'src/users/repositories/users.repository';
+
+const DAY_MS = 86_400_000;
+const subtractDays = (base: Date, days: number) =>
+  new Date(base.getTime() - days * DAY_MS);
 
 @Injectable()
 export class PriorityService {
-  constructor(private readonly repo: PriorityRepository) {}
+  constructor(
+    private readonly repo: PriorityRepository,
+    private readonly notificationService: NotificationService,
+    private readonly userRepository: UsersRepository,
+  ) {}
 
   // -------- CRUD --------
 
   async create(
     dto: CreatePriorityDto,
-    userId: string,
+    creatorUserId: string,
   ): Promise<ResponsePriorityDto> {
-    // Completar month/year si faltan, tomados de untilAt
-    if (!dto.month || !dto.year) {
-      const u = new Date(dto.untilAt);
-      dto.month = dto.month ?? u.getUTCMonth() + 1;
-      dto.year = dto.year ?? u.getUTCFullYear();
+    // 1) Normalización de período (mes/año) a partir de la fecha de vencimiento si no viene
+    if ((!dto.month || !dto.year) && dto.untilAt) {
+      const untilAtDate = new Date(dto.untilAt);
+      dto.month = untilAtDate.getUTCMonth() + 1;
+      dto.year = untilAtDate.getUTCFullYear();
     }
-    const created = await this.repo.create(dto, userId);
-    const withClass = this.withMonthlyClass(created, dto.month, dto.year);
-    return new ResponsePriorityDto(withClass);
+
+    // 2) Persistir prioridad
+    const createdRecord = await this.repo.create(dto, creatorUserId);
+
+    // 3) Scope de notificación (compañía / unidad / responsable de la posición)
+    const notificationScope = await this.repo.getNotificationScopeByPosition(
+      dto.positionId,
+    );
+
+    if (notificationScope?.responsibleUserId) {
+      const responsibleUserId = notificationScope.responsibleUserId;
+      const isSelfAssignment = creatorUserId === responsibleUserId;
+
+      // 3.1) Obtener nombre completo del actor (creador)
+      const actorUser = await this.userRepository.findById(creatorUserId);
+      const actorName = actorUser
+        ? `${actorUser.firstName} ${actorUser.lastName}`.trim()
+        : undefined;
+
+      // Variables estándar para notificaciones
+      const dueDate = createdRecord.untilAt ?? undefined;
+      const notificationVariables = {
+        entityId: createdRecord.id,
+        name: createdRecord.name,
+        dueDate,
+        actorId: creatorUserId,
+        actorName,
+      };
+
+      // 3.2) “ASSIGNED” solo si quien crea es distinto al dueño de la posición
+      if (!isSelfAssignment) {
+        await this.notificationService.emitImmediateInApp({
+          companyId: notificationScope.companyId!,
+          businessUnitId: notificationScope.businessUnitId!,
+          recipientId: responsibleUserId,
+          entityType: 'PRIORITY',
+          entityId: createdRecord.id,
+          event: 'ASSIGNED',
+          variables: notificationVariables,
+        });
+      }
+
+      // 3.3) Recordatorios programados si hay fecha de vencimiento
+      if (createdRecord.untilAt) {
+        const dueDateDate = new Date(createdRecord.untilAt);
+        const subtractDays = (base: Date, days: number) =>
+          new Date(base.getTime() - days * 86_400_000);
+
+        // DUE_SOON -4
+        await this.notificationService.scheduleInApp({
+          companyId: notificationScope.companyId!,
+          businessUnitId: notificationScope.businessUnitId!,
+          recipientId: responsibleUserId,
+          entityType: 'PRIORITY',
+          entityId: createdRecord.id,
+          event: 'DUE_SOON',
+          runAt: subtractDays(dueDateDate, 4),
+          variables: {
+            ...notificationVariables,
+            dueDate: dueDateDate,
+          },
+        });
+
+        // DUE_SOON -1
+        await this.notificationService.scheduleInApp({
+          companyId: notificationScope.companyId!,
+          businessUnitId: notificationScope.businessUnitId!,
+          recipientId: responsibleUserId,
+          entityType: 'PRIORITY',
+          entityId: createdRecord.id,
+          event: 'DUE_SOON',
+          runAt: subtractDays(dueDateDate, 1),
+          variables: {
+            ...notificationVariables,
+            dueDate: dueDateDate,
+          },
+        });
+
+        await this.notificationService.scheduleInApp({
+          companyId: notificationScope.companyId!,
+          businessUnitId: notificationScope.businessUnitId!,
+          recipientId: responsibleUserId,
+          entityType: 'PRIORITY',
+          entityId: createdRecord.id,
+          event: 'OVERDUE',
+          runAt: this.onlyDate(dueDateDate),
+          variables: {
+            ...notificationVariables,
+            dueDate: dueDateDate,
+          },
+        });
+      }
+    }
+
+    // 4) Respuesta
+    const priorityCreated = this.withMonthlyClass(
+      createdRecord,
+      dto.month,
+      dto.year,
+    );
+    return new ResponsePriorityDto(priorityCreated);
   }
 
   private todayLocalDate(tz = 'America/Guayaquil'): Date {
@@ -60,29 +169,201 @@ export class PriorityService {
   }
 
   async update(
-    id: string,
+    priorityId: string,
     dto: UpdatePriorityDto,
-    userId: string,
+    editorUserId: string,
   ): Promise<ResponsePriorityDto> {
+    // 1) Snapshot previo (para detectar cambio de fecha/estado/nombre)
+    const previous = await this.repo.findLightById(priorityId);
+    if (!previous) throw new Error('Prioridad no encontrada');
+
+    const previousDueDate = previous.untilAt ?? null;
+    const previousStatus = previous.status;
+    const previousName = previous.name;
+
+    // 2) Normalización de período si llega nueva fecha
+    if ((!dto.month || !dto.year) && dto.untilAt) {
+      const untilAtDate = new Date(dto.untilAt);
+      dto.month = untilAtDate.getUTCMonth() + 1;
+      dto.year = untilAtDate.getUTCFullYear();
+    }
+
+    // 2.1) Normalización de fechas de cierre / cancelación según status
     if (dto.status === 'CLO' && !dto.finishedAt) {
-      dto.finishedAt = this.todayLocalDate(); // antes: new Date()
+      dto.finishedAt = this.todayLocalDate();
     }
     if (dto.status === 'CAN' && !dto.canceledAt) {
-      dto.canceledAt = this.todayLocalDate(); // antes: new Date()
+      dto.canceledAt = this.todayLocalDate();
     }
     if (dto.status === 'OPE') {
       dto.finishedAt = null;
       dto.canceledAt = null;
     }
 
+    // 2.2) Si llega nueva untilAt sin mes/año, derivarlos
     if (dto.untilAt && (!dto.month || !dto.year)) {
       const u = new Date(dto.untilAt);
       dto.month = dto.month ?? u.getUTCMonth() + 1;
       dto.year = dto.year ?? u.getUTCFullYear();
     }
-    const updated = await this.repo.update(id, dto, userId);
-    const withClass = this.withMonthlyClass(updated, dto.month, dto.year);
-    return new ResponsePriorityDto(withClass);
+
+    // 3) Persistir cambios
+    const updatedRecord = await this.repo.update(priorityId, dto, editorUserId);
+
+    // 4) Scope de notificación desde la prioridad actualizada
+    const notificationScope = await this.repo.getNotificationScopeByPriority(
+      updatedRecord.id,
+    );
+
+    if (notificationScope?.responsibleUserId) {
+      const responsibleUserId = notificationScope.responsibleUserId;
+      const companyId = notificationScope.companyId!;
+      const businessUnitId = notificationScope.businessUnitId!;
+
+      // 4.1) Nombre completo del actor (editor)
+      const actorUser = await this.userRepository.findById(editorUserId);
+      const actorName = actorUser
+        ? `${actorUser.firstName} ${actorUser.lastName}`.trim()
+        : undefined;
+
+      const newDueDate = updatedRecord.untilAt ?? null;
+
+      const dateChanged =
+        previousDueDate && newDueDate
+          ? previousDueDate.getTime() !== newDueDate.getTime()
+          : previousDueDate !== newDueDate;
+
+      const nameChanged = previousName !== updatedRecord.name;
+
+      const wasClosedBefore =
+        previousStatus === 'CLO' || previousStatus === 'CAN';
+      const isClosedNow =
+        updatedRecord.status === 'CLO' || updatedRecord.status === 'CAN';
+      const isOpenNow = updatedRecord.status === 'OPE';
+      const reopenedNow = wasClosedBefore && isOpenNow;
+
+      const baseVariables = {
+        entityId: updatedRecord.id,
+        name: updatedRecord.name,
+        dueDate: updatedRecord.untilAt ?? undefined,
+        actorId: editorUserId,
+        actorName,
+      };
+
+      // 4.2) Reprogramación si cambió la fecha de vencimiento
+      //      SOLO cuando la prioridad está abierta.
+      if (dateChanged && newDueDate && isOpenNow) {
+        await this.notificationService.rescheduleOnDateChange({
+          entityType: 'PRIORITY',
+          entityId: updatedRecord.id,
+          companyId,
+          businessUnitId,
+          recipientId: responsibleUserId,
+          oldDate: previousDueDate ?? newDueDate,
+          newDate: newDueDate,
+          variables: {
+            ...baseVariables,
+            dueDate: newDueDate,
+          },
+        });
+      }
+
+      // 4.3) Si solo cambió el nombre (sin cambio de fecha) y sigue con fecha
+      //      refrescamos contenido de las notificaciones programadas (PEN) existentes.
+      if (nameChanged && updatedRecord.untilAt && isOpenNow && !dateChanged) {
+        const commonVariables = {
+          ...baseVariables,
+          dueDate: updatedRecord.untilAt,
+        };
+
+        // DUE_SOON → "Próximo a vencer: <nombre>"
+        await this.notificationService.refreshScheduledContentForEntity({
+          entityType: 'PRIORITY',
+          entityId: updatedRecord.id,
+          event: 'DUE_SOON',
+          variables: commonVariables,
+        });
+
+        // OVERDUE → "Vencido: <nombre>"
+        await this.notificationService.refreshScheduledContentForEntity({
+          entityType: 'PRIORITY',
+          entityId: updatedRecord.id,
+          event: 'OVERDUE',
+          variables: commonVariables,
+        });
+      }
+
+      // 4.4) Cierre/cancelación (expira programadas + COMPLETED si aplica)
+      if (isClosedNow && !wasClosedBefore) {
+        await this.notificationService.expireForClosed({
+          entityType: 'PRIORITY',
+          entityId: updatedRecord.id,
+        });
+
+        if (updatedRecord.status === 'CLO') {
+          await this.notificationService.emitImmediateInApp({
+            companyId,
+            businessUnitId,
+            recipientId: responsibleUserId,
+            entityType: 'PRIORITY',
+            entityId: updatedRecord.id,
+            event: 'COMPLETED',
+            variables: baseVariables,
+          });
+        }
+      }
+
+      // 4.5) Reapertura: de CLO/CAN → OPE con fecha vigente y SIN cambio de fecha
+      //      (si hubo cambio de fecha, ya entró en 4.2).
+      if (
+        wasClosedBefore &&
+        isOpenNow &&
+        updatedRecord.untilAt &&
+        !dateChanged
+      ) {
+        await this.notificationService.rescheduleOnDateChange({
+          entityType: 'PRIORITY',
+          entityId: updatedRecord.id,
+          companyId,
+          businessUnitId,
+          recipientId: responsibleUserId,
+          oldDate: updatedRecord.untilAt,
+          newDate: updatedRecord.untilAt,
+          variables: {
+            ...baseVariables,
+            dueDate: updatedRecord.untilAt,
+          },
+        });
+      }
+
+      // 4.6) Notificación inmediata si quien edita NO es el dueño y la prioridad sigue abierta
+      //      - REOPENED cuando pasa de CLO/CAN → OPE
+      //      - UPDATED para el resto de ediciones sobre prioridades abiertas
+      const isSelfUpdate = editorUserId === responsibleUserId;
+      if (!isSelfUpdate && isOpenNow) {
+        await this.notificationService.emitImmediateInApp({
+          companyId,
+          businessUnitId,
+          recipientId: responsibleUserId,
+          entityType: 'PRIORITY',
+          entityId: updatedRecord.id,
+          event: reopenedNow ? 'REOPENED' : 'UPDATED',
+          variables: baseVariables,
+        });
+      }
+    }
+
+    // 5) Respuesta
+    // Si no llega month/year en dto, usar lo ya guardado en updatedRecord:
+    const monthForClass = dto.month ?? updatedRecord.month ?? undefined;
+    const yearForClass = dto.year ?? updatedRecord.year ?? undefined;
+
+    const priorityUpdated = this.withMonthlyClass(
+      updatedRecord,
+      monthForClass,
+      yearForClass,
+    );
+    return new ResponsePriorityDto(priorityUpdated);
   }
 
   async findById(
