@@ -16,6 +16,8 @@ import { IndicatorRepository } from 'src/indicator/repositories/indicator.reposi
 import { ObjectiveGoalRepository } from 'src/objective-goal/repositories/objective-goal.repository';
 import { ResponseObjectiveWithIndicatorDto } from './dto/response-objective-with-indicator.dto';
 import { ObjectiveGoalService } from 'src/objective-goal/objective-goal.service';
+import { NotificationService } from 'src/notifications/notifications.service';
+import { UsersRepository } from 'src/users/repositories/users.repository';
 
 @Injectable()
 export class ObjectiveService {
@@ -24,6 +26,8 @@ export class ObjectiveService {
     private readonly indicatorRepo: IndicatorRepository,
     private readonly objectiveGoalRepo: ObjectiveGoalRepository,
     private readonly objectiveGoalService: ObjectiveGoalService,
+    private readonly notificationService: NotificationService,
+    private readonly usersRepository: UsersRepository,
   ) {}
 
   async create(
@@ -39,7 +43,37 @@ export class ObjectiveService {
     };
 
     // 1) crear objetivo SIN indicatorName
-    const objective = await this.objectiveRepo.create(input, userId);
+    let objective = await this.objectiveRepo.create(input, userId);
+
+    // --- INICIO NOTIFICACIONES ---
+    const notificationScope =
+      await this.objectiveRepo.getNotificationScopeByPosition(dto.positionId);
+
+    if (notificationScope?.responsibleUserId) {
+      const responsibleUserId = notificationScope.responsibleUserId;
+      const isSelfAssignment = userId === responsibleUserId;
+
+      if (!isSelfAssignment) {
+        const actorUser = await this.usersRepository.findById(userId);
+        const actorName = actorUser
+          ? `${actorUser.firstName} ${actorUser.lastName}`.trim()
+          : undefined;
+
+        await this.notificationService.emit({
+          companyId: notificationScope.companyId,
+          businessUnitId: notificationScope.businessUnitId,
+          recipientId: responsibleUserId,
+          entityType: 'OBJECTIVE', // Asegúrate que este valor exista en el enum NotificationEntity
+          entityId: objective.id,
+          event: 'ASSIGNED',
+          variables: {
+            name: objective.name,
+            actorName,
+          },
+        });
+      }
+    }
+    // --- FIN NOTIFICACIONES ---
 
     // 2. Crear el indicador asociado
     const indicator = await this.indicatorRepo.create(
@@ -112,6 +146,22 @@ export class ObjectiveService {
     );
     if (!currentIndicator)
       throw new NotFoundException('Indicador para el objetivo no encontrado');
+
+    // --- INICIO NOTIFICACIONES (Setup) ---
+    const notificationScope =
+      await this.objectiveRepo.getNotificationScopeByObjective(dto.objectiveId);
+    const responsibleUserId = notificationScope?.responsibleUserId;
+    const isSelfUpdate = responsibleUserId
+      ? userId === responsibleUserId
+      : true;
+
+    // Obtener nombre del actor (quien edita)
+    const actorUser = await this.usersRepository.findById(userId);
+    const actorName = actorUser
+      ? `${actorUser.firstName} ${actorUser.lastName}`.trim()
+      : undefined;
+
+    // --- FIN NOTIFICACIONES (Setup) ---
 
     // ---- helper fecha ----
     const toDate = (d: any) =>
@@ -232,6 +282,7 @@ export class ObjectiveService {
         userId,
         resolvedThresholds,
       );
+
       monthsCount = normalizedMonths.length;
     } else if (!criticalChange && normalizedMonths.length) {
       // SYNC PARCIAL: mantener EXACTAMENTE los months enviados (agrega nuevos y elimina sobrantes)
@@ -273,6 +324,27 @@ export class ObjectiveService {
       monthsCount = normalizedMonths.length; // procesados en esta sync
     }
 
+    // ========== 5) GESTIÓN DE NOTIFICACIONES (Estrategia: Borrar y Recrear) ==========
+    if (responsibleUserId && notificationScope?.companyId) {
+      // 5.1) Borrar TODAS las notificaciones de metas pendientes para este objetivo.
+      //      Esto es seguro porque usamos el ID del objetivo, que es un UUID válido.
+      await this.notificationService.expireForClosed({
+        entityType: 'OBJECTIVE_GOAL',
+        entityId: updatedObjective.id,
+      });
+
+      // 5.2) Recrear notificaciones solo para los meses vigentes.
+      //      El método _scheduleNotificationsForGoals se encargará de iterar y
+      //      llamar a scheduleInApp, que ya ignora fechas pasadas.
+      await this._scheduleNotificationsForGoals(
+        normalizedMonths,
+        updatedObjective,
+        notificationScope,
+        userId,
+        actorName,
+      );
+    }
+
     // ----- 5) Si llegaron rangos, actualizarlos en cada goal y recalcular 'light' -----
     const hasRanges = 'rangeExceptional' in dto || 'rangeInacceptable' in dto;
     if (hasRanges) {
@@ -309,12 +381,140 @@ export class ObjectiveService {
       });
     }
 
+    // --- INICIO NOTIFICACIONES (Emisión) ---
+    if (responsibleUserId && !isSelfUpdate) {
+      await this.notificationService.emit({
+        companyId: notificationScope!.companyId,
+        businessUnitId: notificationScope!.businessUnitId,
+        recipientId: responsibleUserId,
+        entityType: 'OBJECTIVE',
+        entityId: updatedObjective.id,
+        event: 'UPDATED',
+        variables: {
+          name: updatedObjective.name,
+          actorName,
+          // Puedes añadir más contexto sobre qué cambió
+          changeDetails: criticalChange
+            ? 'Se ha realizado un cambio crítico que regeneró las metas.'
+            : 'La configuración del objetivo ha sido actualizada.',
+        },
+      });
+    }
+    // --- FIN NOTIFICACIONES (Emisión) ---
+
     return {
       objective: updatedObjective,
       indicatorUpdated: true,
       goalsRegenerated: criticalChange,
       monthsCount,
     };
+  }
+
+  // =================================================================
+  // ============== HELPERS PRIVADOS PARA NOTIFICACIONES =============
+  // =================================================================
+
+  /**
+   * Método privado para programar notificaciones (DUE_SOON, OVERDUE)
+   * para una lista de metas mensuales.
+   */
+  private async _scheduleNotificationsForGoals(
+    goals: Array<{ month: number; year: number }>,
+    objective: ObjectiveEntity,
+    scope: {
+      companyId: string | null;
+      businessUnitId: string | null;
+      responsibleUserId: string | null;
+    } | null,
+    actorId: string,
+    actorName?: string,
+  ) {
+    // Validación corregida: Aseguramos que todos los IDs necesarios existan.
+    if (
+      !scope?.responsibleUserId ||
+      !scope.companyId ||
+      !scope.businessUnitId ||
+      !goals.length
+    ) {
+      return;
+    }
+
+    const { responsibleUserId } = scope;
+
+    for (const goal of goals) {
+      // La fecha de vencimiento para el cumplimiento es el último día del mes de la meta.
+      // El constructor de Date con UTC trata los meses de 0 a 11.
+      // Para obtener el último día del mes, se usa el mes siguiente (goal.month) y el día 0.
+      const dueDate = new Date(Date.UTC(goal.year, goal.month, 0));
+
+      const baseVariables = {
+        name: objective.name,
+        actorId,
+        actorName,
+        dueDate,
+        goalMonth: goal.month,
+        goalYear: goal.year,
+      };
+
+      // Programar DUE_SOON (-4 y -1 días)
+      await this.notificationService.schedule({
+        companyId: scope.companyId,
+        businessUnitId: scope.businessUnitId,
+        recipientId: responsibleUserId,
+        entityType: 'OBJECTIVE_GOAL',
+        entityId: objective.id, // Usamos el ID del objetivo padre
+        event: 'DUE_SOON',
+        runAt: new Date(dueDate.getTime() - 4 * 86_400_000),
+        variables: baseVariables,
+      });
+      await this.notificationService.schedule({
+        companyId: scope.companyId,
+        businessUnitId: scope.businessUnitId,
+        recipientId: responsibleUserId,
+        entityType: 'OBJECTIVE_GOAL',
+        entityId: objective.id, // Usamos el ID del objetivo padre
+        event: 'DUE_SOON',
+        runAt: new Date(dueDate.getTime() - 1 * 86_400_000),
+        variables: baseVariables,
+      });
+
+      // Programar OVERDUE (el servicio lo agenda para el día siguiente al dueDate)
+      await this.notificationService.schedule({
+        companyId: scope.companyId,
+        businessUnitId: scope.businessUnitId,
+        recipientId: responsibleUserId,
+        entityType: 'OBJECTIVE_GOAL', // El tipo sigue siendo la meta
+        entityId: objective.id, // Usamos el ID del objetivo padre
+        event: 'OVERDUE',
+        runAt: dueDate,
+        variables: baseVariables,
+      });
+    }
+  }
+
+  /**
+   * Método privado para expirar notificaciones programadas (DUE_SOON, OVERDUE)
+   * para una lista de metas mensuales que fueron eliminadas.
+   */
+  private async _expireNotificationsForGoals(
+    goals: Array<{ month: number; year: number }>,
+    objective: ObjectiveEntity,
+  ) {
+    if (!goals.length) {
+      return;
+    }
+
+    for (const goal of goals) {
+      // Ahora expiramos usando el ID del objetivo y el mes/año en el payload
+      await this.notificationService.deleteForClosedByPayload({
+        entityType: 'OBJECTIVE_GOAL',
+        entityId: objective.id,
+        payloadMatch: {
+          goalMonth: goal.month,
+          goalYear: goal.year,
+        },
+      });
+    }
   }
 
   private normalizeAndValidateMonths(

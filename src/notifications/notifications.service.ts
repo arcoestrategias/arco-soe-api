@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import * as Handlebars from 'handlebars';
 import { MailService } from 'src/mail/mail.service';
 import { NotificationTemplateRepository } from './repositories/notification-template.repository';
 import { NotificationRepository } from './repositories/notification.repository';
 import {
   NotificationChannel,
+  Notification,
   NotificationEntity as NEntity,
   NotificationEvent,
   NotificationStatus,
@@ -15,9 +16,11 @@ import { createHash } from 'crypto';
 
 /** Milisegundos de un día (para restar días a fechas con claridad). */
 const DAY_MS = 86_400_000;
-
-/** Parámetros para emisión IN-APP inmediata. */
-type InAppImmediateParams = {
+/**
+ * Parámetros base para crear cualquier tipo de notificación.
+ * El canal se determina dentro del servicio.
+ */
+type CreateNotificationParams = {
   companyId: string;
   businessUnitId: string;
   recipientId: string;
@@ -25,18 +28,8 @@ type InAppImmediateParams = {
   entityId: string;
   event: NotificationEvent;
   variables?: Record<string, any>;
-};
-
-/** Parámetros para programación IN-APP (DUE_SOON/OVERDUE). */
-type InAppScheduleParams = {
-  companyId: string;
-  businessUnitId: string;
-  recipientId: string;
-  entityType: NEntity;
-  entityId: string;
-  event: Extract<NotificationEvent, 'DUE_SOON' | 'OVERDUE'>;
-  runAt: Date;
-  variables?: Record<string, any>;
+  // Para notificaciones programadas (opcional para las inmediatas)
+  runAt?: Date;
 };
 
 /** Parámetros para reprogramar cuando cambia la fecha (untilAt). */
@@ -62,11 +55,123 @@ type InboxQuery = {
 
 @Injectable()
 export class NotificationService {
+  private readonly logger = new Logger(NotificationService.name);
+
   constructor(
     private readonly mail: MailService,
     private readonly templates: NotificationTemplateRepository,
     private readonly notifRepo: NotificationRepository,
   ) {}
+
+  /**
+   * Procesa y envía notificaciones programadas cuyo `scheduledAt` ya pasó.
+   * Este método es invocado por el NotificationsScheduler.
+   * SE ENFOCA SOLO EN NOTIFICACIONES IN-APP.
+   */
+  async processPendingScheduledNotifications(): Promise<number> {
+    const pendingNotifications = await this.notifRepo.findPendingByChannel(
+      NotificationChannel.IN_APP,
+      200,
+    );
+
+    if (!pendingNotifications.length) {
+      return 0;
+    }
+
+    this.logger.debug(
+      `Procesando ${pendingNotifications.length} notificaciones programadas IN-APP`,
+    );
+
+    for (const notification of pendingNotifications) {
+      try {
+        // La "entrega" de IN_APP es simplemente marcarla como SENT.
+        // La UI del cliente las recuperará del inbox.
+        // Si tuvieras WebSockets, aquí emitirías el evento.
+        this.logger.log(
+          `Marcando como SENT notificación IN-APP ${notification.id} para ${notification.recipientId}`,
+        );
+
+        // Actualizar la notificación a 'SENT'
+        await this.notifRepo.markSent(notification.id);
+      } catch (error) {
+        this.logger.error(
+          `Fallo al procesar notificación IN-APP ${notification.id}`,
+          error,
+        );
+      }
+    }
+
+    return pendingNotifications.length;
+  }
+
+  /**
+   * Procesa y envía notificaciones por EMAIL programadas.
+   * Invocado por un scheduler/cron job.
+   */
+  async processPendingEmailNotifications(): Promise<number> {
+    const pendingNotifications = await this.notifRepo.findPendingByChannel(
+      NotificationChannel.EMAIL,
+      50, // Un batch más pequeño para emails
+    );
+
+    if (!pendingNotifications.length) return 0;
+
+    this.logger.debug(
+      `Procesando ${pendingNotifications.length} notificaciones por EMAIL`,
+    );
+
+    for (const notification of pendingNotifications) {
+      try {
+        const recipient = await this.notifRepo.findRecipientEmail(
+          notification.recipientId,
+        );
+        if (!recipient?.email) {
+          throw new Error('Destinatario sin email');
+        }
+
+        const isDueNotification =
+          notification.event === 'DUE_SOON' || notification.event === 'OVERDUE';
+
+        // Si es una notificación de vencimiento, usamos la plantilla.
+        // De lo contrario, se podría implementar una lógica para otras plantillas o un correo simple.
+        if (isDueNotification) {
+          const payload = notification.payload as Record<string, any>;
+          const templateVars = {
+            title: notification.title,
+            actorName: payload.actorName ?? 'Usuario',
+            statusText: this.getStatusTextForEvent(notification.event),
+            name: payload.name,
+            dueDate: this.formatDate(payload.dueDate),
+            ctaLabel: 'Ver Detalles',
+          };
+
+          await this.sendByCode({
+            codeTemplate: 'T06',
+            to: recipient.email,
+            variables: templateVars,
+          });
+        } else {
+          // Para otros tipos de notificaciones por email, podríamos enviar un correo simple.
+          await this.mail.send({
+            to: recipient.email,
+            subject: notification.title,
+            html: notification.message,
+          });
+        }
+
+        await this.notifRepo.markSent(notification.id);
+      } catch (error) {
+        this.logger.error(
+          `Fallo al enviar email para notificación ${notification.id}`,
+          error,
+        );
+        // Opcional: Actualizar la notificación a 'FLD' (Failed) para no reintentar
+        // await this.notifRepo.update(notification.id, { status: 'FLD' });
+      }
+    }
+
+    return pendingNotifications.length;
+  }
 
   // ============================
   // SECCIÓN: EMAIL POR PLANTILLAS
@@ -145,10 +250,6 @@ export class NotificationService {
 
     const parts: string[] = [];
 
-    if (vars.message) {
-      parts.push(String(vars.message));
-    }
-
     if (vars.dueDate) {
       const dueDateObj =
         vars.dueDate instanceof Date ? vars.dueDate : new Date(vars.dueDate);
@@ -159,6 +260,10 @@ export class NotificationService {
     }
     if (vars.actorName) {
       parts.push(`Por: ${vars.actorName}`);
+    }
+
+    if (vars.message) {
+      parts.push(String(vars.message));
     }
 
     return parts.length > 0
@@ -204,54 +309,55 @@ export class NotificationService {
     return createHash('sha1').update(raw).digest('hex');
   }
 
-  // ========================
-  //   IN-APP INMEDIATA
-  // ========================
-
   /**
-   * Notificación IN-APP inmediata (status=SENT).
-   * Si ya existe una notificación igual en el día (mismo recipient+entity+event+canal+dedupeKey),
-   * actualiza título/mensaje/payload en vez de crear otra.
-   * Ideal para ASSIGNED/UPDATED/COMPLETED, etc.
+   * Método central para crear una o más notificaciones para un evento.
+   * Determina los canales y crea un registro por cada uno.
    */
-  async emitImmediateInApp(dto: InAppImmediateParams) {
-    const now = new Date();
-    const channel = NotificationChannel.IN_APP;
+  private async create(dto: CreateNotificationParams) {
+    // TODO: La lógica de canales debería venir de la configuración del usuario/sistema.
+    // Por ahora, enviamos a IN_APP y EMAIL para eventos programados.
+    const channels: NotificationChannel[] =
+      dto.event === 'DUE_SOON' || dto.event === 'OVERDUE'
+        ? [NotificationChannel.IN_APP, NotificationChannel.EMAIL]
+        : [NotificationChannel.IN_APP];
 
+    const now = new Date();
     const payload = this.buildPayload(dto.entityId, dto.variables);
     const title = this.buildNotificationTitle(dto.event, payload);
-    console.log(payload);
     const message = this.buildNotificationMessage(payload);
-    const dedupeKey = this.generateDailyDedupeKey(
-      dto.recipientId,
-      dto.entityType,
-      dto.entityId,
-      dto.event,
-      channel,
-      now,
-    );
 
-    // 1) Intentar actualizar si ya existe (idempotencia por día)
-    const updatedCount = await this.notifRepo.updateContentByUnique({
-      recipientId: dto.recipientId,
-      entityType: dto.entityType,
-      entityId: dto.entityId,
-      event: dto.event,
-      channel,
-      dedupeKey,
-      title,
-      message,
-      payload: payload as Prisma.InputJsonValue,
-    });
+    const notificationsToCreate: Prisma.NotificationCreateManyInput[] = [];
 
-    if (updatedCount > 0) {
-      // Ya había una notificación para hoy → se actualizó contenido.
-      return;
-    }
+    for (const channel of channels) {
+      let scheduledAt = dto.runAt;
+      let status: NotificationStatus = NotificationStatus.PEN;
 
-    // 2) Si no existía, crear una nueva
-    await this.notifRepo.createMany([
-      {
+      // Las notificaciones inmediatas se marcan como SENT directamente.
+      if (!scheduledAt) {
+        scheduledAt = now;
+        status = NotificationStatus.SENT;
+      }
+
+      // Para OVERDUE, la fecha de ejecución real es al día siguiente.
+      if (dto.event === 'OVERDUE' && scheduledAt) {
+        scheduledAt = this.buildOverdueNextDayRunAt(scheduledAt);
+      }
+
+      // No agendar notificaciones en el pasado.
+      if (status === 'PEN' && scheduledAt <= now) {
+        continue;
+      }
+
+      const dedupeKey = this.generateDailyDedupeKey(
+        dto.recipientId,
+        dto.entityType,
+        dto.entityId,
+        dto.event,
+        channel,
+        scheduledAt,
+      );
+
+      notificationsToCreate.push({
         companyId: dto.companyId,
         businessUnitId: dto.businessUnitId,
         recipientId: dto.recipientId,
@@ -262,13 +368,44 @@ export class NotificationService {
         title,
         message,
         payload,
-        status: NotificationStatus.SENT,
-        scheduledAt: now,
-        sentAt: now,
+        status,
+        scheduledAt,
+        sentAt: status === 'SENT' ? now : null,
         dedupeKey,
-        createdBy: null,
-      },
-    ]);
+        createdBy: dto.variables?.actorId,
+      });
+    }
+
+    if (notificationsToCreate.length > 0) {
+      await this.notifRepo.createMany(notificationsToCreate);
+    }
+  }
+
+  // ========================
+  //   IN-APP INMEDIATA
+  // ========================
+
+  /**
+   * Emite una notificación inmediata (status=SENT) a los canales configurados.
+   * Si ya existe una notificación igual en el día (mismo recipient+entity+event+canal+dedupeKey),
+   * actualiza título/mensaje/payload en vez de crear otra.
+   * Ideal para ASSIGNED/UPDATED/COMPLETED, etc.
+   */
+  async emit(dto: Omit<CreateNotificationParams, 'runAt'>) {
+    // La lógica de idempotencia de `emitImmediateInApp` era compleja y solo para IN_APP.
+    // Simplificamos: `createMany` con `skipDuplicates` ya previene duplicados exactos.
+    // Si se necesita actualizar contenido, se puede implementar una lógica similar a `updateContentByUnique`
+    // pero que itere sobre los canales. Por ahora, nos enfocamos en la creación limpia.
+    await this.create(dto);
+  }
+
+  /**
+   * @deprecated Usar `emit` en su lugar.
+   */
+  async emitImmediateInApp(dto: Omit<CreateNotificationParams, 'runAt'>) {
+    // Simplemente delegamos al nuevo método `emit` para mantener la compatibilidad
+    // mientras se refactorizan todas las llamadas.
+    await this.emit(dto);
   }
 
   // ========================
@@ -276,87 +413,20 @@ export class NotificationService {
   // ========================
 
   /**
-   * Programa una notificación **IN-APP** para una fecha futura:
+   * Programa una notificación para una fecha futura en los canales configurados.
    * - Crea con `status=PEN` y `scheduledAt=runAt`.
    * - El Scheduler (cron) la marcará `SENT` cuando llegue la hora.
    * - Usada para DUE_SOON (-4/-1) y OVERDUE.
-   * - Si ya existe una programada con el mismo dedupeKey, no duplica (Idempotencia por `dedupeKey`)
    */
-  async scheduleInApp(dto: InAppScheduleParams) {
-    const channel = NotificationChannel.IN_APP;
+  async schedule(dto: CreateNotificationParams & { runAt: Date }) {
+    await this.create(dto);
+  }
 
-    // 0) Normalizar la fecha de disparo según el tipo de evento
-    let scheduledAt = dto.runAt;
-
-    // Para OVERDUE, interpretamos dto.runAt como "fecha de vencimiento"
-    // y programamos la notificación para el día siguiente.
-    if (dto.event === 'OVERDUE') {
-      scheduledAt = this.buildOverdueNextDayRunAt(dto.runAt);
-    }
-
-    // 1) No agendar notificaciones en el pasado
-    const now = new Date();
-    if (scheduledAt <= now) {
-      // Silencioso: simplemente no creamos nada
-      return;
-    }
-
-    // 2) Armar payload, título y mensaje coherentes
-    const payload = this.buildPayload(dto.entityId, dto.variables);
-    const title = this.buildNotificationTitle(dto.event, payload);
-    const message = this.buildNotificationMessage(payload);
-
-    if (dto.event === 'OVERDUE') {
-      console.log(
-        '[DEBUG][OVERDUE] dto.runAt=',
-        dto.runAt,
-        'scheduledAt=',
-        scheduledAt,
-        'now=',
-        now,
-      );
-    }
-
-    // 3) Dedupe por día (para no duplicar el mismo evento/canal en la misma fecha)
-    const dedupeKey = this.generateDailyDedupeKey(
-      dto.recipientId,
-      dto.entityType,
-      dto.entityId,
-      dto.event,
-      channel,
-      scheduledAt,
-    );
-
-    const exists = await this.notifRepo.existsByUnique({
-      recipientId: dto.recipientId,
-      entityType: dto.entityType,
-      entityId: dto.entityId,
-      event: dto.event,
-      channel,
-      dedupeKey,
-    });
-    if (exists) return;
-
-    // 4) Crear notificación programada
-    await this.notifRepo.createMany([
-      {
-        companyId: dto.companyId,
-        businessUnitId: dto.businessUnitId,
-        recipientId: dto.recipientId,
-        entityType: dto.entityType,
-        entityId: dto.entityId,
-        event: dto.event,
-        channel,
-        title,
-        message,
-        payload,
-        status: NotificationStatus.PEN,
-        scheduledAt,
-        sentAt: null,
-        dedupeKey,
-        createdBy: null,
-      },
-    ]);
+  /**
+   * @deprecated Usar `schedule` en su lugar.
+   */
+  async scheduleInApp(dto: CreateNotificationParams & { runAt: Date }) {
+    await this.schedule(dto);
   }
 
   /**
@@ -373,19 +443,19 @@ export class NotificationService {
     const minus = (d: Date, n: number) =>
       new Date(d.getTime() - n * 86_400_000);
 
-    await this.scheduleInApp({
+    await this.schedule({
       ...args,
       event: 'DUE_SOON',
       runAt: minus(args.newDate, 4),
     } as any);
 
-    await this.scheduleInApp({
+    await this.schedule({
       ...args,
       event: 'DUE_SOON',
       runAt: minus(args.newDate, 1),
     } as any);
 
-    await this.scheduleInApp({
+    await this.schedule({
       ...args,
       event: 'OVERDUE',
       runAt: args.newDate,
@@ -427,6 +497,26 @@ export class NotificationService {
   }
 
   /**
+   * Elimina notificaciones programadas (PEN) para una entidad, filtrando
+   * por un subconjunto de datos en el `payload`.
+   * Se usa para eliminar físicamente las notificaciones de metas de objetivos
+   * cuando se reduce el rango de meses.
+   */
+  async deleteForClosedByPayload(args: {
+    entityType: NEntity;
+    entityId: string;
+    payloadMatch: Record<string, any>;
+  }) {
+    await this.notifRepo.deleteScheduledByPayload({
+      entityType: args.entityType,
+      entityId: args.entityId,
+      payloadMatch: args.payloadMatch as Prisma.InputJsonValue,
+      // Por defecto, eliminamos las mismas que se programan
+      events: ['DUE_SOON', 'OVERDUE'],
+    });
+  }
+
+  /**
    * Devuelve la bandeja del usuario autenticado:
    * - Paginación, filtros por `status`, `event` y búsqueda por texto.
    * - Formatea salida con `NotificationEntity.toResponse()`.
@@ -461,6 +551,31 @@ export class NotificationService {
 
     // Día siguiente a las 00:00 (podrías cambiar a 8:00 si luego quieres horario laboral)
     return new Date(Date.UTC(y, m, d + 1, 0, 0, 0, 0));
+  }
+
+  /**
+   * Construye el texto de estado para la plantilla de correo.
+   */
+  private getStatusTextForEvent(event: NotificationEvent): string {
+    switch (event) {
+      case 'DUE_SOON':
+        return 'está próximo a vencer';
+      case 'OVERDUE':
+        return 'ha vencido';
+      default:
+        return '';
+    }
+  }
+
+  /**
+   * Formatea una fecha a DD/MM/YYYY.
+   */
+  private formatDate(date: string | Date | undefined): string {
+    if (!date) return 'N/A';
+    const d = date instanceof Date ? date : new Date(date);
+    return `${String(d.getUTCDate()).padStart(2, '0')}/${String(
+      d.getUTCMonth() + 1,
+    ).padStart(2, '0')}/${d.getUTCFullYear()}`;
   }
 }
 

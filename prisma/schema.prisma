@@ -823,6 +823,7 @@ model SystemSetting {
 enum NotificationEntity {
   PRIORITY
   TASK
+  OBJECTIVE
   OBJECTIVE_GOAL
   PROJECT
 }

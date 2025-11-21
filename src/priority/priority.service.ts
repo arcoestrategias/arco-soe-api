@@ -79,7 +79,7 @@ export class PriorityService {
 
       // 3.2) “ASSIGNED” solo si quien crea es distinto al dueño de la posición
       if (!isSelfAssignment) {
-        await this.notificationService.emitImmediateInApp({
+        await this.notificationService.emit({
           companyId: notificationScope.companyId!,
           businessUnitId: notificationScope.businessUnitId!,
           recipientId: responsibleUserId,
@@ -97,7 +97,7 @@ export class PriorityService {
           new Date(base.getTime() - days * 86_400_000);
 
         // DUE_SOON -4
-        await this.notificationService.scheduleInApp({
+        await this.notificationService.schedule({
           companyId: notificationScope.companyId!,
           businessUnitId: notificationScope.businessUnitId!,
           recipientId: responsibleUserId,
@@ -112,7 +112,7 @@ export class PriorityService {
         });
 
         // DUE_SOON -1
-        await this.notificationService.scheduleInApp({
+        await this.notificationService.schedule({
           companyId: notificationScope.companyId!,
           businessUnitId: notificationScope.businessUnitId!,
           recipientId: responsibleUserId,
@@ -126,7 +126,7 @@ export class PriorityService {
           },
         });
 
-        await this.notificationService.scheduleInApp({
+        await this.notificationService.schedule({
           companyId: notificationScope.companyId!,
           businessUnitId: notificationScope.businessUnitId!,
           recipientId: responsibleUserId,
@@ -301,7 +301,7 @@ export class PriorityService {
         });
 
         if (updatedRecord.status === 'CLO') {
-          await this.notificationService.emitImmediateInApp({
+          await this.notificationService.emit({
             companyId,
             businessUnitId,
             recipientId: responsibleUserId,
@@ -341,7 +341,7 @@ export class PriorityService {
       //      - UPDATED para el resto de ediciones sobre prioridades abiertas
       const isSelfUpdate = editorUserId === responsibleUserId;
       if (!isSelfUpdate && isOpenNow) {
-        await this.notificationService.emitImmediateInApp({
+        await this.notificationService.emit({
           companyId,
           businessUnitId,
           recipientId: responsibleUserId,
