@@ -258,4 +258,83 @@ export class ObjectiveRepository {
       data: { isActive: false, updatedBy: userId },
     });
   }
+
+  /**
+   * Resuelve el contexto mínimo para notificar al responsable de un objetivo.
+   * - companyId / businessUnitId (desde la BU de la posición del objetivo)
+   * - responsibleUserId (usuario responsable de esa posición)
+   */
+  async getNotificationScopeByObjective(objectiveId: string) {
+    const objective = await this.prisma.objective.findUnique({
+      where: { id: objectiveId },
+      select: {
+        position: {
+          select: {
+            businessUnit: {
+              select: {
+                id: true, // businessUnitId
+                companyId: true,
+              },
+            },
+            // La relación 'userLinks' en Position nos da el UserBusinessUnit
+            // que a su vez nos da el userId del responsable.
+            userLinks: {
+              select: {
+                userId: true,
+              },
+              take: 1, // Optimización: solo nos interesa el único usuario asignado.
+            },
+          },
+        },
+      },
+    });
+
+    if (!objective?.position) return null;
+
+    const responsibleUserId = objective.position.userLinks[0]?.userId ?? null;
+
+    return {
+      companyId: objective.position.businessUnit?.companyId ?? null,
+      businessUnitId: objective.position.businessUnit?.id ?? null,
+      responsibleUserId,
+    };
+  }
+
+  /**
+   * Resuelve el contexto mínimo para notificar al responsable de una posición.
+   * - companyId / businessUnitId (desde la BU de la posición)
+   * - responsibleUserId (usuario responsable de esa posición)
+   * Esta es una versión optimizada que realiza una sola consulta a la BD.
+   */
+  async getNotificationScopeByPosition(positionId: string) {
+    const position = await this.prisma.position.findUnique({
+      where: { id: positionId },
+      select: {
+        businessUnit: {
+          select: {
+            id: true, // businessUnitId
+            companyId: true,
+          },
+        },
+        // La relación 'userLinks' en Position nos da el UserBusinessUnit
+        // que a su vez nos da el userId del responsable.
+        userLinks: {
+          select: {
+            userId: true,
+          },
+          take: 1, // Optimización: solo nos interesa el único usuario asignado.
+        },
+      },
+    });
+
+    if (!position) return null;
+
+    const responsibleUserId = position.userLinks[0]?.userId ?? null;
+
+    return {
+      companyId: position.businessUnit?.companyId ?? null,
+      businessUnitId: position.businessUnit?.id ?? null,
+      responsibleUserId,
+    };
+  }
 }

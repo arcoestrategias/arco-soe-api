@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
-  Notification,
   NotificationChannel,
   NotificationEntity,
   NotificationEvent,
@@ -9,29 +8,11 @@ import {
   Prisma,
 } from '@prisma/client';
 
-type CreateNotification = {
-  companyId: string;
-  businessUnitId: string;
-  recipientId: string;
-  entityType: NotificationEntity;
-  entityId: string;
-  event: NotificationEvent;
-  channel: NotificationChannel;
-  title: string;
-  message: string;
-  payload?: any;
-  status: NotificationStatus;
-  scheduledAt?: Date | null;
-  sentAt?: Date | null;
-  dedupeKey: string;
-  createdBy?: string | null;
-};
-
 @Injectable()
 export class NotificationRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  createMany(rows: CreateNotification[]) {
+  createMany(rows: Prisma.NotificationCreateManyInput[]) {
     if (!rows?.length) return Promise.resolve({ count: 0 });
     return this.prisma.notification.createMany({
       data: rows,
@@ -78,13 +59,13 @@ export class NotificationRepository {
     });
   }
 
-  findPendingInApp(limit = 200) {
+  findPendingByChannel(channel: NotificationChannel, limit = 200) {
     return this.prisma.notification.findMany({
       where: {
         isActive: true,
         status: 'PEN',
         scheduledAt: { lte: new Date() },
-        channel: 'IN_APP',
+        channel,
       },
       orderBy: [{ scheduledAt: 'asc' }],
       take: limit,
@@ -95,6 +76,13 @@ export class NotificationRepository {
     return this.prisma.notification.update({
       where: { id },
       data: { status: 'SENT', sentAt: new Date() },
+    });
+  }
+
+  findRecipientEmail(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
     });
   }
 
@@ -132,6 +120,36 @@ export class NotificationRepository {
         select: { id: true },
       })
       .then((r) => !!r);
+  }
+
+  /**
+   * Elimina físicamente notificaciones programadas (PEN) para una entidad,
+   * filtrando adicionalmente por un subconjunto de datos en el `payload`.
+   * Ideal para eliminar notificaciones de `OBJECTIVE_GOAL` para un mes/año específico.
+   */
+  async deleteScheduledByPayload(args: {
+    entityType: NotificationEntity;
+    entityId: string;
+    payloadMatch: Prisma.InputJsonValue;
+    events?: NotificationEvent[];
+  }) {
+    const where: Prisma.NotificationWhereInput = {
+      entityType: args.entityType,
+      entityId: args.entityId,
+      status: NotificationStatus.PEN,
+      payload: {
+        equals: args.payloadMatch,
+      },
+    };
+
+    if (args.events?.length) {
+      where.event = { in: args.events };
+    }
+
+    // Usamos deleteMany para eliminar completamente los registros.
+    return this.prisma.notification.deleteMany({
+      where,
+    });
   }
 
   /**
