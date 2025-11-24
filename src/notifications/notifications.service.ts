@@ -138,11 +138,11 @@ export class NotificationService {
           const payload = notification.payload as Record<string, any>;
           const templateVars = {
             title: notification.title,
-            actorName: payload.actorName ?? 'Usuario',
             statusText: this.getStatusTextForEvent(notification.event),
             name: payload.name,
             dueDate: this.formatDate(payload.dueDate),
-            ctaLabel: 'Ver Detalles',
+            // TODO: Reemplazar con la URL real de la página de ayuda/contacto
+            contact: process.env.APP_FRONTEND_URL ?? '#',
           };
 
           await this.sendByCode({
@@ -216,26 +216,42 @@ export class NotificationService {
     event: NotificationEvent,
     vars?: Record<string, any>,
   ) {
+    const entityLabel = vars?.entityLabel ?? 'Elemento';
     const name = vars?.name ?? vars?.title ?? 'Elemento';
     switch (event) {
       case 'ASSIGNED':
-        return `Asignado: ${name}`;
+        const assignedText =
+          entityLabel === 'Prioridad' ? 'Asignada' : 'Asignado';
+        return `${entityLabel} ${assignedText}: ${name}`;
       case 'UPDATED':
-        return `Actualizado: ${name}`;
+        const updatedText =
+          entityLabel === 'Prioridad' ? 'Actualizada' : 'Actualizado';
+        return `${entityLabel} ${updatedText}: ${name}`;
       case 'DUE_SOON':
-        return `Próximo a vencer: ${name}`;
+        const dueSoonText =
+          entityLabel === 'Prioridad' ? 'próxima a vencer' : 'próximo a vencer';
+        return `${entityLabel} ${dueSoonText}: ${name}`;
       case 'OVERDUE':
-        return `Vencido: ${name}`;
+        const overdueText = entityLabel === 'Prioridad' ? 'Vencida' : 'Vencido';
+        return `${entityLabel} ${overdueText}: ${name}`;
       case 'COMPLETED':
-        return `Completado: ${name}`;
+        const completedText =
+          entityLabel === 'Prioridad' ? 'Completada' : 'Completado';
+        return `${entityLabel} ${completedText}: ${name}`;
       case 'REOPENED':
-        return `Reabierto: ${name}`;
+        const reopenedText =
+          entityLabel === 'Prioridad' ? 'Reabierta' : 'Reabierto';
+        return `${entityLabel} ${reopenedText}: ${name}`;
       case 'APPROVAL_REQUESTED':
         return `Aprobación solicitada: ${name}`;
       case 'APPROVED':
-        return `Aprobado: ${name}`;
+        const approvedText =
+          entityLabel === 'Prioridad' ? 'Aprobada' : 'Aprobado';
+        return `${entityLabel} ${approvedText}: ${name}`;
       case 'REJECTED':
-        return `Rechazado: ${name}`;
+        const rejectedText =
+          entityLabel === 'Prioridad' ? 'Rechazada' : 'Rechazado';
+        return `${entityLabel} ${rejectedText}: ${name}`;
       default:
         return `Notificación: ${name}`;
     }

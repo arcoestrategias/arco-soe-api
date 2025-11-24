@@ -67,6 +67,7 @@ export class ObjectiveService {
           entityId: objective.id,
           event: 'ASSIGNED',
           variables: {
+            entityLabel: 'Objetivo',
             name: objective.name,
             actorName,
           },
@@ -391,6 +392,7 @@ export class ObjectiveService {
         entityId: updatedObjective.id,
         event: 'UPDATED',
         variables: {
+          entityLabel: 'Objetivo',
           name: updatedObjective.name,
           actorName,
           // Puedes añadir más contexto sobre qué cambió
@@ -448,6 +450,7 @@ export class ObjectiveService {
       const dueDate = new Date(Date.UTC(goal.year, goal.month, 0));
 
       const baseVariables = {
+        entityLabel: 'Objetivo',
         name: objective.name,
         actorId,
         actorName,

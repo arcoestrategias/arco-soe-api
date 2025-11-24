@@ -73,6 +73,7 @@ export class PriorityService {
         entityId: createdRecord.id,
         name: createdRecord.name,
         dueDate,
+        entityLabel: 'Prioridad',
         actorId: creatorUserId,
         actorName,
       };
@@ -245,6 +246,7 @@ export class PriorityService {
       const baseVariables = {
         entityId: updatedRecord.id,
         name: updatedRecord.name,
+        entityLabel: 'Prioridad',
         dueDate: updatedRecord.untilAt ?? undefined,
         actorId: editorUserId,
         actorName,
