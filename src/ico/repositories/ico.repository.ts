@@ -328,4 +328,46 @@ export class IcoRepository {
     rows.forEach((r) => map.set(r.objectiveId, r._count._all));
     return map;
   }
+
+  /**
+   * Lista los objetivos de nivel ESTRATÉGICO para un plan, incluyendo su indicador
+   * y la meta (ObjectiveGoal) para un mes y año específicos.
+   */
+  async listStrategicObjectivesWithIndicatorAndGoal(params: {
+    strategicPlanId: string;
+    year: number;
+    month: number;
+    search?: string;
+  }) {
+    const { strategicPlanId, year, month, search } = params;
+
+    return this.prisma.objective.findMany({
+      where: {
+        strategicPlanId,
+        level: 'EST', // <-- Filtro clave para objetivos estratégicos
+        isActive: true,
+        ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
+        indicator: {
+          is: {
+            isActive: true,
+            isConfigured: true,
+          },
+        },
+      },
+      include: {
+        indicator: true,
+        objectiveGoals: {
+          where: {
+            isActive: true,
+            year: year,
+            month: month,
+          },
+          // Traemos solo el primer goal que coincida (debería ser único)
+          take: 1,
+        },
+      },
+      // El orden es crucial para la consistencia con otros tableros
+      orderBy: [{ order: 'asc' }, { name: 'asc' }],
+    });
+  }
 }
