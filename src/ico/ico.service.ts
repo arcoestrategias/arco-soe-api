@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { IcoRepository } from './repositories/ico.repository';
 import { GetFilteredObjectivesMonthlySeriesDto } from './dto/get-filtered-objectives-monthly-series.dto';
+import { GetStrategicBoardDto } from './dto';
 
 function resolveMonthYearFrom(
   inp?: { month?: number; year?: number },
@@ -788,6 +789,123 @@ export class IcoService {
       resume,
       listObjectives,
       monthlyAverages,
+    };
+  }
+
+  /**
+   * Construye el tablero de objetivos estratégicos para un plan,
+   * mostrando el estado de cumplimiento (ICO) para el mes actual.
+   */
+  async getStrategicBoard(dto: GetStrategicBoardDto) {
+    const now = new Date();
+    const currentYear = now.getUTCFullYear();
+    const currentMonth = now.getUTCMonth() + 1;
+
+    const objectivesData =
+      await this.repo.listStrategicObjectivesWithIndicatorAndGoal({
+        strategicPlanId: dto.strategicPlanId,
+        year: currentYear,
+        month: currentMonth,
+        search: dto.search,
+      });
+
+    const listObjectives = objectivesData.map((objectiveRecord: any) => {
+      // El repositorio ya nos trae solo el goal del mes actual (si existe)
+      const goal = objectiveRecord.objectiveGoals?.[0];
+
+      let icoMonthly: any[] = [];
+      if (goal) {
+        const isMeasured = true;
+        const hasCompliance = (goal.realValue ?? 0) > 0;
+        const ico = hasCompliance
+          ? Number((goal.indexCompliance ?? 0).toFixed(2))
+          : 0;
+        const lightNumeric: number | null = (goal.light ?? null) as
+          | number
+          | null;
+        const lightColorHex = getLightColor(lightNumeric);
+
+        icoMonthly.push({
+          ...goal,
+          month: currentMonth,
+          year: currentYear,
+          ico,
+          isMeasured,
+          isCurrent: true, // <-- CORRECCIÓN: Añadido para consistencia con ico-board
+          hasCompliance,
+          lightNumeric,
+          lightColorHex,
+        });
+      } else {
+        // Si no hay goal, el array va vacío o con un placeholder
+        icoMonthly.push({
+          month: currentMonth,
+          year: currentYear,
+          ico: 0,
+          isCurrent: true, // <-- CORRECCIÓN: Añadido para consistencia con ico-board
+          isMeasured: false,
+          hasCompliance: false,
+          lightNumeric: null,
+          lightColorHex: GRAY,
+        });
+      }
+
+      // --- Lógica de GoalStatus (reutilizada) ---
+      const GOAL_STATUS_COLORS = {
+        yellow: '#FACC15', // Pendiente
+        blue: '#93C5FD', // No se mide
+        green: '#22C55E', // Medido
+      };
+
+      let statusLabel: string;
+      let lightColorHex: string;
+
+      // Simplificamos: si no hay goal para este mes, no se mide.
+      // Si hay goal y no está medido, está pendiente.
+      // Si hay goal y está medido, está medido.
+      if (!goal) {
+        statusLabel = 'No se mide';
+        lightColorHex = GOAL_STATUS_COLORS.blue;
+      } else if (goal.realValue === null) {
+        statusLabel = 'Pendiente: 1';
+        lightColorHex = GOAL_STATUS_COLORS.yellow;
+      } else {
+        statusLabel = 'Medido';
+        lightColorHex = GOAL_STATUS_COLORS.green;
+      }
+
+      const goalStatus = {
+        pendingCount: goal && goal.realValue === null ? 1 : 0,
+        statusLabel,
+        lightColorHex,
+      };
+
+      // Limpiamos el objeto final
+      const { objectiveGoals, ...objectiveSafe } = objectiveRecord;
+
+      return {
+        objective: {
+          ...objectiveSafe,
+          indicator: objectiveRecord.indicator,
+          icoMonthly,
+          goalStatus,
+        },
+      };
+    });
+
+    // El resumen y promedios no aplican de la misma forma,
+    // devolvemos una estructura simplificada.
+    return {
+      resume: {
+        generalAverage: 0, // No aplica para esta vista
+        activeIndicators: listObjectives.length,
+        lastActiveMonth: {
+          month: currentMonth,
+          year: currentYear,
+          label: monthLabel(currentMonth),
+        },
+      },
+      listObjectives,
     };
   }
 }
