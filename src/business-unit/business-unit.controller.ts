@@ -8,13 +8,11 @@ import {
   Delete,
   UseGuards,
   ParseUUIDPipe,
-  Put,
 } from '@nestjs/common';
 import {
   CreateBusinessUnitDto,
   UpdateBusinessUnitDto,
   ResponseBusinessUnitDto,
-  ResponsePermissionsByModuleDto,
   UpdateUserPermissionsDto,
 } from './dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -24,7 +22,6 @@ import { PERMISSIONS } from 'src/common/constants/permissions.constant';
 import { SuccessMessage } from 'src/core/decorators/success-message.decorator';
 import { UserId } from 'src/common/decorators/user-id.decorator';
 import { BusinessUnitsService } from './business-unit.service';
-import { ResponseUserDto } from 'src/users/dto';
 import { UsersService } from '../users/users.service';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -102,7 +99,7 @@ export class BusinessUnitsController {
   async getUserPermissionsByModule(
     @Param('businessUnitId', ParseUUIDPipe) businessUnitId: string,
     @Param('userId', ParseUUIDPipe) userId: string,
-  ): Promise<ResponsePermissionsByModuleDto> {
+  ) {
     return this.businessUnitService.getUserPermissionsByModule(
       businessUnitId,
       userId,
@@ -114,16 +111,18 @@ export class BusinessUnitsController {
     PERMISSIONS.USERS.SET_PERMISSIONS,
   )
   @SuccessMessage('Permisos actualizados correctamente')
-  @Put(':businessUnitId/users/:userId/permissions')
+  @Patch(':businessUnitId/users/:userId/permissions')
   async updateUserPermissions(
     @Param('businessUnitId', ParseUUIDPipe) businessUnitId: string,
     @Param('userId', ParseUUIDPipe) userId: string,
     @Body() dto: UpdateUserPermissionsDto,
+    @UserId() actorId: string,
   ): Promise<void> {
     await this.businessUnitService.updateUserPermissions(
       businessUnitId,
       userId,
       dto,
+      actorId,
     );
   }
 }
