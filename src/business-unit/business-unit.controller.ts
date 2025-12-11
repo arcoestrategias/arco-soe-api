@@ -125,4 +125,22 @@ export class BusinessUnitsController {
       actorId,
     );
   }
+
+  @Permissions(
+    PERMISSIONS.BUSINESS_UNITS.UPDATE,
+    PERMISSIONS.USERS.SET_PERMISSIONS,
+  )
+  @SuccessMessage('Permisos reestablecidos al rol correctamente')
+  @Post(':businessUnitId/users/:userId/permissions/reset')
+  async resetUserPermissions(
+    @Param('businessUnitId', ParseUUIDPipe) businessUnitId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @UserId() actorId: string,
+  ): Promise<void> {
+    await this.businessUnitService.resetUserPermissions(
+      businessUnitId,
+      userId,
+      actorId,
+    );
+  }
 }
