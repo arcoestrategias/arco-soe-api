@@ -73,12 +73,7 @@ export class PositionsController {
   }
 
   @Get('overview')
-  @Permissions(
-    PERMISSIONS.POSITIONS.READ,
-    PERMISSIONS.PRIORITIES.READ,
-    PERMISSIONS.OBJECTIVES.READ,
-    PERMISSIONS.STRATEGIC_PROJECTS.READ,
-  )
+  @Permissions(PERMISSIONS.POSITIONS.READ)
   async listOverview(
     @Query('companyId') companyId: string,
     @Query('businessUnitId') businessUnitId: string,
@@ -102,6 +97,10 @@ export class PositionsController {
   }
 
   @Get('org-chart-overview')
+  @Permissions(
+    PERMISSIONS.POSITIONS.READ,
+    PERMISSIONS.POSITIONS.SHOW_ORG_CHART_TAB,
+  )
   async orgChartOverview(
     @Query('companyId') companyId: string,
     @Query('businessUnitId') businessUnitId: string,

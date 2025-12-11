@@ -46,7 +46,7 @@ export class BusinessUnitsController {
     return new ResponseBusinessUnitDto(unit);
   }
 
-  @Permissions(PERMISSIONS.USERS.READ)
+  @Permissions(PERMISSIONS.BUSINESS_UNITS.READ)
   @Get(':businessUnitId/users')
   async listUsersInBU(@Param('businessUnitId') businessUnitId: string) {
     return this.usersService.listByBusinessUnitId(businessUnitId);
@@ -110,9 +110,8 @@ export class BusinessUnitsController {
   }
 
   @Permissions(
-    PERMISSIONS.USERS.ASSIGN,
-    PERMISSIONS.PERMISSIONS.UPDATE,
-    PERMISSIONS.ROLES.ASSIGN,
+    PERMISSIONS.BUSINESS_UNITS.UPDATE,
+    PERMISSIONS.USERS.SET_PERMISSIONS,
   )
   @SuccessMessage('Permisos actualizados correctamente')
   @Put(':businessUnitId/users/:userId/permissions')

@@ -57,7 +57,10 @@ export class ProjectTaskController {
     return this.taskService.getTaskById(taskId);
   }
 
-  @Permissions(PERMISSIONS.PROJECT_TASKS.UPDATE)
+  @Permissions(
+    PERMISSIONS.PROJECT_TASKS.UPDATE,
+    PERMISSIONS.PROJECT_TASKS.REORDER,
+  )
   @SuccessMessage('Orden de tareas actualizado correctamente')
   @Patch('reorder')
   async reorderTasks(

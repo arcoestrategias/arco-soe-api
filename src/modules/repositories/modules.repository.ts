@@ -2,48 +2,67 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateModuleDto, UpdateModuleDto } from '../dto';
 import { ModuleEntity } from '../entities/module.entity';
-import { handleDatabaseErrors } from 'src/common/helpers/database-error.helper';
 
 @Injectable()
 export class ModulesRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(data: CreateModuleDto): Promise<ModuleEntity> {
-    try {
-      const module = await this.prisma.module.create({ data });
-      return new ModuleEntity(module);
-    } catch (error) {
-      handleDatabaseErrors(error);
-    }
+  async create(dto: CreateModuleDto, userId: string): Promise<ModuleEntity> {
+    return this.prisma.module.create({
+      data: {
+        ...dto,
+        createdBy: userId,
+        updatedBy: userId,
+      },
+    });
   }
 
   async findAll(): Promise<ModuleEntity[]> {
-    const modules = await this.prisma.module.findMany();
-    return modules.map((m) => new ModuleEntity(m));
+    return this.prisma.module.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+    });
   }
 
   async findById(id: string): Promise<ModuleEntity | null> {
-    const module = await this.prisma.module.findUnique({ where: { id } });
-    return module ? new ModuleEntity(module) : null;
+    return this.prisma.module.findUnique({
+      where: { id, isActive: true },
+    });
   }
 
-  async update(id: string, data: UpdateModuleDto): Promise<ModuleEntity> {
-    try {
-      const module = await this.prisma.module.update({
-        where: { id },
-        data,
-      });
-      return new ModuleEntity(module);
-    } catch (error) {
-      handleDatabaseErrors(error);
-    }
+  async findByName(name: string): Promise<ModuleEntity | null> {
+    return this.prisma.module.findFirst({
+      where: { name, isActive: true },
+    });
   }
 
-  async remove(id: string): Promise<void> {
-    try {
-      await this.prisma.module.delete({ where: { id } });
-    } catch (error) {
-      handleDatabaseErrors(error);
-    }
+  async findByShortCode(shortCode: string): Promise<ModuleEntity | null> {
+    return this.prisma.module.findFirst({
+      where: { shortCode, isActive: true },
+    });
+  }
+
+  async update(
+    id: string,
+    dto: UpdateModuleDto,
+    userId: string,
+  ): Promise<ModuleEntity> {
+    return this.prisma.module.update({
+      where: { id },
+      data: {
+        ...dto,
+        updatedBy: userId,
+      },
+    });
+  }
+
+  async remove(id: string, userId: string): Promise<ModuleEntity> {
+    return this.prisma.module.update({
+      where: { id },
+      data: {
+        isActive: false,
+        updatedBy: userId,
+      },
+    });
   }
 }

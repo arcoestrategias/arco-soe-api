@@ -1,10 +1,17 @@
-import { IsArray, IsUUID } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsBoolean, IsUUID, ValidateNested } from 'class-validator';
+
+class RolePermissionItemDto {
+  @IsUUID()
+  id: string;
+
+  @IsBoolean()
+  isActive: boolean;
+}
 
 export class AssignPermissionsDto {
-  @IsUUID()
-  roleId: string;
-
   @IsArray()
-  @IsUUID('all', { each: true })
-  permissionIds: string[];
+  @ValidateNested({ each: true })
+  @Type(() => RolePermissionItemDto)
+  permissions: RolePermissionItemDto[];
 }

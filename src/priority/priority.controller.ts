@@ -88,7 +88,7 @@ export class PriorityController {
   }
 
   // REORDER
-  @Permissions(PERMISSIONS.PRIORITIES.UPDATE)
+  @Permissions(PERMISSIONS.PRIORITIES.UPDATE, PERMISSIONS.PRIORITIES.REORDER)
   @SuccessMessage('Orden de prioridades actualizado correctamente')
   @Patch('reorder')
   async reorderPriorities(

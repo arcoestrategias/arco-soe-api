@@ -130,7 +130,10 @@ export class StrategicProjectController {
   }
 
   // REORDER
-  @Permissions(PERMISSIONS.STRATEGIC_PROJECTS.UPDATE)
+  @Permissions(
+    PERMISSIONS.STRATEGIC_PROJECTS.UPDATE,
+    PERMISSIONS.STRATEGIC_PROJECTS.REORDER,
+  )
   @SuccessMessage('Orden de proyectos actualizado correctamente')
   @Patch('reorder')
   async reorderProjects(

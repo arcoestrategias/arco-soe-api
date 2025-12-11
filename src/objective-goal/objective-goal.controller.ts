@@ -27,7 +27,7 @@ import { UserId } from 'src/common/decorators/user-id.decorator';
 export class ObjectiveGoalController {
   constructor(private readonly goalService: ObjectiveGoalService) {}
 
-  @Permissions(PERMISSIONS.OBJECTIVE_GOALS.CREATE)
+  @Permissions(PERMISSIONS.OBJECTIVES.CREATE)
   @SuccessMessage('Cumplimiento creado correctamente')
   @Post()
   async create(
@@ -38,7 +38,7 @@ export class ObjectiveGoalController {
     return new ResponseObjectiveGoalDto(goal);
   }
 
-  @Permissions(PERMISSIONS.OBJECTIVE_GOALS.READ)
+  @Permissions(PERMISSIONS.OBJECTIVES.READ)
   @Get(':id')
   async findById(@Param('id') id: string): Promise<ResponseObjectiveGoalDto> {
     const goal = await this.goalService.findById(id);
@@ -48,7 +48,10 @@ export class ObjectiveGoalController {
     return new ResponseObjectiveGoalDto(goal);
   }
 
-  @Permissions(PERMISSIONS.OBJECTIVE_GOALS.UPDATE)
+  @Permissions(
+    PERMISSIONS.OBJECTIVES.UPDATE,
+    PERMISSIONS.OBJECTIVE_GOALS.UPDATE,
+  )
   @SuccessMessage('Cumplimiento actualizado correctamente')
   @Patch(':id')
   async update(
@@ -60,7 +63,7 @@ export class ObjectiveGoalController {
     return new ResponseObjectiveGoalDto(updated);
   }
 
-  @Permissions(PERMISSIONS.OBJECTIVE_GOALS.DELETE)
+  @Permissions(PERMISSIONS.OBJECTIVES.DELETE)
   @SuccessMessage('Cumplimiento eliminado correctamente')
   @Delete(':id')
   async remove(

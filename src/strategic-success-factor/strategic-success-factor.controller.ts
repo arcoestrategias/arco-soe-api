@@ -63,7 +63,10 @@ export class StrategicSuccessFactorsController {
     return new ResponseStrategicSuccessFactorDto(factor);
   }
 
-  @Permissions(PERMISSIONS.STRATEGIC_SUCCESS_FACTORS.UPDATE)
+  @Permissions(
+    PERMISSIONS.STRATEGIC_SUCCESS_FACTORS.UPDATE,
+    PERMISSIONS.STRATEGIC_SUCCESS_FACTORS.REORDER,
+  )
   @Patch('reorder')
   @SuccessMessage('Orden actualizado correctamente')
   async reorder(

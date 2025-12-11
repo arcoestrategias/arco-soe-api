@@ -61,7 +61,10 @@ export class StrategicValueController {
     return new ResponseStrategicValueDto(value);
   }
 
-  @Permissions(PERMISSIONS.STRATEGIC_VALUES.UPDATE)
+  @Permissions(
+    PERMISSIONS.STRATEGIC_VALUES.UPDATE,
+    PERMISSIONS.STRATEGIC_VALUES.REORDER,
+  )
   @Patch('reorder')
   @SuccessMessage('Orden actualizado correctamente')
   async reorder(

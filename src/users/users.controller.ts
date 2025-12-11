@@ -212,9 +212,9 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions(PERMISSIONS.USERS.UPDATE)
+  @Permissions(PERMISSIONS.USERS.UPDATE, PERMISSIONS.USERS.SET_BUSINESS_UNITS)
+  @SuccessMessage('Unidad de negocio del usuario actualizada correctamente')
   @Patch(':userId/business-units/:businessUnitId')
-  @Permissions(PERMISSIONS.USERS.ASSIGN)
   async updateUserBusinessUnit(
     @Param('userId') userId: string,
     @Param('businessUnitId') businessUnitId: string,
@@ -249,7 +249,7 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions(PERMISSIONS.USERS.CREATE, PERMISSIONS.ROLES.ASSIGN)
+  @Permissions(PERMISSIONS.USERS.CREATE, PERMISSIONS.USERS.SET_ROLES)
   @SuccessMessage('Usuario creado y asignado exitosamente')
   @Post('create-user-with-role-business')
   async createUserWithRoleAndUnit(

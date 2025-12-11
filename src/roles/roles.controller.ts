@@ -6,8 +6,9 @@ import {
   Patch,
   Param,
   Delete,
-  Put,
   ParseUUIDPipe,
+  Query,
+  ParseBoolPipe,
 } from '@nestjs/common';
 import { RolesService } from './roles.service';
 import {
@@ -21,6 +22,7 @@ import { Permissions } from 'src/core/decorators/permissions.decorator';
 import { PERMISSIONS } from 'src/common/constants/permissions.constant';
 import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { UserId } from 'src/common/decorators/user-id.decorator';
 import { PermissionsGuard } from 'src/core/guards/permissions.guard';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -31,16 +33,22 @@ export class RolesController {
   @Post()
   @Permissions(PERMISSIONS.ROLES.CREATE)
   @SuccessMessage('Rol creado correctamente')
-  async create(@Body() dto: CreateRoleDto): Promise<ResponseRoleDto> {
-    const role = await this.rolesService.create(dto);
+  async create(
+    @Body() dto: CreateRoleDto,
+    @UserId() userId: string,
+  ): Promise<ResponseRoleDto> {
+    const role = await this.rolesService.create(dto, userId);
     return new ResponseRoleDto(role);
   }
 
   @Get()
   @Permissions(PERMISSIONS.ROLES.READ)
   @SuccessMessage('Roles obtenidos correctamente')
-  async findAll(): Promise<ResponseRoleDto[]> {
-    const roles = await this.rolesService.findAll();
+  async findAll(
+    @Query('includeInactive', new ParseBoolPipe({ optional: true }))
+    includeInactive?: boolean,
+  ): Promise<ResponseRoleDto[]> {
+    const roles = await this.rolesService.findAll(includeInactive);
     return roles.map((r) => new ResponseRoleDto(r));
   }
 
@@ -69,17 +77,14 @@ export class RolesController {
     return this.rolesService.remove(id);
   }
 
-  @Permissions(
-    PERMISSIONS.USERS.ASSIGN,
-    PERMISSIONS.PERMISSIONS.UPDATE,
-    PERMISSIONS.ROLES.ASSIGN,
-  )
-  @Put(':id/permissions')
+  @Permissions(PERMISSIONS.ROLES.UPDATE, PERMISSIONS.ROLES.SET_PERMISSIONS)
+  @Patch(':id/permissions')
   async setPermissions(
-    @Param('roleId', ParseUUIDPipe) roleId: string,
+    @Param('id', ParseUUIDPipe) roleId: string,
     @Body() dto: AssignPermissionsDto,
+    @UserId() userId: string,
   ) {
-    await this.rolesService.setRolePermissions(roleId, dto.permissionIds);
+    await this.rolesService.setRolePermissions(roleId, dto.permissions, userId);
     return {
       success: true,
       message: 'Permisos actualizados correctamente',
@@ -87,7 +92,7 @@ export class RolesController {
     };
   }
 
-  @Permissions(PERMISSIONS.ROLES.READ)
+  @Permissions(PERMISSIONS.ROLES.READ, PERMISSIONS.ROLES.SET_PERMISSIONS)
   @Get(':id/permissions')
   async getPermissionsOfRole(@Param('id', ParseUUIDPipe) id: string) {
     return this.rolesService.getPermissionsOfRole(id);

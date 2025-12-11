@@ -19,6 +19,7 @@ import { PermissionsGuard } from 'src/core/guards/permissions.guard';
 import { Permissions } from 'src/core/decorators/permissions.decorator';
 import { PERMISSIONS } from 'src/common/constants/permissions.constant';
 import { SuccessMessage } from 'src/core/decorators/success-message.decorator';
+import { UserId } from 'src/common/decorators/user-id.decorator';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('permissions')
@@ -30,8 +31,9 @@ export class PermissionsController {
   @Post()
   async create(
     @Body() dto: CreatePermissionDto,
+    @UserId() userId: string,
   ): Promise<ResponsePermissionDto> {
-    const permission = await this.permissionsService.create(dto);
+    const permission = await this.permissionsService.create(dto, userId);
     return new ResponsePermissionDto(permission);
   }
 
@@ -55,15 +57,19 @@ export class PermissionsController {
   async update(
     @Param('id') id: string,
     @Body() dto: UpdatePermissionDto,
+    @UserId() userId: string,
   ): Promise<ResponsePermissionDto> {
-    const permission = await this.permissionsService.update(id, dto);
+    const permission = await this.permissionsService.update(id, dto, userId);
     return new ResponsePermissionDto(permission);
   }
 
   @Permissions(PERMISSIONS.PERMISSIONS.DELETE)
   @SuccessMessage('Permiso eliminado correctamente')
   @Delete(':id')
-  async remove(@Param('id') id: string): Promise<void> {
-    return this.permissionsService.remove(id);
+  async remove(
+    @Param('id') id: string,
+    @UserId() userId: string,
+  ): Promise<void> {
+    return this.permissionsService.remove(id, userId);
   }
 }
