@@ -5,9 +5,10 @@ import { BusinessUnitsController } from './business-unit.controller';
 import { BusinessUnitsService } from './business-unit.service';
 import { PermissionsModule } from 'src/permissions/permissions.module';
 import { UsersModule } from 'src/users/users.module';
+import { RolesModule } from 'src/roles/roles.module';
 
 @Module({
-  imports: [PermissionsModule, forwardRef(() => UsersModule)],
+  imports: [PermissionsModule, forwardRef(() => UsersModule), RolesModule],
   controllers: [BusinessUnitsController],
   providers: [BusinessUnitsService, BusinessUnitsRepository, PrismaService],
   exports: [BusinessUnitsService, BusinessUnitsRepository],

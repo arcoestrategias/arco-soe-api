@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { BusinessUnitsRepository } from './repositories/business-units.repository';
 import {
   CreateBusinessUnitDto,
@@ -9,6 +13,7 @@ import {
 import { BusinessUnitEntity } from './entities/business-unit.entity';
 import { PermissionsRepository } from '../permissions/repositories/permissions.repository';
 import { UsersRepository } from '../users/repositories/users.repository';
+import { RolesService } from '../roles/roles.service';
 
 @Injectable()
 export class BusinessUnitsService {
@@ -16,6 +21,7 @@ export class BusinessUnitsService {
     private readonly businessUnitsRepo: BusinessUnitsRepository,
     private readonly permissionsRepo: PermissionsRepository,
     private readonly usersRepo: UsersRepository,
+    private readonly rolesService: RolesService,
   ) {}
 
   async create(
@@ -90,6 +96,50 @@ export class BusinessUnitsService {
       userId,
       businessUnitId,
       dto.permissions,
+      actorId,
+    );
+  }
+
+  async resetUserPermissions(
+    businessUnitId: string,
+    userId: string,
+    actorId: string,
+  ): Promise<void> {
+    // 1. Obtener el Rol del usuario en esta BU
+    const userBu = await this.usersRepo.findByIdWithRoleInUnit(
+      userId,
+      businessUnitId,
+    );
+
+    if (!userBu) {
+      throw new NotFoundException(
+        'El usuario no pertenece a esta unidad de negocio',
+      );
+    }
+
+    if (!userBu.roleId) {
+      throw new BadRequestException(
+        'El usuario no tiene un rol asignado en esta unidad de negocio para reestablecer permisos.',
+      );
+    }
+
+    // 2. Obtener los permisos configurados para ese Rol (Catálogo completo con estado isActive)
+    const rolePermissions = await this.rolesService.getPermissionsOfRole(
+      userBu.roleId,
+    );
+
+    // 3. Mapear al formato de actualización de usuario
+    // Si el rol lo tiene activo (isActive: true) -> el usuario lo tendrá permitido (isAllowed: true)
+    const permissionsToSync = rolePermissions.map((p) => ({
+      id: p.id,
+      isAllowed: p.isActive,
+    }));
+
+    // 4. Aplicar la actualización masiva
+    await this.permissionsRepo.updateUserPermissionsBulk(
+      userId,
+      businessUnitId,
+      permissionsToSync,
       actorId,
     );
   }
