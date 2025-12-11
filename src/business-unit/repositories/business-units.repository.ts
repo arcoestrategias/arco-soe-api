@@ -5,19 +5,6 @@ import { handleDatabaseErrors } from 'src/common/helpers/database-error.helper';
 import { BusinessUnitEntity } from '../entities/business-unit.entity';
 import { CreateBusinessUnitDto, UpdateBusinessUnitDto } from '../dto';
 
-const ALLOWED_ACTIONS = [
-  'access',
-  'create',
-  'read',
-  'update',
-  'delete',
-  'export',
-  'approve',
-  'assign',
-] as const;
-
-type AllowedAction = (typeof ALLOWED_ACTIONS)[number];
-
 @Injectable()
 export class BusinessUnitsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -98,57 +85,41 @@ export class BusinessUnitsRepository {
     }
   }
 
-  async findUserPermissionsGroupedByModule(
+  async findAllPermissionsWithUserStatus(
     userId: string,
     businessUnitId: string,
   ) {
-    return this.prisma.userPermission.findMany({
-      where: {
-        userId,
-        businessUnitId,
-        isAllowed: true,
-      },
+    // 1. Obtener todos los permisos activos del sistema (Catálogo)
+    const allPermissions = await this.prisma.permission.findMany({
+      where: { isActive: true },
       include: {
-        permission: {
-          include: {
-            module: true,
+        module: {
+          select: {
+            name: true,
           },
         },
-      },
-      orderBy: {
-        permission: {
-          module: {
-            name: 'asc',
-          },
-        },
-      },
-    });
-  }
-
-  async findModulesActionSkeleton(): Promise<
-    Array<{ shortCode: string; actions: AllowedAction[] }>
-  > {
-    const modules = await this.prisma.module.findMany({
-      select: {
-        shortCode: true,
-        permissions: { select: { name: true } },
       },
       orderBy: { name: 'asc' },
     });
 
-    return modules.map((m) => {
-      // Derivamos 'action' desde "mod.action"
-      const actions = Array.from(
-        new Set(
-          m.permissions
-            .map((p) => (p.name.includes('.') ? p.name.split('.')[1] : p.name))
-            .filter((a): a is AllowedAction =>
-              (ALLOWED_ACTIONS as readonly string[]).includes(a),
-            ),
-        ),
-      );
-      return { shortCode: m.shortCode, actions };
+    // 2. Obtener los permisos que YA tiene asignados el usuario en esta BU
+    const userPermissions = await this.prisma.userPermission.findMany({
+      where: { userId, businessUnitId, isAllowed: true },
+      select: { permissionId: true },
     });
+
+    const userPermissionIds = new Set(
+      userPermissions.map((up) => up.permissionId),
+    );
+
+    // 3. Mapear y marcar isAllowed
+    return allPermissions.map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      module: p.module.name,
+      isAllowed: userPermissionIds.has(p.id),
+    }));
   }
 
   async findCompanyIdByBusinessUnit(

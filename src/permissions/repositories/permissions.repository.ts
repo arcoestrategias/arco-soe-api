@@ -114,36 +114,81 @@ export class PermissionsRepository {
   async updateUserPermissionsBulk(
     userId: string,
     businessUnitId: string,
-    permissionMap: Record<string, boolean>,
+    permissions: { id: string; isAllowed: boolean }[],
+    actorId: string,
   ): Promise<void> {
-    const permissions = await this.prisma.permission.findMany({
-      where: {
-        name: { in: Object.keys(permissionMap) },
-      },
-    });
-
-    const updates = permissions.map((p) =>
-      this.prisma.userPermission.upsert({
-        where: {
-          userId_businessUnitId_permissionId: {
-            userId,
-            businessUnitId,
-            permissionId: p.id,
-          },
-        },
-        update: {
-          isAllowed: permissionMap[p.name],
-        },
-        create: {
-          userId,
-          businessUnitId,
-          permissionId: p.id,
-          isAllowed: permissionMap[p.name],
-        },
-      }),
+    // 1. Identificar los IDs que el frontend quiere activos
+    const activePermissionIds = new Set(
+      permissions.filter((p) => p.isAllowed).map((p) => p.id),
     );
 
-    await this.prisma.$transaction(updates);
+    // 2. Obtener todos los permisos que ya existen en la BD para este usuario/BU
+    const existingUserPermissions = await this.prisma.userPermission.findMany({
+      where: { userId, businessUnitId },
+      select: { permissionId: true },
+    });
+    const existingPermissionIds = new Set(
+      existingUserPermissions.map((up) => up.permissionId),
+    );
+
+    // 3. Calcular deltas
+    const idsToCreate = Array.from(activePermissionIds).filter(
+      (id) => !existingPermissionIds.has(id),
+    );
+    const idsToReactivate = Array.from(activePermissionIds).filter((id) =>
+      existingPermissionIds.has(id),
+    );
+    const idsToDeactivate = Array.from(existingPermissionIds).filter(
+      (id) => !activePermissionIds.has(id),
+    );
+
+    // 4. Ejecutar operaciones en transacción
+    const operations: any[] = [];
+
+    if (idsToCreate.length > 0) {
+      operations.push(
+        this.prisma.userPermission.createMany({
+          data: idsToCreate.map((permissionId) => ({
+            userId,
+            businessUnitId,
+            permissionId,
+            isAllowed: true,
+            createdBy: actorId,
+            updatedBy: actorId,
+          })),
+        }),
+      );
+    }
+
+    if (idsToReactivate.length > 0) {
+      operations.push(
+        this.prisma.userPermission.updateMany({
+          where: {
+            userId,
+            businessUnitId,
+            permissionId: { in: idsToReactivate },
+          },
+          data: { isAllowed: true, updatedBy: actorId },
+        }),
+      );
+    }
+
+    if (idsToDeactivate.length > 0) {
+      operations.push(
+        this.prisma.userPermission.updateMany({
+          where: {
+            userId,
+            businessUnitId,
+            permissionId: { in: idsToDeactivate },
+          },
+          data: { isAllowed: false, updatedBy: actorId },
+        }),
+      );
+    }
+
+    if (operations.length > 0) {
+      await this.prisma.$transaction(operations);
+    }
   }
 
   async configureModulePermissions(
