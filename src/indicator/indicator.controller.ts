@@ -26,7 +26,7 @@ import { SuccessMessage } from 'src/core/decorators/success-message.decorator';
 export class IndicatorController {
   constructor(private readonly indicatorService: IndicatorService) {}
 
-  @Permissions(PERMISSIONS.INDICATORS.CREATE)
+  @Permissions(PERMISSIONS.OBJECTIVES.CREATE)
   @SuccessMessage('Indicador creado exitosamente')
   @Post()
   async create(
@@ -37,14 +37,14 @@ export class IndicatorController {
     return new ResponseIndicatorDto(indicator);
   }
 
-  @Permissions(PERMISSIONS.INDICATORS.READ)
+  @Permissions(PERMISSIONS.OBJECTIVES.READ)
   @Get(':id')
   async findById(@Param('id') id: string): Promise<ResponseIndicatorDto> {
     const indicator = await this.indicatorService.findById(id);
     return new ResponseIndicatorDto(indicator);
   }
 
-  @Permissions(PERMISSIONS.INDICATORS.UPDATE)
+  @Permissions(PERMISSIONS.OBJECTIVES.UPDATE)
   @SuccessMessage('Indicador actualizado correctamente')
   @Patch(':id')
   async update(
@@ -56,7 +56,7 @@ export class IndicatorController {
     return new ResponseIndicatorDto(updated);
   }
 
-  @Permissions(PERMISSIONS.INDICATORS.DELETE)
+  @Permissions(PERMISSIONS.OBJECTIVES.DELETE)
   @SuccessMessage('Indicador eliminado correctamente')
   @Delete(':id')
   async remove(

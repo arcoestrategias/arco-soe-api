@@ -4,6 +4,7 @@ import {
   IsString,
   MaxLength,
   IsUUID,
+  IsBoolean,
 } from 'class-validator';
 
 export class CreatePermissionDto {
@@ -19,4 +20,7 @@ export class CreatePermissionDto {
 
   @IsUUID()
   moduleId: string;
+
+  @IsBoolean()
+  isActive: boolean;
 }

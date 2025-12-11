@@ -24,20 +24,20 @@ import { ListProjectParticipantsDto } from './dto';
 export class ProjectParticipantController {
   constructor(private readonly service: ProjectParticipantService) {}
 
-  @Permissions(PERMISSIONS.PROJECT_PARTICIPANTS.CREATE)
+  @Permissions(PERMISSIONS.PROJECT_TASKS.CREATE)
   @Post()
   create(@Body() dto: CreateProjectParticipantDto, @UserId() userId: string) {
     return this.service.create(dto, userId);
   }
 
-  @Permissions(PERMISSIONS.PROJECT_PARTICIPANTS.READ)
+  @Permissions(PERMISSIONS.PROJECT_TASKS.READ)
   @Get(':id')
   getById(@Param('id') id: string) {
     return this.service.getById(id);
   }
 
   // Listar por proyecto
-  @Permissions(PERMISSIONS.PROJECT_PARTICIPANTS.READ)
+  @Permissions(PERMISSIONS.PROJECT_TASKS.READ)
   @Get()
   list(@Query() q: ListProjectParticipantsDto) {
     const { projectId, positionId, page, limit, isActive } = q;
@@ -50,7 +50,7 @@ export class ProjectParticipantController {
     return this.service.listByProject(projectId!, { page, limit, isActive });
   }
 
-  @Permissions(PERMISSIONS.PROJECT_PARTICIPANTS.UPDATE)
+  @Permissions(PERMISSIONS.PROJECT_TASKS.UPDATE)
   @Patch(':id')
   update(
     @Param('id') id: string,
@@ -60,7 +60,7 @@ export class ProjectParticipantController {
     return this.service.update(id, dto, userId);
   }
 
-  @Permissions(PERMISSIONS.PROJECT_PARTICIPANTS.DELETE)
+  @Permissions(PERMISSIONS.PROJECT_TASKS.DELETE)
   @Patch(':id/active')
   toggleActive(
     @Param('id') id: string,

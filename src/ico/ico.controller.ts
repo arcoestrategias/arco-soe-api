@@ -36,7 +36,7 @@ export class IcoController {
 
   // 1) ICO del mes por Plan Estratégico
   @Get('strategic-plans/:strategicPlanId/monthly')
-  @Permissions(PERMISSIONS.STRATEGIC_PLANS.READ)
+  @Permissions(PERMISSIONS.OBJECTIVES.READ)
   async getMonthlyIcoByStrategicPlan(
     @Param('strategicPlanId') strategicPlanId: string,
     @Query() query: GetMonthlyIcoDto,

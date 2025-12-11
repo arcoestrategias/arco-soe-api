@@ -57,7 +57,10 @@ export class ProjectFactorController {
     return this.factorService.getFactorById(factorId);
   }
 
-  @Permissions(PERMISSIONS.PROJECT_FACTORS.UPDATE)
+  @Permissions(
+    PERMISSIONS.PROJECT_FACTORS.UPDATE,
+    PERMISSIONS.PROJECT_FACTORS.REORDER,
+  )
   @SuccessMessage('Orden de factores actualizado correctamente')
   @Patch('reorder')
   async reorderFactors(

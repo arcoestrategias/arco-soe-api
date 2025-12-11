@@ -1,17 +1,13 @@
-export class ModuleEntity {
-  readonly id: string;
-  readonly name: string;
-  readonly shortCode: string;
-  readonly description?: string | null;
-  readonly createdAt: Date;
-  readonly updatedAt: Date;
+import { Module } from '@prisma/client';
 
-  constructor(module: any) {
-    this.id = module.id;
-    this.name = module.name;
-    this.shortCode = module.name;
-    this.description = module.description ?? null;
-    this.createdAt = module.createdAt;
-    this.updatedAt = module.updatedAt;
-  }
+export class ModuleEntity implements Module {
+  id: string;
+  name: string;
+  shortCode: string;
+  description: string | null;
+  isActive: boolean;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }

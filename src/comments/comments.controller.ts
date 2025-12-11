@@ -13,8 +13,6 @@ import { CommentsService } from './comments.service';
 import { CreateCommentDto, UpdateCommentDto, ResponseCommentDto } from './dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from 'src/core/guards/permissions.guard';
-import { Permissions } from 'src/core/decorators/permissions.decorator';
-import { PERMISSIONS } from 'src/common/constants/permissions.constant';
 import { SuccessMessage } from 'src/core/decorators/success-message.decorator';
 import { UsersService } from 'src/users/users.service';
 
@@ -27,7 +25,6 @@ export class CommentsController {
   ) {}
 
   @Post()
-  // @Permissions(PERMISSIONS.COMMENTS.CREATE)
   @SuccessMessage('Nota creada exitosamente')
   async create(
     @Body() dto: CreateCommentDto,
@@ -42,7 +39,6 @@ export class CommentsController {
   }
 
   @Patch(':id')
-  // @Permissions(PERMISSIONS.COMMENTS.UPDATE)
   @SuccessMessage('Nota actualizada correctamente')
   async update(
     @Param('id') id: string,
@@ -58,7 +54,6 @@ export class CommentsController {
   }
 
   @Patch(':id/inactivate')
-  // @Permissions(PERMISSIONS.COMMENTS.DELETE)
   @SuccessMessage('Comentario inactivado correctamente')
   async inactivate(@Param('id') id: string, @Req() req: any): Promise<void> {
     const userId: string = req.user?.sub;
@@ -66,7 +61,6 @@ export class CommentsController {
   }
 
   @Get()
-  // @Permissions(PERMISSIONS.COMMENTS.READ)
   async list(
     @Query('referenceId') referenceId: string,
     @Query('moduleShortcode') moduleShortcode?: string,

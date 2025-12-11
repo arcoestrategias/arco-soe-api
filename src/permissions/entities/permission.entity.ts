@@ -1,17 +1,13 @@
-export class PermissionEntity {
-  readonly id: string;
-  readonly name: string;
-  readonly description?: string | null;
-  readonly moduleId: string;
-  readonly createdAt: Date;
-  readonly updatedAt: Date;
+import { Permission } from '@prisma/client';
 
-  constructor(permission: any) {
-    this.id = permission.id;
-    this.name = permission.name;
-    this.description = permission.description ?? null;
-    this.moduleId = permission.moduleId;
-    this.createdAt = permission.createdAt;
-    this.updatedAt = permission.updatedAt;
-  }
+export class PermissionEntity implements Permission {
+  id: string;
+  name: string;
+  description: string | null;
+  moduleId: string;
+  isActive: boolean;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }

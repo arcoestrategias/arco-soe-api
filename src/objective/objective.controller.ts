@@ -117,7 +117,7 @@ export class ObjectiveController {
     return new ResponseConfigureObjectiveDto(result);
   }
 
-  @Permissions(PERMISSIONS.OBJECTIVES.UPDATE)
+  @Permissions(PERMISSIONS.OBJECTIVES.UPDATE, PERMISSIONS.OBJECTIVES.REORDER)
   @SuccessMessage('Orden actualizado correctamente')
   @Patch('reorder')
   async reorder(

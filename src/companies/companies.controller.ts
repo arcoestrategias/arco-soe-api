@@ -99,7 +99,7 @@ export class CompaniesController {
     }));
   }
 
-  @Permissions(PERMISSIONS.USERS.READ)
+  @Permissions(PERMISSIONS.COMPANIES.READ)
   @Get(':companyId/users')
   async findUsersByCompany(
     @Param('companyId') companyId: string,

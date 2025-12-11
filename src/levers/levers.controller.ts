@@ -55,7 +55,7 @@ export class LeversController {
     return new ResponseLeverDto(item);
   }
 
-  @Permissions(PERMISSIONS.LEVERS.UPDATE)
+  @Permissions(PERMISSIONS.LEVERS.UPDATE, PERMISSIONS.LEVERS.REORDER)
   @SuccessMessage('Orden actualizado correctamente')
   @Patch('reorder')
   async reorder(
