@@ -56,6 +56,7 @@ model Company {
   // Inversos para módulos de Sistema/Notificaciones
   systemSettings SystemSetting[] // inverso de SystemSetting.company
   notifications  Notification[] // inverso de Notification.company
+  meetings       Meeting[] // inverso de Meeting.company
 
   // Auditoría
   isActive  Boolean  @default(true)
@@ -90,6 +91,7 @@ model BusinessUnit {
   // Inversos para módulos de Sistema/Notificaciones
   systemSettings SystemSetting[] // inverso de SystemSetting.businessUnit
   notifications  Notification[] // inverso de Notification.businessUnit
+  meetings       Meeting[] // inverso de Meeting.businessUnit
 
   // Auditoría
   isActive  Boolean  @default(true)
@@ -249,6 +251,10 @@ model User {
 
   // Inverso de Notificaciones recibidas
   notificationsReceived Notification[] // ← inverso de Notification.recipient
+
+  // Relaciones para el módulo de Reuniones
+  meetingsCreated       Meeting[]              @relation("MeetingCreator")
+  meetingsParticipating MeetingParticipant[]
 
   // Auditoría
   isActive  Boolean  @default(true)
@@ -935,4 +941,109 @@ model NotificationDelivery {
   createdAt DateTime @default(now())
 
   @@index([notificationId])
+}
+
+// ============================================================================
+// MEETINGS MODULE
+// ============================================================================
+
+/// Frecuencia de la recurrencia de una reunión.
+enum MeetingFrequency {
+  ONCE // Reunión única
+  DAILY // Diario
+  WEEKLY // Semanal
+  BIWEEKLY // Quincenal (cada 2 semanas)
+  MONTHLY // Mensual
+}
+
+/// Estado de la serie de reuniones.
+enum MeetingStatus {
+  ACTIVE // La serie está activa y genera ocurrencias.
+  CANCELLED // La serie ha sido cancelada, no generará más ocurrencias.
+}
+
+/// Rol de un participante en una reunión.
+enum MeetingParticipantRole {
+  CONVENER // El convocante, responsable de la reunión.
+  PARTICIPANT // Un participante.
+}
+
+/// Define la serie de una reunión y sus reglas de recurrencia.
+/// Es la "plantilla" de la cual se generan las ocurrencias.
+model Meeting {
+  id        String  @id @default(uuid()) @db.Uuid
+  name      String  @db.VarChar(500)
+  purpose   String? @db.Text
+  location  String? @db.VarChar(500) // Puede ser un lugar físico o un enlace a una videollamada.
+  tools     String? @db.Text // Herramientas para el análisis, formato libre.
+
+  // --- Multi-empresa ---
+  companyId      String       @db.Uuid
+  company        Company      @relation(fields: [companyId], references: [id])
+  businessUnitId String?      @db.Uuid
+  businessUnit   BusinessUnit? @relation(fields: [businessUnitId], references: [id])
+
+  // --- Campos de Recurrencia ---
+  frequency     MeetingFrequency
+  startDate     DateTime // Fecha y hora de inicio de la primera ocurrencia. Define el "ancla" de la serie.
+  endDate       DateTime // Fecha y hora de fin de la primera ocurrencia.
+  // Opcional: fecha de fin de la serie. Si es null, la serie es indefinida (o hasta un horizonte de generación).
+  seriesEndDate DateTime?
+  // Para recurrencia mensual, especifica el día del mes (1-31).
+  // Para recurrencia semanal/quincenal, el día de la semana (0=Domingo, 1=Lunes...).
+  dayValue      Int?
+  daysOfWeek    Int[] // Array de días para recurrencia múltiple (ej: [1, 3, 5] para Lun, Mie, Vie)
+
+  // --- Estado y Auditoría ---
+  status    MeetingStatus @default(ACTIVE)
+  createdBy String        @db.Uuid // ID del usuario convocante.
+  creator   User          @relation("MeetingCreator", fields: [createdBy], references: [id])
+  updatedBy String?       @db.Uuid
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  // --- Relaciones ---
+  // Ocurrencias generadas a partir de esta serie.
+  occurrences  MeetingOccurrence[]
+  // Participantes de la serie.
+  participants MeetingParticipant[]
+
+  // --- Espacio para futuras integraciones ---
+  // IDs para sincronización con calendarios externos.
+  googleCalendarId  String? @unique
+  outlookCalendarId String? @unique
+
+  @@index([createdBy])
+}
+
+/// Representa una instancia específica de una reunión en una fecha y hora concretas.
+/// Esto es lo que se muestra en el calendario.
+model MeetingOccurrence {
+  id        String   @id @default(uuid()) @db.Uuid
+  meetingId String   @db.Uuid
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  startDate DateTime
+  endDate   DateTime
+  isExecuted  Boolean  @default(false) // Marcada como 'true' cuando la reunión se ha realizado.
+  isCancelled Boolean  @default(false) // Marcada como 'true' si esta ocurrencia específica se cancela.
+  updatedBy   String?  @db.Uuid
+  updatedAt   DateTime @updatedAt
+
+  @@unique([meetingId, startDate])
+  @@index([startDate, endDate])
+}
+
+/// Vincula a un usuario con una reunión y define su rol.
+model MeetingParticipant {
+  id         String                 @id @default(uuid()) @db.Uuid
+  meetingId  String                 @db.Uuid
+  userId     String                 @db.Uuid
+  meeting    Meeting                @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user       User                   @relation(fields: [userId], references: [id])
+  role       MeetingParticipantRole
+  isRequired Boolean                @default(true)
+  createdBy  String                 @db.Uuid
+  createdAt  DateTime               @default(now())
+
+  @@unique([meetingId, userId])
 }
