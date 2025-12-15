@@ -28,6 +28,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { LeversModule } from './levers/levers.module';
 import { CommentsModule } from './comments/comments.module';
 import { ReportsModule } from './reports/reports.module';
+import { MeetingsModule } from './meetings/meetings.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { ReportsModule } from './reports/reports.module';
     LeversModule,
     CommentsModule,
     ReportsModule,
+    MeetingsModule,
   ],
   controllers: [],
 })

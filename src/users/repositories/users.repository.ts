@@ -467,4 +467,41 @@ export class UsersRepository {
       skipDuplicates: true,
     });
   }
+
+  async findInvalidUserIdsForCompany(
+    userIds: string[],
+    companyId: string,
+  ): Promise<string[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    // 1. Buscar las unidades de negocio de esa company
+    const businessUnits = await this.prisma.businessUnit.findMany({
+      where: { companyId },
+      select: { id: true },
+    });
+
+    const businessUnitIds = businessUnits.map((bu) => bu.id);
+
+    if (businessUnitIds.length === 0) {
+      return userIds;
+    }
+
+    // 2. Buscar los usuarios de esas unidades de negocio en UserBusinessUnit
+    const validUserLinks = await this.prisma.userBusinessUnit.findMany({
+      where: {
+        userId: { in: userIds },
+        businessUnitId: { in: businessUnitIds },
+      },
+      select: {
+        userId: true,
+      },
+      distinct: ['userId'], // We only need to know if a user is in at least one BU of the company.
+    });
+
+    const validUserIds = new Set(validUserLinks.map((link) => link.userId));
+    const invalidUserIds = userIds.filter((id) => !validUserIds.has(id));
+    return invalidUserIds;
+  }
 }
