@@ -504,4 +504,20 @@ export class UsersRepository {
     const invalidUserIds = userIds.filter((id) => !validUserIds.has(id));
     return invalidUserIds;
   }
+
+  async findActivePermissionNames(
+    userId: string,
+    businessUnitId: string,
+  ): Promise<string[]> {
+    const results = await this.prisma.userPermission.findMany({
+      where: {
+        userId,
+        businessUnitId,
+        isAllowed: true, // El usuario debe tener el permiso habilitado
+        permission: { isActive: true }, // El permiso debe existir y estar activo en el sistema
+      },
+      select: { permission: { select: { name: true } } },
+    });
+    return results.map((r) => r.permission.name);
+  }
 }

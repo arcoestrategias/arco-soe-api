@@ -170,10 +170,7 @@ export class UsersController {
     }
 
     const permissions =
-      await this.businessUnitService.getUserPermissionsByModule(
-        businessUnitId,
-        userId,
-      );
+      await this.usersService.getPermissionsList(userId, businessUnitId);
 
     return {
       ...userEntity.toResponse(),

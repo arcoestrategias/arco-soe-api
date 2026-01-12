@@ -391,4 +391,11 @@ export class UsersService {
 
     return Array.from(map.values());
   }
+
+  async getPermissionsList(
+    userId: string,
+    businessUnitId: string,
+  ): Promise<string[]> {
+    return this.usersRepository.findActivePermissionNames(userId, businessUnitId);
+  }
 }
