@@ -53,6 +53,8 @@ export const PERMISSIONS = {
     SHOW_FILTER_YEAR: 'objectives.showFilterYear',
     SHOW_ICO_BOARD_TAB: 'objectives.showIcoBoardTab',
     SHOW_COMPLIANCE_TAB: 'objectives.showComplianceTab',
+    SHOW_DEPLOYMENT_MATRIX_TAB: 'objectives.showDeploymentMatrixTab',
+    SHOW_ANNUAL_ICO_TREND_CHART: 'objectives.showAnnualIcoTrendChart',
     READ: 'objectives.read',
     CREATE: 'objectives.create',
     UPDATE: 'objectives.update',
