@@ -34,8 +34,7 @@ async function main() {
     {
       name: 'Objectives',
       shortCode: 'objectives',
-      description:
-        'Módulo para la gestión de objetivos e indicadores.',
+      description: 'Módulo para la gestión de objetivos e indicadores.',
     },
     {
       name: 'Strategic Projects',
@@ -45,8 +44,7 @@ async function main() {
     {
       name: 'Positions',
       shortCode: 'positions',
-      description:
-        'Módulo para la gestión de posiciones y organigrama.',
+      description: 'Módulo para la gestión de posiciones y organigrama.',
     },
     {
       name: 'Levers',
@@ -62,7 +60,8 @@ async function main() {
     {
       name: 'Project Tasks',
       shortCode: 'projectTasks',
-      description: 'Módulo para la gestión de tareas de proyectos estratégicos.',
+      description:
+        'Módulo para la gestión de tareas de proyectos estratégicos.',
     },
     {
       name: 'Objective Goals',
@@ -284,6 +283,14 @@ async function main() {
       name: 'objectives.showComplianceTab',
       description: 'Ver pestaña Cumplimiento.',
     },
+    {
+      name: 'objectives.showDeploymentMatrixTab',
+      description: 'Ver pestaña Matriz de Despliegue.',
+    },
+    {
+      name: 'objectives.showAnnualIcoTrendChart',
+      description: 'Ver grafico de Tendencia Anual de ICO',
+    },
     { name: 'objectives.read', description: 'Ver lista de objetivos.' },
     { name: 'objectives.create', description: 'Crear objetivos.' },
     { name: 'objectives.update', description: 'Editar objetivos.' },
@@ -296,7 +303,7 @@ async function main() {
     // Metas de Objetivos
     {
       name: 'objectiveGoals.update',
-      description: 'Editar metas del objetivo.',
+      description: 'Editar cumplimiento del objetivo.',
     },
     {
       name: 'objectiveGoals.updateCompliance',
