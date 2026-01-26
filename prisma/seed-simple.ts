@@ -14,82 +14,82 @@ async function main() {
         'Módulo para la visualización de dashboards y KPIs de desempeño.',
     },
     {
-      name: 'Strategic Plans',
+      name: 'Plan estratégico',
       shortCode: 'strategicPlans',
       description:
         'Módulo para la gestión de planes estratégicos, misión, visión y su estructura.',
     },
     {
-      name: 'Strategic Success Factors',
+      name: 'Factores clave de éxito',
       shortCode: 'strategicSuccessFactor',
       description:
         'Módulo para la gestión de factores clave de éxito de los planes.',
     },
     {
-      name: 'Strategic Values',
+      name: 'Valores estratégicos',
       shortCode: 'strategicValues',
       description:
         'Módulo para la gestión de valores estratégicos de los planes.',
     },
     {
-      name: 'Objectives',
+      name: 'Objetivos',
       shortCode: 'objectives',
       description: 'Módulo para la gestión de objetivos e indicadores.',
     },
     {
-      name: 'Strategic Projects',
+      name: 'Proyectos estratégicos',
       shortCode: 'strategicProjects',
       description: 'Módulo para la gestión de proyectos estratégicos.',
     },
     {
-      name: 'Positions',
+      name: 'Posiciones',
       shortCode: 'positions',
       description: 'Módulo para la gestión de posiciones y organigrama.',
     },
     {
-      name: 'Levers',
+      name: 'Palancas',
       shortCode: 'levers',
       description: 'Módulo para la gestión de palancas asociadas a posiciones.',
     },
     {
-      name: 'Project Factors',
+      name: 'Factores de proyectos estratégicos',
       shortCode: 'projectFactors',
       description:
         'Módulo para la gestión de factores de proyectos estratégicos.',
     },
     {
-      name: 'Project Tasks',
+      name: 'Tareas de proyectos estratégicos',
       shortCode: 'projectTasks',
       description:
         'Módulo para la gestión de tareas de proyectos estratégicos.',
     },
     {
-      name: 'Objective Goals',
+      name: 'Cumplimiento de objetivos',
       shortCode: 'objectiveGoals',
       description: 'Módulo para la gestión de metas de objetivos.',
     },
     {
-      name: 'Priorities',
+      name: 'Prioridades',
       shortCode: 'priorities',
       description: 'Módulo para la gestión de prioridades.',
     },
     {
-      name: 'Companies',
+      name: 'Compañías',
       shortCode: 'companies',
       description: 'Módulo para la administración de compañías (tenants).',
     },
     {
-      name: 'Business Units',
+      name: 'Unidades de negocio',
       shortCode: 'businessUnits',
       description: 'Módulo para la administración de unidades de negocio.',
     },
     {
-      name: 'Users',
+      name: 'Usuarios',
       shortCode: 'users',
       description: 'Módulo para la administración de usuarios del sistema.',
     },
     {
-      name: 'Modules',
+      name: 'Módulos',
       shortCode: 'modules',
       description: 'Módulo para la administración de los módulos del sistema.',
     },
@@ -100,17 +100,17 @@ async function main() {
         'Módulo para la administración de roles y plantillas de permisos.',
     },
     {
-      name: 'Notifications',
+      name: 'Notificaciones',
       shortCode: 'notifications',
       description: 'Módulo para la gestión de notificaciones del sistema.',
     },
     {
-      name: 'Permissions',
+      name: 'Permisos',
       shortCode: 'permissions',
       description: 'Módulo para la administración de permisos granulares.',
     },
     {
-      name: 'System Settings',
+      name: 'Configuraciones del sistema',
       shortCode: 'systemSettings',
       description:
         'Módulo para la administración de configuraciones del sistema.',
