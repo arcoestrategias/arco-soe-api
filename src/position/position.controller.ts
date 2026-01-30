@@ -13,6 +13,7 @@ import {
   CreatePositionDto,
   UpdatePositionDto,
   ResponsePositionDto,
+  ToggleActivePositionDto,
 } from './dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from 'src/core/guards/permissions.guard';
@@ -151,6 +152,22 @@ export class PositionsController {
     @UserId() userId: string,
   ): Promise<ResponsePositionDto> {
     const updated = await this.positionsService.update(id, dto, userId);
+    return new ResponsePositionDto(updated);
+  }
+
+  @Permissions(PERMISSIONS.POSITIONS.UPDATE)
+  @SuccessMessage('Estado de la posición actualizado correctamente')
+  @Patch(':id/active')
+  async togglePositionActive(
+    @Param('id') positionId: string,
+    @Body() dto: ToggleActivePositionDto,
+    @UserId() userId: string,
+  ): Promise<ResponsePositionDto> {
+    const updated = await this.positionsService.toggleActive(
+      positionId,
+      dto.isActive,
+      userId,
+    );
     return new ResponsePositionDto(updated);
   }
 
