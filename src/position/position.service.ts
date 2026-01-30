@@ -103,6 +103,16 @@ export class PositionsService {
     return this.positionsRepo.update(id, dto, userId);
   }
 
+  async toggleActive(
+    id: string,
+    isActive: boolean,
+    userId: string,
+  ): Promise<PositionEntity> {
+    const exists = await this.positionsRepo.findById(id);
+    if (!exists) throw new NotFoundException('Posición no encontrada');
+    return this.positionsRepo.update(id, { isActive } as any, userId);
+  }
+
   async remove(id: string, userId: string): Promise<void> {
     const exists = await this.positionsRepo.findById(id);
     if (!exists) throw new NotFoundException('Posición no encontrada');
