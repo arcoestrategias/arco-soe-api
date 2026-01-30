@@ -50,6 +50,14 @@ export class BusinessUnitsController {
   }
 
   @Permissions(PERMISSIONS.BUSINESS_UNITS.READ)
+  @Get(':businessUnitId/users/no-position')
+  async listUsersInBUNoPosition(
+    @Param('businessUnitId', ParseUUIDPipe) businessUnitId: string,
+  ) {
+    return this.usersService.listByBusinessUnitIdNoPosition(businessUnitId);
+  }
+
+  @Permissions(PERMISSIONS.BUSINESS_UNITS.READ)
   @Get()
   async findAll(): Promise<ResponseBusinessUnitDto[]> {
     const units = await this.businessUnitService.findAll();
