@@ -10,12 +10,12 @@ import {
 
 export class CreateLeverDto {
   @IsString()
-  @MaxLength(150)
+  @MaxLength(500)
   @IsNotEmpty()
   name: string;
 
   @IsString()
-  @MaxLength(500)
+  @MaxLength(1000)
   @IsOptional()
   description?: string;
 
