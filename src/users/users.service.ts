@@ -392,6 +392,17 @@ export class UsersService {
     return Array.from(map.values());
   }
 
+  async listByBusinessUnitIdNoPosition(
+    businessUnitId: string,
+  ): Promise<ResponseUserDto[]> {
+    const users = await this.listByBusinessUnitId(businessUnitId);
+    return users.filter((user) =>
+      user.userBusinessUnits?.some(
+        (unit) => unit.businessUnitId === businessUnitId && !unit.positionId,
+      ),
+    );
+  }
+
   async getPermissionsList(
     userId: string,
     businessUnitId: string,
