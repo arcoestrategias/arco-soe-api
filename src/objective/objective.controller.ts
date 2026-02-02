@@ -27,6 +27,8 @@ import { Permissions } from 'src/core/decorators/permissions.decorator';
 import { PERMISSIONS } from 'src/common/constants/permissions.constant';
 import { SuccessMessage } from 'src/core/decorators/success-message.decorator';
 import { UserId } from 'src/common/decorators/user-id.decorator';
+import { ResponseObjectiveWithIndicatorDto } from './dto/response-objective-with-indicator.dto';
+import { ObjectiveEntity } from './entities/objective.entity';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('objectives')
@@ -61,6 +63,30 @@ export class ObjectiveController {
       positionId,
     );
     return rows; // tu interceptor de response se encarga del envelope
+  }
+
+  @Get('all-status')
+  @Permissions(PERMISSIONS.OBJECTIVES.READ)
+  async listAllStatus(
+    @Query() query: GetObjectivesDto,
+  ): Promise<ResponseObjectiveDto[]> {
+    const { strategicPlanId, positionId, year } = query;
+
+    if (!strategicPlanId) {
+      throw new BadRequestException(
+        'El parámetro strategicPlanId es requerido',
+      );
+    }
+    if (!positionId) {
+      throw new BadRequestException('El parámetro positionId es requerido');
+    }
+
+    const items = await this.objectiveService.findAllMixed(
+      strategicPlanId,
+      positionId,
+      year,
+    );
+    return items.map((i) => new ResponseObjectiveDto(new ObjectiveEntity(i)));
   }
 
   @Permissions(PERMISSIONS.OBJECTIVES.READ)
