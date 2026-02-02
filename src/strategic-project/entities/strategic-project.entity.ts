@@ -8,7 +8,7 @@ export class StrategicProjectEntity {
   readonly order: number;
   readonly strategicPlanId: string;
   readonly objectiveId?: string | null;
-
+  readonly status?: string | null;
   readonly isActive: boolean;
   readonly createdBy?: string | null;
   readonly updatedBy?: string | null;
@@ -28,7 +28,7 @@ export class StrategicProjectEntity {
     this.order = project.order;
     this.strategicPlanId = project.strategicPlanId;
     this.objectiveId = project.objectiveId ?? null;
-
+    this.status = project.status ?? null;
     this.isActive = project.isActive;
     this.createdBy = project.createdBy ?? null;
     this.updatedBy = project.updatedBy ?? null;

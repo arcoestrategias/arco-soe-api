@@ -8,6 +8,7 @@ import {
   IsUUID,
   IsNotEmpty,
   IsNumber,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -51,4 +52,9 @@ export class CreateStrategicProjectDto {
   @IsUUID()
   @IsNotEmpty()
   positionId: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['IPR', 'CLO', 'OPE'])
+  status?: string;
 }
