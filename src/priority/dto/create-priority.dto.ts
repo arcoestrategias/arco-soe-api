@@ -12,7 +12,7 @@ import { Type } from 'class-transformer';
 
 export class CreatePriorityDto {
   @IsString()
-  @Length(3, 1000)
+  @Length(3, 500)
   name!: string;
 
   @IsOptional()
