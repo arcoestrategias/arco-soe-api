@@ -49,6 +49,19 @@ export class PriorityService {
       dto.year = untilAtDate.getUTCFullYear();
     }
 
+    // 1.1) Normalización de fechas de cierre / cancelación si se crea ya cerrada
+    if (dto.status === 'CLO' && !dto.finishedAt) {
+      dto.finishedAt = this.todayLocalDate();
+    }
+    if (dto.status === 'CAN' && !dto.canceledAt) {
+      dto.canceledAt = this.todayLocalDate();
+    }
+    // Si es OPE, nos aseguramos que no lleve fechas de cierre (por sanidad)
+    if (dto.status === 'OPE') {
+      dto.finishedAt = null;
+      dto.canceledAt = null;
+    }
+
     // 2) Persistir prioridad
     const createdRecord = await this.repo.create(dto, creatorUserId);
 
@@ -91,8 +104,9 @@ export class PriorityService {
         });
       }
 
-      // 3.3) Recordatorios programados si hay fecha de vencimiento
-      if (createdRecord.untilAt) {
+      // 3.3) Recordatorios programados si hay fecha de vencimiento Y la prioridad nace ABIERTA
+      // Si nace cerrada (CLO/CAN), no programamos recordatorios.
+      if (createdRecord.untilAt && createdRecord.status === 'OPE') {
         const dueDateDate = new Date(createdRecord.untilAt);
         const subtractDays = (base: Date, days: number) =>
           new Date(base.getTime() - days * 86_400_000);
