@@ -16,6 +16,7 @@ export class ResponseStrategicProjectDto {
     this.createdAt = entity.createdAt;
     this.updatedAt = entity.updatedAt;
     this.progress = entity.progress ?? null;
+    this.status = entity.status ?? null;
   }
 
   id: string;
@@ -32,4 +33,5 @@ export class ResponseStrategicProjectDto {
   createdAt: Date;
   updatedAt: Date;
   progress?: number | null;
+  status?: string | null;
 }
