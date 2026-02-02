@@ -104,6 +104,14 @@ export class ObjectiveService {
     return this.objectiveRepo.findAll(strategicPlanId, positionId, year);
   }
 
+  async findAllMixed(
+    strategicPlanId: string,
+    positionId: string,
+    year?: number,
+  ) {
+    return this.objectiveRepo.findAllMixed(strategicPlanId, positionId, year);
+  }
+
   async findById(id: string): Promise<ObjectiveEntity> {
     const objective = await this.objectiveRepo.findById(id);
     if (!objective) {

@@ -72,6 +72,48 @@ export class ObjectiveRepository {
       .then((items) => items.map((o) => new ObjectiveEntity(o)));
   }
 
+  async findAllMixed(
+    strategicPlanId: string,
+    positionId: string,
+    year?: number,
+  ): Promise<ObjectiveWithIndicator[]> {
+    const yearFilter =
+      typeof year === 'number'
+        ? {
+            periodEnd: {
+              gte: new Date(Date.UTC(year, 0, 1)),
+              lt: new Date(Date.UTC(year + 1, 0, 1)),
+            },
+          }
+        : {};
+
+    return this.prisma.objective.findMany({
+      where: {
+        strategicPlanId,
+        positionId,
+        isActive: true,
+        OR: [
+          // 1) Configurados (filtrados por año si aplica)
+          {
+            indicator: {
+              is: {
+                isConfigured: true,
+                isActive: true,
+                ...yearFilter,
+              },
+            },
+          },
+          // 2) No configurados o sin indicador
+          { indicator: { is: { isActive: true, isConfigured: false } } },
+          { indicator: { is: null } },
+        ],
+      },
+      // Incluimos el indicador para que el DTO pueda mostrar si está configurado o no
+      include: { indicator: true },
+      orderBy: { order: 'asc' },
+    });
+  }
+
   async findById(id: string): Promise<ObjectiveEntity | null> {
     const item = await this.prisma.objective.findUnique({
       where: { id },
