@@ -53,11 +53,11 @@ export class ObjectiveGoalService {
       const tendence = indicator.tendence;
       if (tendence === 'POS' && nextBaseValue >= nextGoalValue) {
         throw new BadRequestException(
-          `En tendencia CRECIENTE, la Línea Base (${nextBaseValue}) debe ser menor que la Meta (${nextGoalValue}).`,
+          `En tendencia CRECIENTE, la Meta (${nextGoalValue}) debe ser mayor que la Línea Base (${nextBaseValue}).`,
         );
       } else if (tendence === 'NEG' && nextBaseValue < nextGoalValue) {
         throw new BadRequestException(
-          `En tendencia DECRECIENTE, la Línea Base (${nextBaseValue}) no puede ser menor que la Meta (${nextGoalValue}).`,
+          `En tendencia DECRECIENTE, la Meta (${nextGoalValue}) debe ser menor o igual que la Línea Base (${nextBaseValue}).`,
         );
       }
     }

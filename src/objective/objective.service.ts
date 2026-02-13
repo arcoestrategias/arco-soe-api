@@ -270,7 +270,7 @@ export class ObjectiveService {
         effectiveBaseValue >= effectiveGoalValue
       ) {
         throw new BadRequestException(
-          `En tendencia CRECIENTE, la Línea Base (${effectiveBaseValue}) debe ser menor que la Meta (${effectiveGoalValue}).`,
+          `En tendencia CRECIENTE, la Meta (${effectiveGoalValue}) debe ser mayor que la Línea Base (${effectiveBaseValue}).`,
         );
       }
       if (
@@ -278,7 +278,7 @@ export class ObjectiveService {
         effectiveBaseValue < effectiveGoalValue
       ) {
         throw new BadRequestException(
-          `En tendencia DECRECIENTE, la Línea Base (${effectiveBaseValue}) no puede ser menor que la Meta (${effectiveGoalValue}).`,
+          `En tendencia DECRECIENTE, la Meta (${effectiveGoalValue}) debe ser menor o igual que la Línea Base (${effectiveBaseValue}).`,
         );
       }
     }
