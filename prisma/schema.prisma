@@ -449,6 +449,7 @@ model Indicator {
   measurement  String?   @default("POR")
   type         String?   @default("GES")
   reference    String?
+  baseValue    Float?    @default(0)
   periodStart  DateTime?
   periodEnd    DateTime?
 

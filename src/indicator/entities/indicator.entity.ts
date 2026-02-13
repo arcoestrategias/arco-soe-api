@@ -14,6 +14,7 @@ export class IndicatorEntity {
   readonly type?: string | null;
   readonly reference?: string | null;
 
+  readonly baseValue?: number | null;
   readonly periodStart?: Date | null;
   readonly periodEnd?: Date | null;
 
@@ -39,6 +40,7 @@ export class IndicatorEntity {
     this.type = indicator.type;
     this.reference = indicator.reference;
 
+    this.baseValue = indicator.baseValue ?? 0;
     this.periodStart = indicator.periodStart;
     this.periodEnd = indicator.periodEnd;
 

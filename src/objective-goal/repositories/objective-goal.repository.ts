@@ -61,7 +61,7 @@ export class ObjectiveGoalRepository {
       return await this.prisma.objectiveGoal.findFirst({
         where: { objectiveId, isActive: true },
         orderBy: { createdAt: 'asc' },
-        select: { rangeExceptional: true, rangeInacceptable: true },
+        select: { rangeExceptional: true, rangeInacceptable: true, baseValue: true },
       });
     } catch (e) {
       handleDatabaseErrors(e);
@@ -193,6 +193,7 @@ export class ObjectiveGoalRepository {
     objectiveId: string,
     months: Array<{ month: number; year: number }>,
     goalValue: number | null,
+    baseValue: number | null,
     userId: string,
     opts?: {
       rangeExceptional?: number | null;
@@ -206,9 +207,10 @@ export class ObjectiveGoalRepository {
       month: m.month,
       year: m.year,
       goalValue: goalValue ?? null,
-      baseValue: goalValue ?? null,
+      baseValue: baseValue ?? goalValue ?? null,
       rangeExceptional: opts?.rangeExceptional ?? null,
       rangeInacceptable: opts?.rangeInacceptable ?? null,
+      realValue: null,
       isActive: true,
       createdBy: userId,
       updatedBy: userId,
@@ -228,6 +230,7 @@ export class ObjectiveGoalRepository {
     objectiveId: string,
     months: Array<{ month: number; year: number }>,
     goalValue: number | null,
+    baseValue: number | null,
     userId: string,
     opts?: {
       rangeExceptional?: number | null;
@@ -242,9 +245,10 @@ export class ObjectiveGoalRepository {
         month: m.month,
         year: m.year,
         goalValue: goalValue ?? null,
-        baseValue: goalValue ?? null,
+        baseValue: baseValue ?? goalValue ?? null,
         rangeExceptional: opts?.rangeExceptional ?? null,
         rangeInacceptable: opts?.rangeInacceptable ?? null,
+        realValue: null,
 
         isActive: true,
         createdBy: userId,
@@ -325,6 +329,7 @@ export class ObjectiveGoalRepository {
     objectiveId: string,
     months: Array<{ month: number; year: number }>,
     goalValue: number | null,
+    baseValue: number | null,
     userId: string,
     opts?: {
       rangeExceptional?: number | null;
@@ -379,9 +384,10 @@ export class ObjectiveGoalRepository {
             month: m.month,
             year: m.year,
             goalValue: goalValue ?? null,
-            baseValue: goalValue ?? null,
+            baseValue: baseValue ?? goalValue ?? null,
             rangeExceptional: opts?.rangeExceptional ?? null,
             rangeInacceptable: opts?.rangeInacceptable ?? null,
+            realValue: null,
             isActive: true,
             createdBy: userId,
             updatedBy: userId,

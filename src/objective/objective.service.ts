@@ -34,7 +34,7 @@ export class ObjectiveService {
     dto: CreateObjectiveDto,
     userId: string,
   ): Promise<ObjectiveEntity> {
-    const { indicatorName, ...objectiveDto } = dto;
+    const { indicatorName, baseValue, ...objectiveDto } = dto;
 
     const input = {
       ...objectiveDto,
@@ -82,6 +82,7 @@ export class ObjectiveService {
         name: dto.indicatorName ?? '',
         isDefault: true,
         isConfigured: false,
+        baseValue: baseValue ?? 0, // <--- Aquí asignamos el valor inicial al indicador
       },
       userId,
     );
@@ -176,11 +177,22 @@ export class ObjectiveService {
     const toDate = (d: any) =>
       d instanceof Date ? d : typeof d === 'string' ? new Date(d) : null;
 
-    // ========== 1) Detectar CAMBIO CRÍTICO (solo goalValue / tendence / measurement) ==========
+    // Pre-fetch para detectar cambios en thresholds (rangos)
+    const existingForThresholds =
+      await this.objectiveGoalRepo.findOneActiveByObjectiveId(dto.objectiveId);
+
+    // Extraemos baseValue del INDICADOR (ahora vive ahí)
+    const nextBaseValue = dto.indicator?.baseValue ?? dto.objective?.baseValue;
+    const currentBaseValue = currentIndicator.baseValue ?? 0;
+
+    // ========== 1) Detectar CAMBIO CRÍTICO (goalValue / baseValue / tendence / measurement) ==========
     const goalValueChanged =
       dto.objective?.goalValue !== undefined
         ? dto.objective.goalValue !== currentObjective.goalValue
         : false;
+
+    const baseValueChanged =
+      nextBaseValue !== undefined ? nextBaseValue !== currentBaseValue : false;
 
     const tendenceChanged =
       dto.indicator?.tendence !== undefined
@@ -195,6 +207,7 @@ export class ObjectiveService {
     // ⚠️ periodStart/periodEnd/frequency NO cuentan como críticos (según tu regla)
     const criticalChange = !!(
       goalValueChanged ||
+      baseValueChanged ||
       tendenceChanged ||
       measurementChanged
     );
@@ -239,10 +252,44 @@ export class ObjectiveService {
       );
     }
 
+    // Validar consistencia de Línea Base vs Meta según Tendencia
+    const effectiveGoalValue =
+      dto.objective?.goalValue !== undefined
+        ? dto.objective.goalValue
+        : currentObjective.goalValue;
+
+    // Usamos el valor nuevo si viene, sino el actual del indicador
+    const effectiveBaseValue = nextBaseValue !== undefined ? nextBaseValue : currentBaseValue;
+
+    if (
+      typeof effectiveBaseValue === 'number' &&
+      typeof effectiveGoalValue === 'number'
+    ) {
+      if (
+        effectiveIndicator.tendence === 'POS' &&
+        effectiveBaseValue >= effectiveGoalValue
+      ) {
+        throw new BadRequestException(
+          `En tendencia CRECIENTE, la Línea Base (${effectiveBaseValue}) debe ser menor que la Meta (${effectiveGoalValue}).`,
+        );
+      }
+      if (
+        effectiveIndicator.tendence === 'NEG' &&
+        effectiveBaseValue < effectiveGoalValue
+      ) {
+        throw new BadRequestException(
+          `En tendencia DECRECIENTE, la Línea Base (${effectiveBaseValue}) no puede ser menor que la Meta (${effectiveGoalValue}).`,
+        );
+      }
+    }
+
     // ========== 2) Actualizar Objective ==========
+    // Nota: dto.objective podría traer 'baseValue' por herencia de DTOs, pero lo ignoramos aquí
+    // porque ya lo manejamos en el indicador.
+    const { baseValue: _ignoredBase, indicatorName: _ignoredName, ...objectiveData } = dto.objective || {};
     const updatedObjective = await this.objectiveRepo.update(
       dto.objectiveId,
-      { ...dto.objective, updatedBy: userId },
+      { ...objectiveData, updatedBy: userId },
       userId,
     );
 
@@ -263,6 +310,7 @@ export class ObjectiveService {
         i.periodEnd !== undefined
           ? effectiveIndicator.periodEnd
           : currentIndicator.periodEnd,
+      baseValue: effectiveBaseValue, // <--- Persistimos el baseValue en el indicador
       isConfigured: willConfigureNow ? true : currentIndicator.isConfigured,
       updatedBy: userId,
     };
@@ -270,8 +318,6 @@ export class ObjectiveService {
     await this.indicatorRepo.update(indicatorId, indicatorPayload, userId);
 
     // ========== 3.1) Resolver thresholds (rangos) para creaciones ==========
-    const existingForThresholds =
-      await this.objectiveGoalRepo.findOneActiveByObjectiveId(dto.objectiveId);
     const resolvedThresholds = {
       rangeExceptional:
         dto.rangeExceptional ?? existingForThresholds?.rangeExceptional ?? null,
@@ -288,6 +334,7 @@ export class ObjectiveService {
         dto.objectiveId,
         normalizedMonths,
         updatedObjective.goalValue ?? null,
+        effectiveBaseValue ?? null, // <--- Usamos el baseValue efectivo
         userId,
         resolvedThresholds,
       );
@@ -317,6 +364,7 @@ export class ObjectiveService {
           dto.objectiveId,
           toAdd,
           updatedObjective.goalValue ?? null,
+          effectiveBaseValue ?? null, // <--- Usamos el baseValue efectivo
           userId,
           resolvedThresholds,
         );
