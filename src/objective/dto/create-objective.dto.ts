@@ -54,6 +54,11 @@ export class CreateObjectiveDto {
   @IsNumber()
   goalValue?: number | null;
 
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  baseValue?: number | null;
+
   @IsString()
   @IsIn(['OPE', 'CLO'])
   @IsOptional()

@@ -5,6 +5,7 @@ import {
   IsString,
   IsUUID,
   IsBoolean,
+  IsNumber,
   MaxLength,
   IsDate,
   IsIn,
@@ -78,4 +79,9 @@ export class CreateIndicatorDto {
   @Type(() => Date)
   @IsDate()
   periodEnd?: Date | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  baseValue?: number;
 }

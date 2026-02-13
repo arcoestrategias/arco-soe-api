@@ -620,7 +620,7 @@ export class IcoService {
         }
 
         const isMeasured = true; // hay registro ObjectiveGoal ese mes
-        const hasCompliance = (found.realValue ?? 0) > 0;
+        const hasCompliance = found.indexCompliance != null;
         const ico = hasCompliance
           ? Number((found.indexCompliance ?? 0).toFixed(2))
           : 0;
@@ -816,7 +816,7 @@ export class IcoService {
       let icoMonthly: any[] = [];
       if (goal) {
         const isMeasured = true;
-        const hasCompliance = (goal.realValue ?? 0) > 0;
+        const hasCompliance = goal.indexCompliance != null;
         const ico = hasCompliance
           ? Number((goal.indexCompliance ?? 0).toFixed(2))
           : 0;
