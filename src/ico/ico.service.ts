@@ -614,12 +614,14 @@ export class IcoService {
             ico: 0,
             isMeasured: false,
             hasCompliance: false,
+            hasRealValue: false,
             lightNumeric: null,
             lightColorHex: GRAY,
           };
         }
 
         const isMeasured = true; // hay registro ObjectiveGoal ese mes
+        const hasRealValue = found.realValue !== null;
         const hasCompliance = found.indexCompliance != null;
         const ico = hasCompliance
           ? Number((found.indexCompliance ?? 0).toFixed(2))
@@ -637,6 +639,7 @@ export class IcoService {
           ico,
           isMeasured,
           hasCompliance,
+          hasRealValue,
           lightNumeric,
           lightColorHex,
         };
@@ -673,7 +676,7 @@ export class IcoService {
 
       // pendientes = meses con registro (isMeasured) SIN cumplimiento hasta el mes activo efectivo
       const pendingCount = monthsUpToActive.filter(
-        (m) => m.isMeasured && !m.hasCompliance,
+        (m) => m.isMeasured && !m.hasRealValue,
       ).length;
 
       const GOAL_STATUS_COLORS = {
@@ -692,7 +695,7 @@ export class IcoService {
       if (pendingCount > 0) {
         statusLabel = `Pendiente: ${pendingCount}`;
         lightColorHex = GOAL_STATUS_COLORS.yellow;
-      } else if (currentRec?.isMeasured === true) {
+      } else if (currentRec?.hasRealValue === true) {
         statusLabel = 'Medido';
         lightColorHex = GOAL_STATUS_COLORS.green;
       } else {
@@ -817,6 +820,7 @@ export class IcoService {
       if (goal) {
         const isMeasured = true;
         const hasCompliance = goal.indexCompliance != null;
+        const hasRealValue = goal.realValue !== null;
         const ico = hasCompliance
           ? Number((goal.indexCompliance ?? 0).toFixed(2))
           : 0;
@@ -833,6 +837,7 @@ export class IcoService {
           isMeasured,
           isCurrent: true, // <-- CORRECCIÓN: Añadido para consistencia con ico-board
           hasCompliance,
+          hasRealValue,
           lightNumeric,
           lightColorHex,
         });
@@ -845,6 +850,7 @@ export class IcoService {
           isCurrent: true, // <-- CORRECCIÓN: Añadido para consistencia con ico-board
           isMeasured: false,
           hasCompliance: false,
+          hasRealValue: false,
           lightNumeric: null,
           lightColorHex: GRAY,
         });

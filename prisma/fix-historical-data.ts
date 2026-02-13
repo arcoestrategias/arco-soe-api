@@ -113,36 +113,17 @@ const prisma = new PrismaClient();
 const TREAT_ZERO_AS_NULL = true;
 
 async function main() {
-  console.log('🚀 Iniciando reparación de datos históricos...');
+  console.log('🚀 Iniciando REPARACIÓN Y RESETEO DE LÍNEA BASE A 0...');
 
-  // 1. Sincronizar baseValue de ObjectiveGoal hacia Indicator
-  // (Para que la configuración del objetivo muestre la línea base correcta)
-  const objectives = await prisma.objective.findMany({
-    where: { isActive: true, indicatorId: { not: null } },
-    include: { indicator: true, objectiveGoals: { take: 1 } },
+  // 1. Forzar baseValue = 0 en todos los indicadores activos
+  // (Esto corrige el problema de que se haya copiado la meta como línea base)
+  const updateResult = await prisma.indicator.updateMany({
+    where: { isActive: true },
+    data: { baseValue: 0 },
   });
-
   console.log(
-    `🔄 Sincronizando indicadores de ${objectives.length} objetivos...`,
+    `✅ Se restableció baseValue=0 en ${updateResult.count} indicadores.`,
   );
-
-  for (const obj of objectives) {
-    // Si el indicador tiene base 0 pero las metas tenían otro valor, lo subimos al indicador
-    const firstGoal = obj.objectiveGoals[0];
-    if (
-      obj.indicator &&
-      obj.indicator.baseValue === 0 &&
-      firstGoal &&
-      firstGoal.baseValue !== 0 &&
-      firstGoal.baseValue !== null
-    ) {
-      await prisma.indicator.update({
-        where: { id: obj.indicator.id },
-        data: { baseValue: firstGoal.baseValue },
-      });
-    }
-  }
-  console.log('\n✅ Indicadores sincronizados.');
 
   // 2. Reparar Metas (ObjectiveGoals)
   const goals = await prisma.objectiveGoal.findMany({
@@ -154,7 +135,9 @@ async function main() {
     },
   });
 
-  console.log(`🔧 Recalculando ${goals.length} metas mensuales...`);
+  console.log(
+    `🔧 Recalculando ${goals.length} metas mensuales con baseValue=0...`,
+  );
 
   let fixedCount = 0;
   let resetCount = 0;
@@ -174,11 +157,15 @@ async function main() {
       shouldReset = true;
     }
 
+    // Forzamos la base a 0 para el recálculo
+    const newBaseValue = 0;
+
     if (shouldReset || nextRealValue === null) {
       // Si es null (o era 0), reseteamos a estado "no medido" (Gris)
       await prisma.objectiveGoal.update({
         where: { id: goal.id },
         data: {
+          baseValue: newBaseValue, // Corregimos la base
           realValue: null,
           realPercentage: 0,
           indexCompliance: 0,
@@ -194,7 +181,7 @@ async function main() {
         measurement: indicator.measurement as any,
         goalValue: goal.goalValue ?? 0,
         realValue: nextRealValue,
-        baseValue: goal.baseValue ?? 0,
+        baseValue: newBaseValue, // Usamos 0 explícitamente
         rangeExceptional: goal.rangeExceptional,
         rangeInacceptable: goal.rangeInacceptable,
         month: goal.month,
@@ -205,6 +192,7 @@ async function main() {
       await prisma.objectiveGoal.update({
         where: { id: goal.id },
         data: {
+          baseValue: newBaseValue, // Guardamos la base corregida
           realPercentage: computed.realPercentage,
           indexCompliance: computed.indexCompliance,
           light: computed.lightNumeric ?? 0,
@@ -213,12 +201,13 @@ async function main() {
       });
       fixedCount++;
     }
+    if ((fixedCount + resetCount) % 100 === 0) process.stdout.write('.');
   }
 
   console.log('\n=============================================');
   console.log(`✅ Proceso finalizado.`);
   console.log(`⚪ Metas reseteadas a vacío (Gris): ${resetCount}`);
-  console.log(`🟢🔴 Metas recalculadas (Color correcto): ${fixedCount}`);
+  console.log(`🟢 Metas recalculadas con base 0: ${fixedCount}`);
   console.log('=============================================');
 }
 
