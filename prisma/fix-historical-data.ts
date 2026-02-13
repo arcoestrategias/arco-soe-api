@@ -113,17 +113,30 @@ const prisma = new PrismaClient();
 const TREAT_ZERO_AS_NULL = true;
 
 async function main() {
-  console.log('🚀 Iniciando REPARACIÓN Y RESETEO DE LÍNEA BASE A 0...');
+  console.log('🚀 Iniciando REPARACIÓN DE LÍNEA BASE (NEG=Meta, POS=0)...');
 
-  // 1. Forzar baseValue = 0 en todos los indicadores activos
-  // (Esto corrige el problema de que se haya copiado la meta como línea base)
-  const updateResult = await prisma.indicator.updateMany({
-    where: { isActive: true },
-    data: { baseValue: 0 },
+  // 1. Actualizar baseValue en Indicadores según la tendencia
+  const objectives = await prisma.objective.findMany({
+    where: { isActive: true, indicatorId: { not: null } },
+    include: { indicator: true },
   });
+
   console.log(
-    `✅ Se restableció baseValue=0 en ${updateResult.count} indicadores.`,
+    `🔄 Actualizando indicadores de ${objectives.length} objetivos...`,
   );
+
+  for (const obj of objectives) {
+    if (!obj.indicator) continue;
+
+    // Si es NEG, base = meta. Si es POS u otro, base = 0.
+    const newBase = obj.indicator.tendence === 'NEG' ? (obj.goalValue ?? 0) : 0;
+
+    await prisma.indicator.update({
+      where: { id: obj.indicator.id },
+      data: { baseValue: newBase },
+    });
+  }
+  console.log('✅ Indicadores actualizados.');
 
   // 2. Reparar Metas (ObjectiveGoals)
   const goals = await prisma.objectiveGoal.findMany({
@@ -135,9 +148,7 @@ async function main() {
     },
   });
 
-  console.log(
-    `🔧 Recalculando ${goals.length} metas mensuales con baseValue=0...`,
-  );
+  console.log(`🔧 Recalculando ${goals.length} metas mensuales...`);
 
   let fixedCount = 0;
   let resetCount = 0;
@@ -157,8 +168,9 @@ async function main() {
       shouldReset = true;
     }
 
-    // Forzamos la base a 0 para el recálculo
-    const newBaseValue = 0;
+    // Determinar nueva línea base para este mes según tendencia
+    const tendence = indicator.tendence;
+    const newBaseValue = tendence === 'NEG' ? (goal.goalValue ?? 0) : 0;
 
     if (shouldReset || nextRealValue === null) {
       // Si es null (o era 0), reseteamos a estado "no medido" (Gris)
@@ -181,7 +193,7 @@ async function main() {
         measurement: indicator.measurement as any,
         goalValue: goal.goalValue ?? 0,
         realValue: nextRealValue,
-        baseValue: newBaseValue, // Usamos 0 explícitamente
+        baseValue: newBaseValue, // Usamos la base calculada
         rangeExceptional: goal.rangeExceptional,
         rangeInacceptable: goal.rangeInacceptable,
         month: goal.month,
@@ -207,7 +219,7 @@ async function main() {
   console.log('\n=============================================');
   console.log(`✅ Proceso finalizado.`);
   console.log(`⚪ Metas reseteadas a vacío (Gris): ${resetCount}`);
-  console.log(`🟢 Metas recalculadas con base 0: ${fixedCount}`);
+  console.log(`🟢 Metas recalculadas: ${fixedCount}`);
   console.log('=============================================');
 }
 
