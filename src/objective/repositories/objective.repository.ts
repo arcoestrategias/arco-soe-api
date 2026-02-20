@@ -51,10 +51,9 @@ export class ObjectiveRepository {
       isActive: true,
       ...(typeof year === 'number'
         ? {
-            periodEnd: {
-              gte: new Date(Date.UTC(year, 0, 1)), // 1/ene/year 00:00Z
-              lt: new Date(Date.UTC(year + 1, 0, 1)), // 1/ene/(year+1) 00:00Z
-            },
+            // Lógica de solapamiento (overlap): Ind.Start < Year.End AND Ind.End >= Year.Start
+            periodStart: { lt: new Date(Date.UTC(year + 1, 0, 1)) },
+            periodEnd: { gte: new Date(Date.UTC(year, 0, 1)) },
           }
         : {}),
     };
@@ -80,10 +79,9 @@ export class ObjectiveRepository {
     const yearFilter =
       typeof year === 'number'
         ? {
-            periodEnd: {
-              gte: new Date(Date.UTC(year, 0, 1)),
-              lt: new Date(Date.UTC(year + 1, 0, 1)),
-            },
+            // Lógica de solapamiento (overlap): Ind.Start < Year.End AND Ind.End >= Year.Start
+            periodStart: { lt: new Date(Date.UTC(year + 1, 0, 1)) },
+            periodEnd: { gte: new Date(Date.UTC(year, 0, 1)) },
           }
         : {};
 
