@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   CreateObjectiveDto,
@@ -18,6 +19,7 @@ import { ResponseObjectiveWithIndicatorDto } from './dto/response-objective-with
 import { ObjectiveGoalService } from 'src/objective-goal/objective-goal.service';
 import { NotificationService } from 'src/notifications/notifications.service';
 import { UsersRepository } from 'src/users/repositories/users.repository';
+import { PERMISSIONS } from 'src/common/constants/permissions.constant';
 
 @Injectable()
 export class ObjectiveService {
@@ -204,6 +206,23 @@ export class ObjectiveService {
         ? dto.indicator.measurement !== currentIndicator.measurement
         : false;
 
+    // [SEGURIDAD] Validar permiso si cambia la Línea Base
+    if (baseValueChanged) {
+      const businessUnitId = currentObjective.position?.businessUnitId;
+      if (businessUnitId) {
+        const hasPermission = await this.objectiveRepo.checkUserPermission(
+          userId,
+          businessUnitId,
+          PERMISSIONS.OBJECTIVE_GOALS.UPDATE_BASE_VALUE,
+        );
+        if (!hasPermission) {
+          throw new ForbiddenException(
+            'No tienes permisos para modificar la Línea Base de este objetivo.',
+          );
+        }
+      }
+    }
+
     // ⚠️ periodStart/periodEnd/frequency NO cuentan como críticos (según tu regla)
     const criticalChange = !!(
       goalValueChanged ||
@@ -259,7 +278,8 @@ export class ObjectiveService {
         : currentObjective.goalValue;
 
     // Usamos el valor nuevo si viene, sino el actual del indicador
-    const effectiveBaseValue = nextBaseValue !== undefined ? nextBaseValue : currentBaseValue;
+    const effectiveBaseValue =
+      nextBaseValue !== undefined ? nextBaseValue : currentBaseValue;
 
     if (
       typeof effectiveBaseValue === 'number' &&
@@ -286,7 +306,11 @@ export class ObjectiveService {
     // ========== 2) Actualizar Objective ==========
     // Nota: dto.objective podría traer 'baseValue' por herencia de DTOs, pero lo ignoramos aquí
     // porque ya lo manejamos en el indicador.
-    const { baseValue: _ignoredBase, indicatorName: _ignoredName, ...objectiveData } = dto.objective || {};
+    const {
+      baseValue: _ignoredBase,
+      indicatorName: _ignoredName,
+      ...objectiveData
+    } = dto.objective || {};
     const updatedObjective = await this.objectiveRepo.update(
       dto.objectiveId,
       { ...objectiveData, updatedBy: userId },

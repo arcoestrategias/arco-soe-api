@@ -314,6 +314,10 @@ async function main() {
       description: 'Editar el valor meta esperado del objetivo.',
     },
     {
+      name: 'objectiveGoals.updateBaseValue',
+      description: 'Editar el valor línea base del objetivo.',
+    },
+    {
       name: 'objectiveGoals.audit',
       description: 'Ver auditoría de metas del objetivo.',
     },
@@ -671,7 +675,7 @@ async function main() {
     },
   ];
 
-  const roleNames = ['Admin', 'Manager', 'Specialist', 'Client'];
+  const roleNames = ['Especialista', 'Colaborador'];
 
   // 1) Admin (upsert por email)
   const admin = await prisma.user.upsert({

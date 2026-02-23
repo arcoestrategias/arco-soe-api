@@ -203,11 +203,66 @@ export class ObjectiveRepository {
               // agrega lo que necesites comparar/mostrar
             },
           },
+          position: {
+            select: {
+              businessUnitId: true,
+            },
+          },
         },
       });
     } catch (e) {
       handleDatabaseErrors(e);
     }
+  }
+
+  async checkUserPermission(
+    userId: string,
+    businessUnitId: string,
+    permissionName: string,
+  ): Promise<boolean> {
+    // 0. Admin de Plataforma siempre tiene permiso
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { isPlatformAdmin: true },
+    });
+    if (user?.isPlatformAdmin) return true;
+
+    // 1. Obtener ID del permiso
+    const permission = await this.prisma.permission.findUnique({
+      where: { name: permissionName },
+    });
+    if (!permission) return false;
+
+    // 2. Verificar Permiso de Usuario (Override específico)
+    const userPerm = await this.prisma.userPermission.findUnique({
+      where: {
+        userId_businessUnitId_permissionId: {
+          userId,
+          businessUnitId,
+          permissionId: permission.id,
+        },
+      },
+    });
+
+    if (userPerm) {
+      return userPerm.isAllowed;
+    }
+
+    // 3. Verificar Permiso de Rol (vía UserBusinessUnit -> Role)
+    const userBu = await this.prisma.userBusinessUnit.findUnique({
+      where: { userId_businessUnitId: { userId, businessUnitId } },
+      select: {
+        role: {
+          select: {
+            permissions: {
+              where: { permissionId: permission.id, isActive: true },
+            },
+          },
+        },
+      },
+    });
+
+    return (userBu?.role?.permissions?.length ?? 0) > 0;
   }
 
   /**
