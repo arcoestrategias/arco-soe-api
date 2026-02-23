@@ -68,6 +68,7 @@ export const PERMISSIONS = {
     UPDATE: 'objectiveGoals.update',
     UPDATE_COMPLIANCE: 'objectiveGoals.updateCompliance',
     UPDATE_TARGET_VALUE: 'objectiveGoals.updateTargetValue',
+    UPDATE_BASE_VALUE: 'objectiveGoals.updateBaseValue',
   },
   STRATEGIC_PROJECTS: {
     MENU: 'strategicProjects.menu',

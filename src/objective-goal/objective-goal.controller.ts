@@ -48,10 +48,7 @@ export class ObjectiveGoalController {
     return new ResponseObjectiveGoalDto(goal);
   }
 
-  @Permissions(
-    PERMISSIONS.OBJECTIVES.UPDATE,
-    PERMISSIONS.OBJECTIVE_GOALS.UPDATE,
-  )
+  @Permissions(PERMISSIONS.OBJECTIVE_GOALS.UPDATE)
   @SuccessMessage('Cumplimiento actualizado correctamente')
   @Patch(':id')
   async update(
