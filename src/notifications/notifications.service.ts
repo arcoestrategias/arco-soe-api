@@ -109,6 +109,18 @@ export class NotificationService {
    * Invocado por un scheduler/cron job.
    */
   async processPendingEmailNotifications(): Promise<number> {
+    // ----------------------------------------------------------------------
+    // INTERRUPTOR DE SEGURIDAD (KILL SWITCH)
+    // Permite detener el envío de correos globalmente mediante variable de entorno.
+    // Útil para cargas masivas, mantenimiento o evitar spam accidental.
+    // ----------------------------------------------------------------------
+    if (process.env.ENABLE_EMAIL_NOTIFICATIONS === 'false') {
+      this.logger.debug(
+        'Envío de emails en pausa (ENABLE_EMAIL_NOTIFICATIONS=false)',
+      );
+      return 0;
+    }
+
     const pendingNotifications = await this.notifRepo.findPendingByChannel(
       NotificationChannel.EMAIL,
       50, // Un batch más pequeño para emails
