@@ -20,6 +20,8 @@ import { ObjectiveGoalService } from 'src/objective-goal/objective-goal.service'
 import { NotificationService } from 'src/notifications/notifications.service';
 import { UsersRepository } from 'src/users/repositories/users.repository';
 import { PERMISSIONS } from 'src/common/constants/permissions.constant';
+import { UpsertResponsibilityDto } from './dto/upsert-responsibility.dto';
+import { ResponsibilityType } from '@prisma/client';
 
 @Injectable()
 export class ObjectiveService {
@@ -785,5 +787,77 @@ export class ObjectiveService {
       blocked: false,
       message: 'Objetivo inactivado correctamente',
     };
+  }
+
+  // ============================================================================
+  // MATRIZ DE DESPLIEGUE (ObjectiveResponsibilities)
+  // ============================================================================
+
+  async upsertResponsibility(dto: UpsertResponsibilityDto, userId: string) {
+    return this.objectiveRepo.upsertResponsibility(dto, userId);
+  }
+
+  async removeResponsibility(id: string, userId: string) {
+    return this.objectiveRepo.removeResponsibility(id, userId);
+  }
+
+  async getDeploymentMatrix(strategicPlanId: string, positionId: string) {
+    const objectivesData = await this.objectiveRepo.getDeploymentMatrixData(
+      strategicPlanId,
+      positionId,
+    );
+
+    const positionsMap = new Map<string, { id: string; name: string }>();
+    const objectives: Array<{
+      id: string;
+      name: string;
+      relations: Array<{ relationId: string; positionId: string; type: ResponsibilityType }>;
+      myRelation: ResponsibilityType | null;
+      isMine: boolean;
+    }> = [];
+
+    for (const obj of objectivesData) {
+      const relations: Array<{ relationId: string; positionId: string; type: ResponsibilityType }> = [];
+      let myRelation: ResponsibilityType | null = null;
+      let isMine = false;
+
+      for (const resp of obj.responsibilities) {
+        relations.push({
+          relationId: resp.id,
+          positionId: resp.positionId,
+          type: resp.type,
+        });
+        positionsMap.set(resp.positionId, { id: resp.position.id, name: resp.position.name });
+
+        if (resp.positionId === positionId) {
+          myRelation = resp.type;
+          if (resp.type === 'IMPUTABLE') {
+            isMine = true;
+          }
+        }
+      }
+
+      objectives.push({ id: obj.id, name: obj.name, relations, myRelation, isMine });
+    }
+
+    return {
+      positionId,
+      positions: Array.from(positionsMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+      objectives,
+    };
+  }
+
+  async getCollaborations(strategicPlanId: string, positionId: string) {
+    const data = await this.objectiveRepo.getCollaborationsData(
+      strategicPlanId,
+      positionId,
+    );
+
+    return data.map((obj) => ({
+      id: obj.id,
+      name: obj.name,
+      ownerPosition: obj.position, // El dueño del objetivo (ej: María)
+      myRelation: obj.responsibilities[0]?.type ?? null, // Mi rol en este objetivo (ej: SUPPORT)
+    }));
   }
 }

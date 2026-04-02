@@ -29,6 +29,7 @@ import { SuccessMessage } from 'src/core/decorators/success-message.decorator';
 import { UserId } from 'src/common/decorators/user-id.decorator';
 import { ResponseObjectiveWithIndicatorDto } from './dto/response-objective-with-indicator.dto';
 import { ObjectiveEntity } from './entities/objective.entity';
+import { UpsertResponsibilityDto } from './dto/upsert-responsibility.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('objectives')
@@ -113,6 +114,44 @@ export class ObjectiveController {
     return items.map((o) => new ResponseObjectiveDto(o));
   }
 
+  @Get('deployment-matrix')
+  @Permissions(PERMISSIONS.OBJECTIVES.SHOW_DEPLOYMENT_MATRIX_TAB)
+  async getDeploymentMatrix(
+    @Query('strategicPlanId') strategicPlanId: string,
+    @Query('positionId') positionId: string,
+  ) {
+    if (!strategicPlanId)
+      throw new BadRequestException(
+        'El parámetro strategicPlanId es requerido',
+      );
+    if (!positionId)
+      throw new BadRequestException('El parámetro positionId es requerido');
+
+    return this.objectiveService.getDeploymentMatrix(
+      strategicPlanId,
+      positionId,
+    );
+  }
+
+  @Get('collaborations')
+  @Permissions(PERMISSIONS.OBJECTIVES.SHOW_DEPLOYMENT_MATRIX_TAB)
+  async getCollaborations(
+    @Query('strategicPlanId') strategicPlanId: string,
+    @Query('positionId') positionId: string,
+  ) {
+    if (!strategicPlanId)
+      throw new BadRequestException(
+        'El parámetro strategicPlanId es requerido',
+      );
+    if (!positionId)
+      throw new BadRequestException('El parámetro positionId es requerido');
+
+    return this.objectiveService.getCollaborations(
+      strategicPlanId,
+      positionId,
+    );
+  }
+
   @Permissions(PERMISSIONS.OBJECTIVES.READ)
   @Get(':id')
   async findById(@Param('id') id: string): Promise<ResponseObjectiveDto> {
@@ -151,6 +190,26 @@ export class ObjectiveController {
     @UserId() userId: string,
   ): Promise<void> {
     await this.objectiveService.reorder(dto, userId);
+  }
+
+  @Permissions(PERMISSIONS.OBJECTIVES.UPDATE)
+  @SuccessMessage('Responsabilidad asignada correctamente')
+  @Post('responsibilities')
+  async upsertResponsibility(
+    @Body() dto: UpsertResponsibilityDto,
+    @UserId() userId: string,
+  ) {
+    return this.objectiveService.upsertResponsibility(dto, userId);
+  }
+
+  @Permissions(PERMISSIONS.OBJECTIVES.UPDATE)
+  @SuccessMessage('Responsabilidad removida correctamente')
+  @Delete('responsibilities/:id')
+  async removeResponsibility(
+    @Param('id') id: string,
+    @UserId() userId: string,
+  ) {
+    await this.objectiveService.removeResponsibility(id, userId);
   }
 
   @Permissions(PERMISSIONS.OBJECTIVES.UPDATE)

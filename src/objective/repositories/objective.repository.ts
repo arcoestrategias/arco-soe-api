@@ -4,6 +4,7 @@ import { handleDatabaseErrors } from 'src/common/helpers/database-error.helper';
 import { CreateObjectiveDto, ReorderObjectiveDto } from '../dto';
 import { ObjectiveEntity } from '../entities/objective.entity';
 import { Objective, Prisma } from '@prisma/client';
+import { UpsertResponsibilityDto } from '../dto/upsert-responsibility.dto';
 
 export type ObjectiveWithIndicator = Prisma.ObjectiveGetPayload<{
   include: { indicator: true };
@@ -431,5 +432,120 @@ export class ObjectiveRepository {
       businessUnitId: position.businessUnit?.id ?? null,
       responsibleUserId,
     };
+  }
+
+  // ============================================================================
+  // MATRIZ DE DESPLIEGUE (ObjectiveResponsibilities)
+  // ============================================================================
+
+  async upsertResponsibility(data: UpsertResponsibilityDto, userId: string) {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        // Regla: Si es IMPUTABLE, desactivamos a cualquier otro que lo sea para este objetivo
+        if (data.type === 'IMPUTABLE') {
+          await tx.objectiveResponsibility.updateMany({
+            where: {
+              objectiveId: data.objectiveId,
+              type: 'IMPUTABLE',
+              isActive: true,
+              positionId: { not: data.positionId },
+            },
+            data: { isActive: false, updatedBy: userId },
+          });
+        }
+
+        return await tx.objectiveResponsibility.upsert({
+          where: {
+            objectiveId_positionId: {
+              objectiveId: data.objectiveId,
+              positionId: data.positionId,
+            },
+          },
+          update: { type: data.type as any, isActive: true, updatedBy: userId },
+          create: {
+            objectiveId: data.objectiveId,
+            positionId: data.positionId,
+            type: data.type as any,
+            createdBy: userId,
+            updatedBy: userId,
+          },
+        });
+      });
+    } catch (error) {
+      handleDatabaseErrors(error);
+    }
+  }
+
+  async removeResponsibility(id: string, userId: string) {
+    try {
+      await this.prisma.objectiveResponsibility.update({
+        where: { id },
+        data: { isActive: false, updatedBy: userId },
+      });
+    } catch (error) {
+      handleDatabaseErrors(error);
+    }
+  }
+
+  async getDeploymentMatrixData(
+    strategicPlanId: string,
+    positionId: string,
+  ) {
+    return this.prisma.objective.findMany({
+      where: {
+        strategicPlanId,
+        positionId, // <-- Filtra por el dueño del objetivo
+        isActive: true,
+        // Adicionalmente, solo traer objetivos que ya tengan al menos una responsabilidad asignada
+        responsibilities: {
+          some: { isActive: true },
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        responsibilities: {
+          where: {
+            isActive: true,
+            position: {
+              isActive: true,
+            },
+          },
+          select: {
+            id: true,
+            positionId: true,
+            type: true,
+            position: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: { order: 'asc' },
+    });
+  }
+
+  async getCollaborationsData(strategicPlanId: string, positionId: string) {
+    return this.prisma.objective.findMany({
+      where: {
+        strategicPlanId,
+        positionId: { not: positionId }, // <-- La clave: Objetivos que NO son míos
+        isActive: true,
+        responsibilities: {
+          some: {
+            positionId, // <-- Donde YO tengo una responsabilidad activa
+            isActive: true,
+          },
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        position: { select: { id: true, name: true } }, // Para saber de quién es este objetivo
+        responsibilities: {
+          where: { positionId, isActive: true }, // Extraemos solo MI responsabilidad
+          select: { type: true },
+        },
+      },
+      orderBy: { order: 'asc' },
+    });
   }
 }

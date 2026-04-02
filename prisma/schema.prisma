@@ -132,6 +132,8 @@ model Position {
   objectives          Objective[]
   strategicProjects   StrategicProject[]
 
+  objectiveResponsibilities ObjectiveResponsibility[]
+
   // Auditoría
   isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
@@ -432,6 +434,8 @@ model Objective {
   objectiveGoalsHis ObjectiveGoalHist[]
   strategicProjects StrategicProject[]
   priorities        Priority[]
+
+  responsibilities  ObjectiveResponsibility[]
 }
 
 /// Indicador de desempeño (periodicidad, tendencia, etc.).
@@ -533,6 +537,33 @@ model ObjectiveGoalHist {
   objective Objective @relation(fields: [objectiveId], references: [id])
 
   @@index([objectiveId, year, month])
+}
+
+/// Tipos de responsabilidad en la Matriz de Despliegue
+enum ResponsibilityType {
+  IMPUTABLE
+  SUPPORT
+  INFORMED
+}
+
+/// Relación de responsabilidad (Matriz de Despliegue) entre Objetivo y Posición
+model ObjectiveResponsibility {
+  id String @id @default(uuid()) @db.Uuid
+
+  objectiveId String @db.Uuid
+  positionId  String @db.Uuid
+  type        ResponsibilityType
+
+  isActive Boolean @default(true)
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  objective Objective @relation(fields: [objectiveId], references: [id])
+  position  Position  @relation(fields: [positionId], references: [id])
+
+  @@unique([objectiveId, positionId])
 }
 
 // ============================================================================
