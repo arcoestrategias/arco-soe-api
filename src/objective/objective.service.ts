@@ -789,6 +789,24 @@ export class ObjectiveService {
     };
   }
 
+  private formatMonthYear(date: Date): string {
+    const months = [
+      'Ene',
+      'Feb',
+      'Mar',
+      'Abr',
+      'May',
+      'Jun',
+      'Jul',
+      'Ago',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dic',
+    ];
+    return `${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+  }
+
   // ============================================================================
   // MATRIZ DE DESPLIEGUE (ObjectiveResponsibilities)
   // ============================================================================
@@ -801,7 +819,11 @@ export class ObjectiveService {
     return this.objectiveRepo.removeResponsibility(id, userId);
   }
 
-  async getDeploymentMatrix(strategicPlanId: string, positionId: string) {
+  async getDeploymentMatrix(
+    strategicPlanId: string,
+    positionId: string,
+    year?: number,
+  ) {
     const objectivesData = await this.objectiveRepo.getDeploymentMatrixData(
       strategicPlanId,
       positionId,
@@ -811,15 +833,52 @@ export class ObjectiveService {
     const objectives: Array<{
       id: string;
       name: string;
-      relations: Array<{ relationId: string; positionId: string; type: ResponsibilityType }>;
+      isOutOfRange: boolean;
+      outOfRangeMessage: string | null;
+      periodStart: Date | null;
+      periodEnd: Date | null;
+      relations: Array<{
+        relationId: string;
+        positionId: string;
+        type: ResponsibilityType;
+      }>;
       myRelation: ResponsibilityType | null;
       isMine: boolean;
     }> = [];
 
     for (const obj of objectivesData) {
-      const relations: Array<{ relationId: string; positionId: string; type: ResponsibilityType }> = [];
+      const relations: Array<{
+        relationId: string;
+        positionId: string;
+        type: ResponsibilityType;
+      }> = [];
       let myRelation: ResponsibilityType | null = null;
       let isMine = false;
+      let isOutOfRange = false;
+      let outOfRangeMessage: string | null = null;
+
+      // Si el front nos pasa el año, evaluamos si el objetivo está vigente en ese periodo
+      if (year && obj.indicator?.periodStart && obj.indicator?.periodEnd) {
+        const yearStart = new Date(Date.UTC(year, 0, 1));
+        const yearEnd = new Date(Date.UTC(year + 1, 0, 1));
+        const overlaps =
+          obj.indicator.periodStart < yearEnd &&
+          obj.indicator.periodEnd >= yearStart;
+        isOutOfRange = !overlaps;
+
+        if (isOutOfRange) {
+          const start = this.formatMonthYear(obj.indicator.periodStart);
+          const end = this.formatMonthYear(obj.indicator.periodEnd);
+          outOfRangeMessage = `Fuera de rango. Se mide: ${start} - ${end}`;
+        }
+      } else if (
+        year &&
+        (!obj.indicator?.periodStart || !obj.indicator?.periodEnd)
+      ) {
+        // Si se pide un año pero el objetivo no tiene fechas, se considera fuera de rango
+        isOutOfRange = true;
+        outOfRangeMessage = 'Fuera de rango. Objetivo sin fechas configuradas.';
+      }
 
       for (const resp of obj.responsibilities) {
         relations.push({
@@ -827,7 +886,10 @@ export class ObjectiveService {
           positionId: resp.positionId,
           type: resp.type,
         });
-        positionsMap.set(resp.positionId, { id: resp.position.id, name: resp.position.name });
+        positionsMap.set(resp.positionId, {
+          id: resp.position.id,
+          name: resp.position.name,
+        });
 
         if (resp.positionId === positionId) {
           myRelation = resp.type;
@@ -837,27 +899,67 @@ export class ObjectiveService {
         }
       }
 
-      objectives.push({ id: obj.id, name: obj.name, relations, myRelation, isMine });
+      objectives.push({
+        id: obj.id,
+        name: obj.name,
+        isOutOfRange,
+        outOfRangeMessage,
+        periodStart: obj.indicator?.periodStart ?? null,
+        periodEnd: obj.indicator?.periodEnd ?? null,
+        relations,
+        myRelation,
+        isMine,
+      });
     }
 
     return {
       positionId,
-      positions: Array.from(positionsMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+      positions: Array.from(positionsMap.values()).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      ),
       objectives,
     };
   }
 
-  async getCollaborations(strategicPlanId: string, positionId: string) {
+  async getCollaborations(strategicPlanId: string, positionId: string, year?: number) {
     const data = await this.objectiveRepo.getCollaborationsData(
       strategicPlanId,
       positionId,
     );
 
-    return data.map((obj) => ({
-      id: obj.id,
-      name: obj.name,
-      ownerPosition: obj.position, // El dueño del objetivo (ej: María)
-      myRelation: obj.responsibilities[0]?.type ?? null, // Mi rol en este objetivo (ej: SUPPORT)
-    }));
+    return data.map((obj) => {
+      let isOutOfRange = false;
+      let outOfRangeMessage: string | null = null;
+
+      // Si el front nos pasa el año, evaluamos si el objetivo está vigente en ese periodo
+      if (year && obj.indicator?.periodStart && obj.indicator?.periodEnd) {
+        const yearStart = new Date(Date.UTC(year, 0, 1));
+        const yearEnd = new Date(Date.UTC(year + 1, 0, 1));
+        const overlaps =
+          obj.indicator.periodStart < yearEnd &&
+          obj.indicator.periodEnd >= yearStart;
+        isOutOfRange = !overlaps;
+
+        if (isOutOfRange) {
+          const start = this.formatMonthYear(obj.indicator.periodStart);
+          const end = this.formatMonthYear(obj.indicator.periodEnd);
+          outOfRangeMessage = `Fuera de rango. Se mide: ${start} - ${end}`;
+        }
+      } else if (year && (!obj.indicator?.periodStart || !obj.indicator?.periodEnd)) {
+        isOutOfRange = true;
+        outOfRangeMessage = 'Fuera de rango. Objetivo sin fechas configuradas.';
+      }
+
+      return {
+        id: obj.id,
+        name: obj.name,
+        isOutOfRange,
+        outOfRangeMessage,
+        periodStart: obj.indicator?.periodStart ?? null,
+        periodEnd: obj.indicator?.periodEnd ?? null,
+        ownerPosition: obj.position, // El dueño del objetivo (ej: María)
+        myRelation: obj.responsibilities[0]?.type ?? null, // Mi rol en este objetivo (ej: SUPPORT)
+      };
+    });
   }
 }

@@ -487,10 +487,7 @@ export class ObjectiveRepository {
     }
   }
 
-  async getDeploymentMatrixData(
-    strategicPlanId: string,
-    positionId: string,
-  ) {
+  async getDeploymentMatrixData(strategicPlanId: string, positionId: string) {
     return this.prisma.objective.findMany({
       where: {
         strategicPlanId,
@@ -504,6 +501,7 @@ export class ObjectiveRepository {
       select: {
         id: true,
         name: true,
+        indicator: { select: { periodStart: true, periodEnd: true } },
         responsibilities: {
           where: {
             isActive: true,
@@ -539,6 +537,7 @@ export class ObjectiveRepository {
       select: {
         id: true,
         name: true,
+        indicator: { select: { periodStart: true, periodEnd: true } },
         position: { select: { id: true, name: true } }, // Para saber de quién es este objetivo
         responsibilities: {
           where: { positionId, isActive: true }, // Extraemos solo MI responsabilidad

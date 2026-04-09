@@ -119,6 +119,7 @@ export class ObjectiveController {
   async getDeploymentMatrix(
     @Query('strategicPlanId') strategicPlanId: string,
     @Query('positionId') positionId: string,
+    @Query('year') year?: string,
   ) {
     if (!strategicPlanId)
       throw new BadRequestException(
@@ -127,9 +128,12 @@ export class ObjectiveController {
     if (!positionId)
       throw new BadRequestException('El parámetro positionId es requerido');
 
+    const parsedYear = year ? parseInt(year, 10) : new Date().getFullYear();
+
     return this.objectiveService.getDeploymentMatrix(
       strategicPlanId,
       positionId,
+      parsedYear,
     );
   }
 
@@ -138,6 +142,7 @@ export class ObjectiveController {
   async getCollaborations(
     @Query('strategicPlanId') strategicPlanId: string,
     @Query('positionId') positionId: string,
+    @Query('year') year?: string,
   ) {
     if (!strategicPlanId)
       throw new BadRequestException(
@@ -146,10 +151,9 @@ export class ObjectiveController {
     if (!positionId)
       throw new BadRequestException('El parámetro positionId es requerido');
 
-    return this.objectiveService.getCollaborations(
-      strategicPlanId,
-      positionId,
-    );
+    const parsedYear = year ? parseInt(year, 10) : new Date().getFullYear();
+
+    return this.objectiveService.getCollaborations(strategicPlanId, positionId, parsedYear);
   }
 
   @Permissions(PERMISSIONS.OBJECTIVES.READ)
