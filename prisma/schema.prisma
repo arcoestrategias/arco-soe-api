@@ -126,13 +126,13 @@ model Position {
   subordinates       Position[] @relation("PositionHierarchy")
 
   // Otras relaciones
-  projectParticipants ProjectParticipant[]
   priorities          Priority[]
   levers              Lever[]
   objectives          Objective[]
   strategicProjects   StrategicProject[]
 
   objectiveResponsibilities ObjectiveResponsibility[]
+  taskParticipations        ProjectTaskParticipant[]
 
   // Auditoría
   isActive  Boolean  @default(true)
@@ -597,7 +597,6 @@ model StrategicProject {
 
   // Relaciones
   factors      ProjectFactor[]
-  participants ProjectParticipant[]
 
   // Auditoría
   isActive  Boolean  @default(true)
@@ -630,13 +629,11 @@ model ProjectFactor {
   @@index([projectId])
 }
 
-/// Participante (posición) del proyecto.
-model ProjectParticipant {
-  id       String  @id @default(uuid()) @db.Uuid
-  isLeader Boolean @default(false)
-
-  projectId  String @db.Uuid
-  positionId String @db.Uuid
+/// Usuario externo (colaborador/consultor fuera de la organización).
+model ExternalUser {
+  id     String  @id @default(uuid()) @db.Uuid
+  name   String  @db.VarChar(500)
+  email  String  @unique @db.VarChar(255)
 
   // Auditoría
   isActive  Boolean  @default(true)
@@ -646,14 +643,34 @@ model ProjectParticipant {
   updatedAt DateTime @updatedAt
 
   // Relaciones
-  project  StrategicProject @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  position Position         @relation(fields: [positionId], references: [id])
+  taskParticipations ProjectTaskParticipant[]
 
-  tasks ProjectTask[]
+  @@index([isActive])
+}
 
-  @@unique([projectId, positionId])
-  @@index([projectId])
+/// Relación entre tarea y participante (posición o usuario externo).
+model ProjectTaskParticipant {
+  id String @id @default(uuid()) @db.Uuid
+
+  taskId          String  @db.Uuid
+  positionId     String? @db.Uuid
+  externalUserId String? @db.Uuid
+
+  // Auditoría
+  isActive  Boolean  @default(true)
+  createdBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+
+  // Relaciones
+  task          ProjectTask   @relation(fields: [taskId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  position      Position?     @relation(fields: [positionId], references: [id])
+  externalUser ExternalUser? @relation(fields: [externalUserId], references: [id])
+
+  @@unique([taskId, positionId])
+  @@unique([taskId, externalUserId])
+  @@index([taskId])
   @@index([positionId])
+  @@index([externalUserId])
 }
 
 /// Tarea del proyecto (con fechas y estado).
@@ -675,8 +692,7 @@ model ProjectTask {
   limitation  String? @db.VarChar(1000)
   comments    String? @db.VarChar(1000)
 
-  projectFactorId      String @db.Uuid
-  projectParticipantId String @db.Uuid
+  projectFactorId String @db.Uuid
 
   // Auditoría
   isActive  Boolean  @default(true)
@@ -686,11 +702,10 @@ model ProjectTask {
   updatedAt DateTime @updatedAt
 
   // Relaciones
-  factor      ProjectFactor      @relation(fields: [projectFactorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  participant ProjectParticipant @relation(fields: [projectParticipantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  factor       ProjectFactor         @relation(fields: [projectFactorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  participants ProjectTaskParticipant[]
 
   @@index([projectFactorId])
-  @@index([projectParticipantId])
 }
 
 /// Palanca (lever) asociada a una posición.
