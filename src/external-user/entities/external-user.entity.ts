@@ -1,9 +1,8 @@
-export class ProjectParticipantEntity {
+export class ExternalUserEntity {
   readonly id: string;
-  readonly projectId: string;
-  readonly positionId: string;
-  readonly isLeader: boolean;
-
+  readonly name: string;
+  readonly email: string;
+  readonly companyId: string;
   readonly isActive: boolean;
   readonly createdBy?: string | null;
   readonly updatedBy?: string | null;
@@ -12,10 +11,9 @@ export class ProjectParticipantEntity {
 
   constructor(row: any) {
     this.id = row.id;
-    this.projectId = row.projectId;
-    this.positionId = row.positionId;
-    this.isLeader = Boolean(row.isLeader);
-
+    this.name = row.name;
+    this.email = row.email;
+    this.companyId = row.companyId;
     this.isActive = row.isActive;
     this.createdBy = row.createdBy ?? null;
     this.updatedBy = row.updatedBy ?? null;

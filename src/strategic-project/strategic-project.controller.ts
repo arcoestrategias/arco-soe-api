@@ -100,16 +100,16 @@ export class StrategicProjectController {
   }
 
   // LIST
-  @Permissions(PERMISSIONS.STRATEGIC_PROJECTS.READ)
-  @Get()
-  async listProjects(@Query() filters: FilterStrategicProjectDto): Promise<{
-    items: ResponseStrategicProjectDto[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
-    return this.projectService.listStrategicProjects(filters);
-  }
+  // @Permissions(PERMISSIONS.STRATEGIC_PROJECTS.READ)
+  // @Get()
+  // async listProjects(@Query() filters: FilterStrategicProjectDto): Promise<{
+  //   items: ResponseStrategicProjectDto[];
+  //   total: number;
+  //   page: number;
+  //   limit: number;
+  // }> {
+  //   return this.projectService.listStrategicProjects(filters);
+  // }
 
   // DETAIL
   @Permissions(PERMISSIONS.STRATEGIC_PROJECTS.READ)

@@ -4,11 +4,11 @@ import { ProjectTaskController } from './project-task.controller';
 import { ProjectTaskRepository } from './repositories/project-task.repository';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { StrategicProjectModule } from 'src/strategic-project/strategic-project.module';
-import { ProjectParticipantModule } from 'src/project-participant/project-participant.module';
+import { ExternalUserModule } from 'src/external-user/external-user.module';
 
 @Module({
   controllers: [ProjectTaskController],
   providers: [ProjectTaskService, ProjectTaskRepository, PrismaService],
-  imports: [StrategicProjectModule, ProjectParticipantModule],
+  imports: [StrategicProjectModule, ExternalUserModule],
 })
 export class ProjectTaskModule {}

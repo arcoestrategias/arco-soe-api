@@ -6,17 +6,22 @@
 CREATE TABLE IF NOT EXISTS "ExternalUser" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "name" VARCHAR(500) NOT NULL,
-    "email" VARCHAR(255) NOT NULL UNIQUE,
+    "email" VARCHAR(255) NOT NULL,
+    "companyId" UUID NOT NULL,  -- ← NUEVO
     "isActive" BOOLEAN DEFAULT true,
     "createdBy" UUID,
     "updatedBy" UUID,
     "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
-CREATE INDEX IF NOT EXISTS "ExternalUser_email_idx" ON "ExternalUser"("email");
+-- Constraint único compuesto (company + email)
+ALTER TABLE "ExternalUser" ADD CONSTRAINT "ExternalUser_companyId_email_key" UNIQUE ("companyId", "email");
+CREATE INDEX IF NOT EXISTS "ExternalUser_companyId_idx" ON "ExternalUser"("companyId");
 CREATE INDEX IF NOT EXISTS "ExternalUser_isActive_idx" ON "ExternalUser"("isActive");
-
+-- Foreign key a Company
+ALTER TABLE "ExternalUser" ADD CONSTRAINT "ExternalUser_companyId_fkey" 
+    FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    
 -- 2. Si existe, eliminar columna projectParticipantId de ProjectTask
 ALTER TABLE "ProjectTask" DROP COLUMN IF EXISTS "projectParticipantId";
 

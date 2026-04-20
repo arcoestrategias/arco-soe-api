@@ -20,7 +20,7 @@ ALTER TABLE "ProjectTaskParticipant" DROP CONSTRAINT "ProjectTaskParticipant_pos
 ALTER TABLE "ProjectTaskParticipant" DROP CONSTRAINT "ProjectTaskParticipant_taskId_fkey";
 
 -- DropIndex
-DROP INDEX "ExternalUser_email_idx";
+DROP INDEX IF EXISTS "ExternalUser_email_idx";
 
 -- AlterTable
 ALTER TABLE "ExternalUser" ALTER COLUMN "id" DROP DEFAULT,

@@ -116,22 +116,11 @@ export class StrategicProjectRepository {
         orderBy: { [orderBy]: orderDir },
         skip: (page - 1) * limit,
         take: limit,
-        // ✅ Trae el participante mínimo para adjuntar projectParticipantId
-        include: {
-          participants: positionId
-            ? { where: { positionId }, select: { id: true }, take: 1 }
-            : { select: { id: true }, take: 1, orderBy: { createdAt: 'asc' } }, // requiere createdAt; si no lo tienes, quita orderBy
-        },
       }),
     ]);
 
     // Normaliza respuesta a tu formato { items, total, page, limit }
-    const items = rows.map((row: any) => ({
-      ...row,
-      participantsLite: row.participants, // para que el service lea [0].id
-    }));
-
-    return { items, total, page, limit };
+    return { items: rows, total, page, limit };
   }
 
   async getStructureByProject(opts: {
@@ -152,11 +141,6 @@ export class StrategicProjectRepository {
       include: {
         objective: { select: { id: true, name: true } },
         position: true,
-        participants: {
-          ...(includeInactiveParticipants ? {} : { where: { isActive: true } }),
-          orderBy: { createdAt: 'asc' },
-          include: { position: true },
-        },
         factors: {
           ...(includeInactiveFactors ? {} : { where: { isActive: true } }),
           orderBy: { order: 'asc' },
@@ -164,6 +148,31 @@ export class StrategicProjectRepository {
             tasks: {
               ...(includeInactiveTasks ? {} : { where: { isActive: true } }),
               orderBy: { order: 'asc' },
+              include: {
+                participants: {
+                  include: {
+                    position: {
+                      include: {
+                        userLinks: {
+                          where: { isResponsible: true },
+                          include: {
+                            user: {
+                              select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                    externalUser: {
+                      select: { id: true, name: true, email: true },
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -329,9 +338,6 @@ export class StrategicProjectRepository {
 
   /**
    * Estructura de proyectos por plan y (opcional) por posición.
-   * - Solo proyectos activos (isActive = true).
-   * - Incluye: factores activos + tareas activas de cada factor.
-   * - Incluye la Position del proyecto para agrupar en el service cuando no se pasa positionId.
    */
   async fetchStructureByPlan(
     strategicPlanId: string,
@@ -339,7 +345,6 @@ export class StrategicProjectRepository {
     opts?: {
       includeInactiveFactors?: boolean;
       includeInactiveTasks?: boolean;
-      includeInactiveParticipants?: boolean; // <-- nuevo flag opcional
     },
   ) {
     const where: Prisma.StrategicProjectWhereInput = {
@@ -350,24 +355,13 @@ export class StrategicProjectRepository {
 
     const includeInactiveFactors = Boolean(opts?.includeInactiveFactors);
     const includeInactiveTasks = Boolean(opts?.includeInactiveTasks);
-    const includeInactiveParticipants = Boolean(
-      opts?.includeInactiveParticipants,
-    );
 
     return this.prisma.strategicProject.findMany({
       where,
       orderBy: { order: 'asc' },
       include: {
         objective: { select: { id: true, name: true } },
-
         position: true,
-        participants: {
-          ...(includeInactiveParticipants ? {} : { where: { isActive: true } }),
-          orderBy: { createdAt: 'asc' },
-          include: {
-            position: true, // info de la posición del participante
-          },
-        },
         factors: {
           ...(includeInactiveFactors ? {} : { where: { isActive: true } }),
           orderBy: { order: 'asc' },
@@ -375,6 +369,7 @@ export class StrategicProjectRepository {
             tasks: {
               ...(includeInactiveTasks ? {} : { where: { isActive: true } }),
               orderBy: { order: 'asc' },
+              include: { participants: true },
             },
           },
         },

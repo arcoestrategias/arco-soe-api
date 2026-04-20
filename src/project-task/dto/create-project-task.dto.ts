@@ -9,8 +9,31 @@ import {
   Min,
   IsDate,
   IsNotEmpty,
+  IsArray,
+  ValidateNested,
+  IsEmail,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
+class TaskParticipantDto {
+  @IsOptional()
+  @IsUUID()
+  positionId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  externalUserId?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 500)
+  name?: string;
+
+  @IsOptional()
+  @IsEmail()
+  @Length(1, 255)
+  email?: string;
+}
 
 export class CreateProjectTaskDto {
   @IsString()
@@ -57,7 +80,7 @@ export class CreateProjectTaskDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  budget?: number; // default en service: 0
+  budget?: number;
 
   @IsOptional()
   @IsString()
@@ -73,7 +96,9 @@ export class CreateProjectTaskDto {
   @IsNotEmpty()
   projectFactorId: string;
 
-  @IsUUID()
-  @IsNotEmpty()
-  projectParticipantId: string;
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TaskParticipantDto)
+  participants?: TaskParticipantDto[];
 }

@@ -20,7 +20,7 @@ import { IcoModule } from './ico/ico.module';
 import { StrategicProjectModule } from './strategic-project/strategic-project.module';
 import { ProjectFactorModule } from './project-factor/project-factor.module';
 import { ProjectTaskModule } from './project-task/project-task.module';
-import { ProjectParticipantModule } from './project-participant/project-participant.module';
+import { ExternalUserModule } from './external-user/external-user.module';
 import { PriorityModule } from './priority/priority.module';
 import { FilesModule } from './files/files.module';
 import { MailModule } from './mail/mail.module';
@@ -52,7 +52,7 @@ import { MeetingsModule } from './meetings/meetings.module';
     StrategicProjectModule,
     ProjectFactorModule,
     ProjectTaskModule,
-    ProjectParticipantModule,
+    ExternalUserModule,
     PriorityModule,
     FilesModule,
     MailModule,

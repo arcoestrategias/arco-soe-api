@@ -4,7 +4,6 @@ import { StrategicProjectController } from './strategic-project.controller';
 import { StrategicProjectRepository } from './repositories/strategic-project.repository';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { StrategicPlanModule } from 'src/strategic-plan/strategic-plan.module';
-import { ProjectParticipantModule } from 'src/project-participant/project-participant.module';
 import { ProjectFactorModule } from 'src/project-factor/project-factor.module';
 
 @Module({
@@ -14,7 +13,7 @@ import { ProjectFactorModule } from 'src/project-factor/project-factor.module';
     StrategicProjectRepository,
     PrismaService,
   ],
-  imports: [StrategicPlanModule, ProjectFactorModule, ProjectParticipantModule],
+  imports: [StrategicPlanModule, ProjectFactorModule],
   exports: [StrategicProjectRepository, StrategicProjectService],
 })
 export class StrategicProjectModule {}

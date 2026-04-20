@@ -4,6 +4,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -14,6 +15,8 @@ import {
   UpdateProjectTaskDto,
   FilterProjectTaskDto,
   ReorderProjectTaskWrapperDto,
+  AddTaskParticipantsDto,
+  RemoveTaskParticipantDto,
 } from './dto';
 import { ProjectTaskEntity } from './entities/project-task.entity';
 
@@ -23,6 +26,7 @@ import { Permissions } from 'src/core/decorators/permissions.decorator';
 import { PERMISSIONS } from 'src/common/constants/permissions.constant';
 import { SuccessMessage } from 'src/core/decorators/success-message.decorator';
 import { ProjectTaskService } from './project-task.service';
+import { CompanyId } from 'src/common/decorators/company-id.decorator';
 import { UserId } from 'src/common/decorators/user-id.decorator';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -35,26 +39,28 @@ export class ProjectTaskController {
   @Post()
   async createTask(
     @Body() dto: CreateProjectTaskDto,
+    @CompanyId() companyId: string,
     @UserId() userId: string,
   ): Promise<ProjectTaskEntity> {
-    return this.taskService.createTask(dto, userId);
+    return this.taskService.createTask(dto, companyId, userId);
   }
 
   @Permissions(PERMISSIONS.PROJECT_TASKS.READ)
   @Get()
-  async listTasks(@Query() filters: FilterProjectTaskDto): Promise<{
-    items: ProjectTaskEntity[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
-    return this.taskService.listTasksByFactor(filters);
+  async listTasks(
+    @Query() filters: FilterProjectTaskDto,
+  ): Promise<ProjectTaskEntity[]> {
+    const result = await this.taskService.listTasksByFactor(filters);
+    return result.items;
   }
 
   @Permissions(PERMISSIONS.PROJECT_TASKS.READ)
   @Get(':id')
-  async getTask(@Param('id') taskId: string): Promise<ProjectTaskEntity> {
-    return this.taskService.getTaskById(taskId);
+  async getTask(
+    @Param('id') taskId: string,
+    @CompanyId() companyId: string,
+  ): Promise<ProjectTaskEntity> {
+    return this.taskService.getTaskById(taskId, companyId);
   }
 
   @Permissions(
@@ -86,8 +92,52 @@ export class ProjectTaskController {
   async updateTask(
     @Param('id') taskId: string,
     @Body() dto: UpdateProjectTaskDto,
+    @CompanyId() companyId: string,
     @UserId() userId: string,
   ): Promise<ProjectTaskEntity> {
-    return this.taskService.updateTask(taskId, dto, userId);
+    return this.taskService.updateTask(taskId, dto, companyId, userId);
+  }
+
+  @Permissions(PERMISSIONS.PROJECT_TASKS.READ)
+  @Get(':id/participants')
+  async getParticipants(
+    @Param('id') taskId: string,
+    @CompanyId() companyId: string,
+  ): Promise<any[]> {
+    return this.taskService.getParticipants(taskId, companyId);
+  }
+
+  @Permissions(PERMISSIONS.PROJECT_TASKS.CREATE)
+  @SuccessMessage('Participantes agregados correctamente')
+  @Post(':id/participants')
+  async addParticipants(
+    @Param('id') taskId: string,
+    @Body() dto: AddTaskParticipantsDto,
+    @CompanyId() companyId: string,
+    @UserId() userId: string,
+  ) {
+    return this.taskService.addParticipants(taskId, dto, companyId, userId);
+  }
+
+  @Permissions(PERMISSIONS.PROJECT_TASKS.CREATE)
+  @SuccessMessage('Participantes actualizados correctamente')
+  @Patch(':id/participants')
+  async setParticipants(
+    @Param('id') taskId: string,
+    @Body() dto: AddTaskParticipantsDto,
+    @CompanyId() companyId: string,
+    @UserId() userId: string,
+  ) {
+    return this.taskService.setParticipants(taskId, dto, companyId, userId);
+  }
+
+  @Permissions(PERMISSIONS.PROJECT_TASKS.DELETE)
+  @SuccessMessage('Participante eliminado correctamente')
+  @Delete(':id/participants/:participantId')
+  async removeParticipant(
+    @Param('id') taskId: string,
+    @Param('participantId') participantId: string,
+  ) {
+    return this.taskService.removeParticipant(taskId, participantId);
   }
 }

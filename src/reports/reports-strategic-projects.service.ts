@@ -310,8 +310,7 @@ export class ReportsStrategicProjectsService {
     const project = structure?.project;
 
     // Leader de proyecto (posición)
-    const leaderPositionName =
-      project?.leader?.position?.name ?? project?.position?.name ?? '—';
+    const leaderPositionName = project?.position?.name ?? '—';
 
     // 4) PDF
     const doc = new PDFDocument({
@@ -670,11 +669,7 @@ export class ReportsStrategicProjectsService {
       doc.rect(tX2, tY2, contentW, headH2).strokeColor(HEX.border).stroke();
       tY2 += headH2;
 
-      const participants = project?.participants ?? [];
-      const participantMap = new Map<string, string>(); // projectParticipantId -> positionName
-      for (const p of participants) {
-        participantMap.set(p.id, p.position?.name ?? '—');
-      }
+      const participantMap = new Map<string, string>();
 
       const drawRowBorders = (y0: number, h: number) => {
         doc
@@ -813,7 +808,7 @@ export class ReportsStrategicProjectsService {
           const ini = fmtDate(parseISO(t.fromAt));
           const fin = fmtDate(parseISO(t.untilAt));
           const ent = safe(t.result);
-          const resp = participantMap.get(t.projectParticipantId) ?? '—';
+          const resp = '—';
           const met = safe(t.methodology);
           const apo = safe(t.props);
           const inv = safe(t.budget);

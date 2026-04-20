@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { ProjectTaskEntity } from '../entities/project-task.entity';
+import {
+  ProjectTaskEntity,
+  TaskParticipantEntity,
+} from '../entities/project-task.entity';
 import { CreateProjectTaskDto, UpdateProjectTaskDto } from '../dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 
@@ -8,10 +11,30 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class ProjectTaskRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  private participantsInclude = {
+    where: { isActive: true },
+    include: {
+      position: {
+        include: {
+          userLinks: {
+            where: { isResponsible: true },
+            include: {
+              user: {
+                select: { id: true, firstName: true, lastName: true },
+              },
+            },
+          },
+        },
+      },
+      externalUser: {
+        select: { id: true, name: true, email: true },
+      },
+    },
+  };
+
   async create(
     dto: CreateProjectTaskDto & {
       order: number;
-      projectParticipantId: string | null;
       status: 'OPE' | 'CLO';
       props: string | null;
       result: string | null;
@@ -24,22 +47,27 @@ export class ProjectTaskRepository {
       updatedBy?: string | null;
     },
   ): Promise<ProjectTaskEntity> {
-    const data: Prisma.ProjectTaskUncheckedCreateInput = { ...dto };
-    const created = await this.prisma.projectTask.create({ data });
+    const { participants: _p, ...taskData } = dto as any;
+    const data: Prisma.ProjectTaskUncheckedCreateInput = { ...taskData };
+    const created = await this.prisma.projectTask.create({
+      data,
+      include: { participants: this.participantsInclude },
+    });
     return new ProjectTaskEntity(created);
   }
 
   async update(
     id: string,
     dto: UpdateProjectTaskDto & {
-      projectParticipantId?: string;
       updatedBy?: string | null;
     },
   ): Promise<ProjectTaskEntity> {
-    const data: Prisma.ProjectTaskUncheckedUpdateInput = { ...dto };
+    const { participants: _p, ...taskData } = dto as any;
+    const data: Prisma.ProjectTaskUncheckedUpdateInput = { ...taskData };
     const updated = await this.prisma.projectTask.update({
       where: { id },
       data,
+      include: { participants: this.participantsInclude },
     });
     return new ProjectTaskEntity(updated);
   }
@@ -56,8 +84,43 @@ export class ProjectTaskRepository {
     return new ProjectTaskEntity(updated);
   }
 
-  async findById(id: string): Promise<ProjectTaskEntity | null> {
-    const row = await this.prisma.projectTask.findUnique({ where: { id } });
+  async findById(
+    id: string,
+    companyId?: string,
+  ): Promise<ProjectTaskEntity | null> {
+    const row = await this.prisma.projectTask.findUnique({
+      where: { id },
+      include: {
+        participants: companyId
+          ? {
+              where: { isActive: true },
+              include: {
+                position: {
+                  include: {
+                    userLinks: {
+                      where: { isResponsible: true },
+                      include: {
+                        user: {
+                          select: { id: true, firstName: true, lastName: true },
+                        },
+                      },
+                    },
+                  },
+                },
+                externalUser: {
+                  where: { companyId },
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    companyId: true,
+                  },
+                },
+              },
+            }
+          : this.participantsInclude,
+      },
+    });
     return row ? new ProjectTaskEntity(row) : null;
   }
 
@@ -96,6 +159,7 @@ export class ProjectTaskRepository {
         orderBy: { order: 'asc' },
         skip: (page - 1) * limit,
         take: limit,
+        include: { participants: this.participantsInclude },
       }),
       this.prisma.projectTask.count({ where }),
     ]);
@@ -162,5 +226,131 @@ export class ProjectTaskRepository {
       select: { id: true },
     });
     return !!found;
+  }
+
+  async addParticipants(
+    taskId: string,
+    participants: { positionId?: string; externalUserId?: string }[],
+    companyId?: string,
+    createdBy?: string | null,
+  ): Promise<TaskParticipantEntity[]> {
+    const data = participants
+      .filter((p) => p.positionId || p.externalUserId)
+      .map((p) => ({
+        taskId,
+        positionId: p.positionId ?? null,
+        externalUserId: p.externalUserId ?? null,
+        isActive: true,
+        createdBy,
+      }));
+
+    if (data.length === 0) return [];
+
+    const existingParticipants =
+      await this.prisma.projectTaskParticipant.findMany({
+        where: { taskId },
+        select: { positionId: true, externalUserId: true },
+      });
+
+    const filteredData = data.filter((p) => {
+      const exists = existingParticipants.some(
+        (e) =>
+          (p.positionId && e.positionId === p.positionId) ||
+          (p.externalUserId && e.externalUserId === p.externalUserId),
+      );
+      return !exists;
+    });
+
+    if (filteredData.length === 0) {
+      return this.getParticipants(taskId, companyId);
+    }
+
+    const created =
+      await this.prisma.projectTaskParticipant.createManyAndReturn({
+        data: filteredData,
+      });
+    return created.map((p) => new TaskParticipantEntity(p));
+  }
+
+  async removeParticipant(participantId: string): Promise<void> {
+    await this.prisma.projectTaskParticipant.update({
+      where: { id: participantId },
+      data: { isActive: false },
+    });
+  }
+
+  async setParticipants(
+    taskId: string,
+    participants: { positionId?: string; externalUserId?: string }[],
+    companyId?: string,
+    createdBy?: string | null,
+  ): Promise<TaskParticipantEntity[]> {
+    await this.prisma.projectTaskParticipant.deleteMany({
+      where: { taskId },
+    });
+
+    if (participants.length === 0) return [];
+
+    return this.addParticipants(taskId, participants, companyId, createdBy);
+  }
+
+  async getParticipants(
+    taskId: string,
+    companyId?: string,
+  ): Promise<TaskParticipantEntity[]> {
+    const rows = await this.prisma.projectTaskParticipant.findMany({
+      where: {
+        taskId,
+        isActive: true,
+        ...(companyId ? { externalUser: { companyId } } : {}),
+      },
+      include: {
+        position: {
+          include: {
+            userLinks: {
+              where: { isResponsible: true },
+              include: {
+                user: {
+                  select: { id: true, firstName: true, lastName: true },
+                },
+              },
+            },
+          },
+        },
+        externalUser: {
+          where: companyId ? { companyId } : undefined,
+          select: { id: true, name: true, email: true, companyId: true },
+        },
+      },
+    });
+    return rows.map((p) => new TaskParticipantEntity(p));
+  }
+
+  async getProjectIdByFactorId(
+    projectFactorId: string,
+  ): Promise<string | null> {
+    const factor = await this.prisma.projectFactor.findUnique({
+      where: { id: projectFactorId },
+      select: { projectId: true },
+    });
+    return factor?.projectId ?? null;
+  }
+
+  async deactivateParticipantsByPosition(positionId: string): Promise<number> {
+    const result = await this.prisma.projectTaskParticipant.updateMany({
+      where: { positionId, isActive: true },
+      data: { isActive: false },
+    });
+    return result.count;
+  }
+
+  async deactivateParticipantsByExternalUser(
+    externalUserId: string,
+  ): Promise<number> {
+    const result = await this.prisma.projectTaskParticipant.updateMany({
+      where: { externalUserId, isActive: true },
+      data: { isActive: false },
+    });
+    return result.count;
   }
 }

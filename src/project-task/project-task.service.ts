@@ -4,33 +4,39 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ProjectTaskRepository } from './repositories/project-task.repository';
-import { ProjectTaskEntity } from './entities/project-task.entity';
+import {
+  ProjectTaskEntity,
+  TaskParticipantEntity,
+} from './entities/project-task.entity';
 import {
   CreateProjectTaskDto,
   UpdateProjectTaskDto,
   FilterProjectTaskDto,
   ReorderProjectTaskWrapperDto,
+  AddTaskParticipantsDto,
+  RemoveTaskParticipantDto,
 } from './dto';
 import { StrategicProjectRepository } from 'src/strategic-project/repositories/strategic-project.repository';
-import { ProjectParticipantRepository } from 'src/project-participant/repositories/project-participant.repository';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class ProjectTaskService {
   constructor(
     private readonly taskRepository: ProjectTaskRepository,
     private readonly projectRepository: StrategicProjectRepository,
-    private readonly participantRepository: ProjectParticipantRepository,
+    private readonly prisma: PrismaService,
   ) {}
 
   // CREATE (auto-order + defaults + participant resolution)
   async createTask(
     dto: CreateProjectTaskDto,
+    companyId: string,
     userId: string,
   ): Promise<ProjectTaskEntity> {
     await this.validateTaskDates(dto.fromAt, dto.untilAt);
 
     // obtener projectId via factor y validar rango dentro del proyecto
-    const projectId = await this.participantRepository.getProjectIdByFactorId(
+    const projectId = await this.taskRepository.getProjectIdByFactorId(
       dto.projectFactorId,
     );
     if (!projectId) throw new BadRequestException('Invalid projectFactorId');
@@ -49,8 +55,13 @@ export class ProjectTaskService {
       dto.projectFactorId,
     );
 
-    return this.taskRepository.create({
-      ...dto,
+    // Separar participantes del DTO
+    const participantsInput = dto.participants ?? [];
+    const { participants: _p, ...taskData } = dto as any;
+
+    // Crear la tarea
+    const task = await this.taskRepository.create({
+      ...taskData,
       order: nextOrder,
       status: dto.status ?? 'OPE',
       props: dto.props ?? '',
@@ -59,10 +70,91 @@ export class ProjectTaskService {
       budget: typeof dto.budget === 'number' ? dto.budget : 0,
       limitation: dto.limitation ?? '',
       comments: dto.comments ?? '',
-      projectParticipantId: dto.projectParticipantId,
       isActive: true,
       createdBy: userId ?? null,
       updatedBy: null,
+    });
+
+    // Procesar participantes si existen
+    if (participantsInput.length > 0) {
+      const processedParticipants = await this.processParticipants(
+        task.id,
+        participantsInput,
+        companyId,
+        userId,
+      );
+      // Recargar tarea con participantes
+      return this.taskRepository.findById(
+        task.id,
+        companyId,
+      ) as Promise<ProjectTaskEntity>;
+    }
+
+    return task;
+  }
+
+  private async processParticipants(
+    taskId: string,
+    participants: {
+      positionId?: string;
+      externalUserId?: string;
+      name?: string;
+      email?: string;
+    }[],
+    companyId: string,
+    userId: string,
+  ): Promise<TaskParticipantEntity[]> {
+    const processed: { positionId?: string; externalUserId?: string }[] = [];
+
+    for (const p of participants) {
+      if (p.positionId) {
+        // Cargo interno - usar directamente
+        processed.push({ positionId: p.positionId });
+      } else if (p.externalUserId) {
+        // Usuario externo por ID - usar directamente
+        processed.push({ externalUserId: p.externalUserId });
+      } else if (p.email) {
+        // Buscar o crear externo por email
+        const externalUser = await this.findOrCreateExternalUser(
+          p.name!,
+          p.email,
+          companyId,
+          userId,
+        );
+        processed.push({ externalUserId: externalUser.id });
+      }
+    }
+
+    if (processed.length > 0) {
+      return this.taskRepository.addParticipants(taskId, processed, userId);
+    }
+
+    return [];
+  }
+
+  private async findOrCreateExternalUser(
+    name: string,
+    email: string,
+    companyId: string,
+    userId: string,
+  ) {
+    // Buscar por email y companyId
+    const existing = await this.prisma.externalUser.findUnique({
+      where: { companyId_email: { companyId, email: email.toLowerCase() } },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    // Crear nuevo
+    return this.prisma.externalUser.create({
+      data: {
+        name,
+        email: email.toLowerCase(),
+        companyId,
+        createdBy: userId,
+      },
     });
   }
 
@@ -70,9 +162,10 @@ export class ProjectTaskService {
   async updateTask(
     taskId: string,
     dto: UpdateProjectTaskDto,
+    companyId: string,
     userId: string,
   ): Promise<ProjectTaskEntity> {
-    const existing = await this.taskRepository.findById(taskId);
+    const existing = await this.taskRepository.findById(taskId, companyId);
     if (!existing) throw new NotFoundException('ProjectTask not found');
 
     const nextFromAt = dto.fromAt ?? existing.fromAt;
@@ -82,7 +175,7 @@ export class ProjectTaskService {
     // obtener projectId desde el factor actual o el del DTO (si lo cambiara)
     const factorId = dto.projectFactorId ?? existing.projectFactorId;
     const projectId =
-      await this.participantRepository.getProjectIdByFactorId(factorId);
+      await this.taskRepository.getProjectIdByFactorId(factorId);
     if (!projectId) throw new BadRequestException('Invalid projectFactorId');
 
     const projectRange = await this.projectRepository.getRange(projectId);
@@ -108,11 +201,14 @@ export class ProjectTaskService {
         );
     }
 
-    return this.taskRepository.update(taskId, {
-      ...dto,
+    // Separar participantes del DTO
+    const participantsInput = (dto as any).participants;
+    const { participants: _p, ...taskData } = dto as any;
+
+    const updated = await this.taskRepository.update(taskId, {
+      ...taskData,
       fromAt: nextFromAt,
       untilAt: nextUntilAt,
-      // defaults si llegan undefined
       status: dto.status ?? existing.status,
       props: dto.props ?? existing.props ?? 'N/A',
       result: dto.result ?? existing.result ?? 'N/A',
@@ -126,6 +222,22 @@ export class ProjectTaskService {
       projectFactorId: factorId,
       updatedBy: userId ?? null,
     });
+
+    // Procesar participantes si vienen en el DTO
+    if (participantsInput && participantsInput.length > 0) {
+      await this.processParticipants(
+        taskId,
+        participantsInput,
+        companyId,
+        userId,
+      );
+      return this.taskRepository.findById(
+        taskId,
+        companyId,
+      ) as Promise<ProjectTaskEntity>;
+    }
+
+    return updated;
   }
 
   async setTaskActive(
@@ -133,13 +245,16 @@ export class ProjectTaskService {
     isActive: boolean,
     userId: string,
   ): Promise<ProjectTaskEntity> {
-    const existing = await this.taskRepository.findById(taskId);
+    const existing = await this.taskRepository.findById(taskId, undefined);
     if (!existing) throw new NotFoundException('ProjectTask not found');
     return this.taskRepository.setActive(taskId, isActive, userId ?? null);
   }
 
-  async getTaskById(taskId: string): Promise<ProjectTaskEntity> {
-    const task = await this.taskRepository.findById(taskId);
+  async getTaskById(
+    taskId: string,
+    companyId?: string,
+  ): Promise<ProjectTaskEntity> {
+    const task = await this.taskRepository.findById(taskId, companyId);
     if (!task) throw new NotFoundException('ProjectTask not found');
     return task;
   }
@@ -184,9 +299,12 @@ export class ProjectTaskService {
     }
   }
 
-  private async ensureExisting(ids: string[]): Promise<void> {
+  private async ensureExisting(
+    ids: string[],
+    companyId?: string,
+  ): Promise<void> {
     const checks = await Promise.all(
-      ids.map((id) => this.taskRepository.findById(id)),
+      ids.map((id) => this.taskRepository.findById(id, companyId)),
     );
     const missingIndex = checks.findIndex((t) => !t);
     if (missingIndex !== -1) {
@@ -194,5 +312,55 @@ export class ProjectTaskService {
         `ProjectTask not found: ${ids[missingIndex]}`,
       );
     }
+  }
+
+  async getParticipants(
+    taskId: string,
+    companyId?: string,
+  ): Promise<TaskParticipantEntity[]> {
+    const task = await this.taskRepository.findById(taskId, companyId);
+    if (!task) throw new NotFoundException('ProjectTask not found');
+    return this.taskRepository.getParticipants(taskId, companyId);
+  }
+
+  async addParticipants(
+    taskId: string,
+    dto: AddTaskParticipantsDto,
+    companyId: string,
+    userId: string,
+  ): Promise<TaskParticipantEntity[]> {
+    const task = await this.taskRepository.findById(taskId, companyId);
+    if (!task) throw new NotFoundException('ProjectTask not found');
+    return this.taskRepository.addParticipants(
+      taskId,
+      dto.participants,
+      companyId,
+      userId ?? null,
+    );
+  }
+
+  async removeParticipant(
+    taskId: string,
+    participantId: string,
+  ): Promise<void> {
+    const task = await this.taskRepository.findById(taskId, undefined);
+    if (!task) throw new NotFoundException('ProjectTask not found');
+    await this.taskRepository.removeParticipant(participantId);
+  }
+
+  async setParticipants(
+    taskId: string,
+    dto: AddTaskParticipantsDto,
+    companyId: string,
+    userId: string,
+  ): Promise<TaskParticipantEntity[]> {
+    const task = await this.taskRepository.findById(taskId, companyId);
+    if (!task) throw new NotFoundException('ProjectTask not found');
+    return this.taskRepository.setParticipants(
+      taskId,
+      dto.participants,
+      companyId,
+      userId ?? null,
+    );
   }
 }

@@ -8,6 +8,7 @@ import {
   StrategicProjectRepository,
 } from './repositories/strategic-project.repository';
 import { StrategicProjectEntity } from './entities/strategic-project.entity';
+import { TaskParticipantEntity } from 'src/project-task/entities/project-task.entity';
 import {
   CreateStrategicProjectDto,
   UpdateStrategicProjectDto,
@@ -17,7 +18,6 @@ import {
   CountOverdueProjectsDto,
 } from './dto';
 import { StrategicPlanRepository } from 'src/strategic-plan/repositories/strategic-plan.repository';
-import { ProjectParticipantRepository } from 'src/project-participant/repositories/project-participant.repository';
 import { ProjectFactorRepository } from 'src/project-factor/repositories/project-factor.repository';
 import { ListStrategicProjectsByPlanAndPositionDto } from './dto/list-by-plan-and-position.dto';
 
@@ -27,7 +27,6 @@ export class StrategicProjectService {
     private readonly projectRepository: StrategicProjectRepository,
     private readonly planRepository: StrategicPlanRepository,
     private readonly projectFactorRepository: ProjectFactorRepository,
-    private readonly projectParticipantRepository: ProjectParticipantRepository,
   ) {}
 
   private resolveMonthYear(month?: number, year?: number) {
@@ -102,20 +101,7 @@ export class StrategicProjectService {
       updatedBy: null,
     });
 
-    // Crear participante inicial para este proyecto
-    const participant = await this.projectParticipantRepository.findOrCreate(
-      project.id,
-      dto.positionId,
-    );
-
-    await this.projectParticipantRepository.setLeaderExclusive(
-      project.id,
-      participant.id,
-    );
-
-    return Object.assign(new StrategicProjectEntity(project), {
-      projectParticipantId: participant.id,
-    });
+    return new StrategicProjectEntity(project);
   }
 
   // ---------- Update ----------
@@ -179,16 +165,11 @@ export class StrategicProjectService {
   // ---------- Get by Id (simple) ----------
   async getStrategicProjectById(
     projectId: string,
-  ): Promise<StrategicProjectEntity & { projectParticipantId: string | null }> {
+  ): Promise<StrategicProjectEntity> {
     const project = await this.projectRepository.findById(projectId);
     if (!project) throw new NotFoundException('StrategicProject not found');
 
-    const owner =
-      await this.projectParticipantRepository.findOwnerForProject(projectId);
-
-    return Object.assign(new StrategicProjectEntity(project), {
-      projectParticipantId: owner?.id ?? null,
-    });
+    return new StrategicProjectEntity(project);
   }
 
   // ---------- Get by Id with Progress ----------
@@ -209,15 +190,8 @@ export class StrategicProjectService {
   }
 
   // ---------- List / Filter ----------
-  async listStrategicProjects(filters: FilterStrategicProjectDto): Promise<{
-    items: Array<
-      StrategicProjectEntity & { projectParticipantId: string | null }
-    >;
-    total: number;
-    page: number;
-    limit: number;
-  }> {
-    const pageData = await this.projectRepository.findMany({
+  async listStrategicProjects(filters: FilterStrategicProjectDto) {
+    return this.projectRepository.findMany({
       strategicPlanId: filters.strategicPlanId,
       objectiveId: filters.objectiveId,
       q: filters.q,
@@ -229,36 +203,8 @@ export class StrategicProjectService {
       limit: filters.limit ?? 20,
       orderBy: filters.orderBy ?? 'createdAt',
       orderDir: filters.orderDir ?? 'desc',
-      positionId: filters.positionId, // ✅ pásalo al repo
+      positionId: filters.positionId,
     });
-
-    // Si el repo ya devuelve un campo participantsLite o similar, úsalo.
-    // Si no, hacemos fan-out como fallback:
-    if (!('participantsLite' in (pageData.items?.[0] ?? {}))) {
-      const itemsWithParticipant = await Promise.all(
-        pageData.items.map(async (p) => {
-          const owner = filters.positionId
-            ? await this.projectParticipantRepository.findByProjectAndPosition(
-                p.id,
-                filters.positionId!,
-              )
-            : await this.projectParticipantRepository.findOwnerForProject(p.id);
-          return Object.assign(new StrategicProjectEntity(p), {
-            projectParticipantId: owner?.id ?? null,
-          });
-        }),
-      );
-      return { ...pageData, items: itemsWithParticipant };
-    }
-
-    // (si el repo ya trae participantsLite)
-    const items = pageData.items.map((p: any) =>
-      Object.assign(new StrategicProjectEntity(p), {
-        projectParticipantId: p.participantsLite?.[0]?.id ?? null,
-      }),
-    );
-
-    return { ...pageData, items };
   }
 
   async getProjectStructure(opts: {
@@ -269,14 +215,14 @@ export class StrategicProjectService {
   }) {
     const p = await this.projectRepository.getStructureByProject(opts);
 
-    // participantes
-    const participants = p.participants ?? [];
-    const leader =
-      participants.find((pp) => pp.isLeader) ?? participants[0] ?? null;
-
     // factores + tareas + contadores
     const factors = (p.factors ?? []).map((f) => {
-      const tasks = f.tasks ?? [];
+      const tasks = (f.tasks ?? []).map((t) => ({
+        ...t,
+        participants: t.participants
+          ? t.participants.map((p: any) => new TaskParticipantEntity(p))
+          : [],
+      }));
       const taskOpe = tasks.filter((t) => t.status === 'OPE').length;
       const taskClo = tasks.filter((t) => t.status === 'CLO').length;
       return { ...f, taskOpe, taskClo, tasks };
@@ -292,8 +238,6 @@ export class StrategicProjectService {
         objective: p.objective
           ? { id: p.objective.id, name: p.objective.name }
           : null,
-        participants,
-        leader,
         factors,
         progressProject,
       },
@@ -492,16 +436,10 @@ export class StrategicProjectService {
       {
         includeInactiveFactors: false,
         includeInactiveTasks: false,
-        includeInactiveParticipants: false, // solo activos por defecto
       },
     );
 
     const mapped = rows.map((p) => {
-      // ---- participantes ----
-      const participants = p.participants ?? [];
-      const leader =
-        participants.find((pp) => pp.isLeader) ?? participants[0] ?? null;
-
       // ---- factores + tareas + contadores ----
       const factors = (p.factors ?? []).map((f) => {
         const tasks = f.tasks ?? [];
@@ -518,12 +456,10 @@ export class StrategicProjectService {
         : null;
 
       return {
-        ...p, // todas las columnas del proyecto
+        ...p,
         objective,
-        progressProject, // 0..100
-        participants, // participantes del proyecto (solo activos)
-        leader, // participante líder (o el primero, o null)
-        factors, // factores + contadores + tasks
+        progressProject,
+        factors,
       };
     });
 

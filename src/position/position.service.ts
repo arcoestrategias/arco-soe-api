@@ -9,6 +9,7 @@ import { PositionEntity } from './entities/position.entity';
 import { PriorityService } from 'src/priority/priority.service';
 import { IcoService } from 'src/ico/ico.service';
 import { StrategicProjectService } from 'src/strategic-project/strategic-project.service';
+import { PrismaService } from 'src/prisma/prisma.service';
 import {
   CeoAndSpecialistDto,
   PersonRolePositionDto,
@@ -45,6 +46,7 @@ export class PositionsService {
     private readonly priorityService: PriorityService,
     private readonly icoService: IcoService,
     private readonly projectService: StrategicProjectService,
+    private readonly prisma: PrismaService,
   ) {}
 
   // ===== Helpers locales =====
@@ -110,7 +112,26 @@ export class PositionsService {
   ): Promise<PositionEntity> {
     const exists = await this.positionsRepo.findById(id);
     if (!exists) throw new NotFoundException('Posición no encontrada');
-    return this.positionsRepo.update(id, { isActive } as any, userId);
+
+    const updated = await this.positionsRepo.update(
+      id,
+      { isActive } as any,
+      userId,
+    );
+
+    if (!isActive) {
+      const result = await this.prisma.projectTaskParticipant.updateMany({
+        where: { positionId: id, isActive: true },
+        data: { isActive: false },
+      });
+      if (result.count > 0) {
+        console.log(
+          `[Position] ${result.count} task participants deactivated for position ${id}`,
+        );
+      }
+    }
+
+    return updated;
   }
 
   async remove(id: string, userId: string): Promise<void> {
