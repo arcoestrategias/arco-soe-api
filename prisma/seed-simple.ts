@@ -746,6 +746,60 @@ async function main() {
   }
 
   console.log('✅ Seed: admin, roles, módulos y catálogo de permisos creado.');
+
+  // 4) Términos y Condiciones inicial
+  const termsContent = `
+    <h1>TÉRMINOS Y CONDICIONES</h1>
+    <p><strong>Última actualización:</strong> ${new Date().toLocaleDateString('es-EC')}</p>
+    
+    <h2>1. ACEPTACIÓN DE LOS TÉRMINOS</h2>
+    <p>Al acceder y utilizar esta plataforma, usted acepta estar sujeto a los siguientes términos y condiciones. Si no está de acuerdo con alguno de estos términos, no debe utilizar esta plataforma.</p>
+    
+    <h2>2. DESCRIPCIÓN DEL SERVICIO</h2>
+    <p>La plataforma SOE (Sistema de Operación Estratégica) es una herramienta de gestión estratégica que permite a las organizaciones planificar, ejecutar y supervisar sus objetivos, proyectos y procesos organizacionales.</p>
+    
+    <h2>3. CUENTA DE USUARIO</h2>
+    <p>Para acceder a ciertos servicios, deberá crear una cuenta proporcionando información veraz y actualizada. Usted es responsable de mantener la confidencialidad de su cuenta y contraseña, así como de todas las actividades realizadas bajo su cuenta.</p>
+    
+    <h2>4. USO ACEPTABLE</h2>
+    <p>Usted se compromete a:</p>
+    <ul>
+      <li>Utilizar la plataforma únicamente para fines legítimos.</li>
+      <li>No alterar, modificar ni intentar acceder a datos de otros usuarios.</li>
+      <li>No realizar actividades que puedan dañar, sobrecargar o perjudicar el funcionamiento de la plataforma.</li>
+      <li>No utilizar dispositivos, software u otros mecanismos para interferir con el funcionamiento de la plataforma.</li>
+    </ul>
+    
+    <h2>5. PRIVACIDAD Y PROTECCIÓN DE DATOS</h2>
+    <p>La plataforma recopila y procesa datos personales en cumplimiento con las leyes de protección de datos aplicables. Los datos proporcionados serán utilizados únicamente para los fines descritos en nuestra Política de Privacidad.</p>
+    
+    <h2>6. PROPIEDAD INTELECTUAL</h2>
+    <p>Todo el contenido, diseño, código y funcionalidades de la plataforma son propiedad de la organización y están protegidos por las leyes de propiedad intelectual.</p>
+    
+    <h2>7. LIMITACIÓN DE RESPONSABILIDAD</h2>
+    <p>La plataforma se proporciona "tal cual". No garantizamos que el servicio esté libre de errores o interrupciones. No somos responsables de cualquier pérdida o daño derivado del uso de la plataforma.</p>
+    
+    <h2>8. MODIFICACIONES</h2>
+    <p>Nos reservamos el derecho de modificar estos términos en cualquier momento. Las modificaciones entrarán en vigor após su publicación. El uso continuado de la plataforma após las modificaciones constituye la aceptación de los nuevos términos.</p>
+    
+    <h2>9. LEY APLICABLE</h2>
+    <p>Estos términos se rigen por las leyes de la República del Ecuador. Cualquier controversia será resuelta en los tribunales competentes de Ecuador.</p>
+    
+    <h2>10. CONTACTO</h2>
+    <p>Para cualquier consulta sobre estos términos, puede contactarnos a través de los canales de soporte disponibles en la plataforma.</p>
+  `;
+
+  await prisma.termsAndConditions.upsert({
+    where: { version: 'v1.0' },
+    update: { content: termsContent, isActive: true },
+    create: {
+      version: 'v1.0',
+      content: termsContent,
+      isActive: true,
+    },
+  });
+
+  console.log('✅ Seed: Términos y Condiciones v1.0 creados.');
 }
 
 main()

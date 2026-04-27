@@ -255,6 +255,9 @@ model User {
   // Inverso de Notificaciones recibidas
   notificationsReceived Notification[] // ← inverso de Notification.recipient
 
+  // Inverso de Aceptaciones de términos
+  termsAcceptances TermsAcceptance[]
+
   // Relaciones para el módulo de Reuniones
   meetingsCreated       Meeting[]              @relation("MeetingCreator")
   meetingsParticipating MeetingParticipant[]
@@ -1098,4 +1101,38 @@ model MeetingParticipant {
   createdAt  DateTime               @default(now())
 
   @@unique([meetingId, userId])
+}
+
+// ============================================================================
+// TERMS AND CONDITIONS
+// ============================================================================
+
+/// Versión activa de términos y condiciones (global).
+model TermsAndConditions {
+  id        String   @id @default(uuid()) @db.Uuid
+  version   String   @unique @db.VarChar(20)
+  content   String   @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  acceptances TermsAcceptance[]
+
+  @@index([isActive])
+}
+
+/// Registro de aceptación de términos por usuario (auditoría legal).
+model TermsAcceptance {
+  id           String             @id @default(uuid()) @db.Uuid
+  userId       String             @db.Uuid
+  termsId      String             @db.Uuid
+  termsVersion String             @db.VarChar(20)
+  acceptedAt   DateTime           @default(now())
+  ipAddress    String?            @db.VarChar(45)
+
+  user  User                @relation(fields: [userId], references: [id])
+  terms TermsAndConditions @relation(fields: [termsId], references: [id])
+
+  @@unique([userId, termsId])
+  @@index([userId])
+  @@index([termsId])
 }

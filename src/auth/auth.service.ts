@@ -13,6 +13,18 @@ import { LoginDto, ForgotPasswordDto, ResetPasswordTokenDto } from './dto';
 import { TokensDto } from './dto/tokens.dto';
 import { NotificationService } from 'src/notifications/notifications.service';
 import { buildUrl } from 'src/common/helpers/url.helper';
+import { TermsService } from './terms.service';
+
+export interface LoginResponse {
+  accessToken: string;
+  refreshToken: string;
+  needsTermsAcceptance: boolean;
+  terms?: {
+    id: string | null;
+    version: string;
+    content: string;
+  };
+}
 
 @Injectable()
 export class AuthService {
@@ -20,9 +32,10 @@ export class AuthService {
     private readonly usersRepo: UsersRepository,
     private readonly jwtService: JwtService,
     private readonly notificationService: NotificationService,
+    private readonly termsService: TermsService,
   ) {}
 
-  async login(dto: LoginDto): Promise<TokensDto> {
+  async login(dto: LoginDto): Promise<LoginResponse> {
     const user = await this.usersRepo.findByEmail(dto.email);
     if (!user) throw new UnauthorizedException('Credenciales inválidas');
 
@@ -60,7 +73,35 @@ export class AuthService {
       );
     }
 
-    return this.generateTokens(user.id);
+    const currentTerms = await this.termsService.getCurrentTerms();
+    const hasAcceptedTerms = await this.termsService.hasAcceptedCurrentTerms(
+      user.id,
+    );
+
+    const { accessToken, refreshToken } = this.generateTokens(user.id);
+
+    if (user.isPlatformAdmin) {
+      return {
+        accessToken,
+        refreshToken,
+        needsTermsAcceptance: false,
+      };
+    }
+
+    if (currentTerms.id && !hasAcceptedTerms) {
+      return {
+        accessToken,
+        refreshToken,
+        needsTermsAcceptance: true,
+        terms: currentTerms,
+      };
+    }
+
+    return {
+      accessToken,
+      refreshToken,
+      needsTermsAcceptance: false,
+    };
   }
 
   async refresh(userId: string): Promise<TokensDto> {
