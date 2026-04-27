@@ -674,10 +674,16 @@ export class IcoService {
         (m) => m.year === effY && m.month === effM,
       );
 
-      // pendientes = meses con registro (isMeasured) SIN cumplimiento hasta el mes activo efectivo
-      const pendingCount = monthsUpToActive.filter(
-        (m) => m.isMeasured && !m.hasRealValue,
-      ).length;
+      // === Pendientes: solo meses con registro SIN medir que YA PASARON (mes <= efectivo)
+      const now = new Date();
+      const currY = now.getUTCFullYear();
+      const currM = now.getUTCMonth() + 1;
+
+      const pendingCount = monthsUpToActive.filter((m) => {
+        const isPastOrCurrent =
+          m.year < currY || (m.year === currY && m.month <= currM);
+        return m.isMeasured && !m.hasRealValue && isPastOrCurrent;
+      }).length;
 
       const GOAL_STATUS_COLORS = {
         yellow: '#FACC15', // Pendiente
