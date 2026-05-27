@@ -37,7 +37,11 @@ lerna-debug.log*
 
 # dotenv environment variable files
 .env
-.env.*
+.env.demo
+.env.qa
+.env.prod
+
+
 # temp directory
 .temp
 .tmp
@@ -57,3 +61,6 @@ uploads/documents/pdfs/*
 !uploads/documents/pdfs/.gitkeep
 uploads/documents/qrs/*
 !uploads/documents/qrs/.gitkeep
+.env.demo
+.env.demo
+.env.qa
