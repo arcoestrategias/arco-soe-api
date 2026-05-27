@@ -29,10 +29,16 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm install --omit=dev
 
+# Dependencias para seed condicional (ts-node, typescript)
+RUN npm install -D ts-node typescript tsconfig-paths
+
 # Copia el resultado de la etapa del Build
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
+
+# Copia el seed para ejecución condicional
+COPY prisma/seed-simple.ts ./prisma/
 
 # Copia la carpeta para archivos de la etapa Build
 COPY --from=builder /app/uploads ./uploads
