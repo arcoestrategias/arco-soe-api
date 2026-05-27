@@ -23,6 +23,7 @@ services:
     ports:
       - '${HOST_DOCKER_BACKEND_PORT}:${PORT}'
     environment:
+      RUN_SEED: ${RUN_SEED:-false}
       DATABASE_URL: ${DATABASE_URL}
       NODE_ENV: production
       JWT_SECRET: ${JWT_SECRET}

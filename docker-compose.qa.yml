@@ -25,6 +25,7 @@ services:
     env_file:
       - .env.qa
     environment:
+      RUN_SEED: ${RUN_SEED:-false}
       DATABASE_URL: ${DATABASE_URL}
       NODE_ENV: qa
       JWT_SECRET: ${JWT_SECRET}
