@@ -18,6 +18,9 @@ RUN npx prisma generate
 # Compila el proyecto
 RUN npm run build
 
+# Compila el seed a JS para produccion (sin src/)
+RUN npx tsc prisma/seed-simple.ts --outDir prisma --esModuleInterop --resolveJsonModule --skipLibCheck --module commonjs
+
 # ----------------------------
 # Etapa 2: Producción
 # ----------------------------
@@ -29,16 +32,13 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm install --omit=dev
 
-# Dependencias para seed condicional (ts-node, typescript)
-RUN npm install -D ts-node typescript tsconfig-paths
-
 # Copia el resultado de la etapa del Build
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
 
-# Copia el seed para ejecución condicional
-COPY prisma/seed-simple.ts ./prisma/
+# Copia el seed compilado
+COPY --from=builder /app/prisma/seed-simple.js ./prisma/
 
 # Copia la carpeta para archivos de la etapa Build
 COPY --from=builder /app/uploads ./uploads
