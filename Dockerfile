@@ -37,6 +37,9 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
 
+# Symlink para que seed-simple.js resuelva imports desde dist/
+RUN ln -sf /app/dist /app/src
+
 # Copia el seed compilado
 COPY --from=builder /app/prisma/seed-simple.js ./prisma/
 
