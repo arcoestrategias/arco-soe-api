@@ -115,6 +115,11 @@ async function main() {
       description:
         'Módulo para la administración de configuraciones del sistema.',
     },
+    {
+      name: 'Reuniones',
+      shortCode: 'meetings',
+      description: 'Módulo para la gestión de reuniones de desempeño.',
+    },
   ];
 
   // Catálogo oficial de permisos (fuente única de verdad)
@@ -672,6 +677,30 @@ async function main() {
     {
       name: 'systemSettings.audit',
       description: 'Ver auditoría de configuraciones del sistema.',
+    },
+
+    // Reuniones
+    {
+      name: 'meetings.menu',
+      description: 'Acceder al menú funcional de Reuniones.',
+    },
+    { name: 'meetings.read', description: 'Ver lista de reuniones.' },
+    { name: 'meetings.create', description: 'Crear reuniones.' },
+    { name: 'meetings.update', description: 'Editar reuniones.' },
+    { name: 'meetings.delete', description: 'Inactivar/cancelar reuniones.' },
+    { name: 'meetings.addNote', description: 'Agregar notas a reuniones.' },
+    { name: 'meetings.audit', description: 'Ver auditoría de reuniones.' },
+    {
+      name: 'meetings.readUsers',
+      description: 'Ver usuarios para convocar a reuniones.',
+    },
+    {
+      name: 'meetings.manage',
+      description: 'Editar o eliminar cualquier reunión, aunque no sea el convocante.',
+    },
+    {
+      name: 'meetings.createPriority',
+      description: 'Crear prioridades desde el acta de reunión.',
     },
   ];
 

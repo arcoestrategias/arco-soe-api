@@ -7,7 +7,21 @@ import { UsersRepository } from 'src/users/repositories/users.repository';
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(private readonly usersRepo: UsersRepository) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      // ✅ MODIFICADO: Lee de cookie 'access_token' O header Authorization
+      jwtFromRequest: (req) => {
+        // 1. Intentar leer de cookie (para OAuth con Google)
+        if (req.cookies?.access_token) {
+          return req.cookies.access_token;
+        }
+
+        // 2. Intentar leer de header (para login tradicional)
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          return authHeader.split(' ')[1];
+        }
+
+        return null;
+      },
       secretOrKey: process.env.JWT_SECRET,
     });
   }

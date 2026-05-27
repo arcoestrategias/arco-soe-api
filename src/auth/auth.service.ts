@@ -35,9 +35,77 @@ export class AuthService {
     private readonly termsService: TermsService,
   ) {}
 
+  async loginWithGoogle(googleProfile: {
+    googleId: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+  }): Promise<LoginResponse> {
+    const { googleId, email } = googleProfile;
+
+    // 1. Buscar usuario por email (debe existir - creado por admin)
+    const user = await this.usersRepo.findByEmail(email);
+    if (!user) {
+      throw new UnauthorizedException(
+        'Usuario no encontrado. Contacte al administrador.'
+      );
+    }
+
+    // 2. Si el usuario no tiene googleId, asignarlo
+    if (!user.googleId) {
+      await this.usersRepo.update(user.id, { googleId } as any);
+    }
+
+    // 3. Verificar email confirmado
+    if (!user.isEmailConfirmed) {
+      throw new ForbiddenException(
+        'Debes confirmar tu cuenta para iniciar sesión.'
+      );
+    }
+
+    // 4. Verificar términos (reutilizar lógica existente)
+    const currentTerms = await this.termsService.getCurrentTerms();
+    const hasAcceptedTerms = await this.termsService.hasAcceptedCurrentTerms(
+      user.id,
+    );
+
+    const { accessToken, refreshToken } = this.generateTokens(user.id);
+
+    // Admin de plataforma no requiere aceptar términos
+    if (user.isPlatformAdmin) {
+      return {
+        accessToken,
+        refreshToken,
+        needsTermsAcceptance: false,
+      };
+    }
+
+    if (currentTerms.id && !hasAcceptedTerms) {
+      return {
+        accessToken,
+        refreshToken,
+        needsTermsAcceptance: true,
+        terms: currentTerms,
+      };
+    }
+
+    return {
+      accessToken,
+      refreshToken,
+      needsTermsAcceptance: false,
+    };
+  }
+
   async login(dto: LoginDto): Promise<LoginResponse> {
     const user = await this.usersRepo.findByEmail(dto.email);
     if (!user) throw new UnauthorizedException('Credenciales inválidas');
+
+    // Verificar si el usuario tiene password
+    if (!user.getPassword()) {
+      throw new UnauthorizedException(
+        'Usuario no tiene contraseña configurada. Use el login con Google.'
+      );
+    }
 
     const ok = await comparePassword(dto.password, user.getPassword());
     if (!ok) throw new UnauthorizedException('Credenciales inválidas');

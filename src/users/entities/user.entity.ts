@@ -10,17 +10,22 @@ export class UserEntity {
   readonly isActive: boolean;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+  
   private readonly password: string;
   readonly tokenInvalidBeforeAt?: Date | null;
-
+  
   readonly resetToken?: string | null;
   readonly resetTokenExpiresAt?: Date | null;
   readonly lastLoginAt?: Date;
-  readonly lockedUntil?: Date;
   readonly loginAttempts?: number;
+  readonly lockedUntil?: Date;
   readonly emailConfirmToken?: string | null;
   readonly emailConfirmExpiresAt?: Date | null;
   readonly isEmailConfirmed?: boolean;
+
+  // ✅ NUEVOS CAMPOS PARA OAUTH
+  readonly googleId?: string | null;
+  readonly outlookId?: string | null;
 
   constructor(user: any) {
     Object.assign(this, user);

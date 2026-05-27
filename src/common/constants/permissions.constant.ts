@@ -230,4 +230,16 @@ export const PERMISSIONS = {
     DELETE: 'systemSettings.delete',
     AUDIT: 'systemSettings.audit',
   },
+  MEETINGS: {
+    MENU: 'meetings.menu',
+    READ: 'meetings.read',
+    CREATE: 'meetings.create',
+    UPDATE: 'meetings.update',
+    DELETE: 'meetings.delete',
+    ADD_NOTE: 'meetings.addNote',
+    AUDIT: 'meetings.audit',
+    READ_USERS: 'meetings.readUsers',
+    MANAGE: 'meetings.manage',
+    CREATE_PRIORITY: 'meetings.createPriority',
+  },
 };

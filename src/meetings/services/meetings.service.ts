@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -12,6 +13,9 @@ import { RecurrenceService } from './recurrence.service';
 import { MeetingParticipantRole, MeetingStatus } from '@prisma/client';
 import { UpdateScope, UpdateMeetingDto } from '../dto/update-meeting.dto';
 import { UsersRepository } from 'src/users/repositories/users.repository';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { PermissionValidatorService } from 'src/core/services/permission-validator.service';
+import { PERMISSIONS } from 'src/common/constants/permissions.constant';
 
 @Injectable()
 export class MeetingsService {
@@ -21,7 +25,48 @@ export class MeetingsService {
     private readonly occurrencesRepo: MeetingOccurrencesRepository,
     private readonly recurrenceService: RecurrenceService,
     private readonly usersRepo: UsersRepository,
+    private readonly prisma: PrismaService,
+    private readonly permissionValidator: PermissionValidatorService,
   ) {}
+
+  async findCandidates(companyId: string) {
+    const businessUnits = await this.prisma.businessUnit.findMany({
+      where: { companyId },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+
+    const memberships = await this.prisma.userBusinessUnit.findMany({
+      where: { businessUnit: { companyId } },
+      select: {
+        businessUnitId: true,
+        user: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
+      },
+      orderBy: [
+        { user: { lastName: 'asc' } },
+        { user: { firstName: 'asc' } },
+      ],
+    });
+
+    const usersByBU = new Map<string, typeof memberships>();
+
+    for (const m of memberships) {
+      if (!usersByBU.has(m.businessUnitId)) {
+        usersByBU.set(m.businessUnitId, []);
+      }
+      usersByBU.get(m.businessUnitId)!.push(m);
+    }
+
+    return businessUnits
+      .map((bu) => ({
+        businessUnitId: bu.id,
+        businessUnitName: bu.name,
+        users: (usersByBU.get(bu.id) ?? []).map((m) => m.user),
+      }))
+      .filter((g) => g.users.length > 0);
+  }
 
   async findOne(id: string) {
     const meeting = await this.meetingsRepo.findById(id);
@@ -145,6 +190,23 @@ export class MeetingsService {
       );
     }
 
+    const isConvener = (meeting as any).participants?.some(
+      (p: any) => p.role === 'CONVENER' && p.userId === actorId,
+    );
+    const hasManagePermission = meeting.businessUnitId
+      ? await this.permissionValidator.hasPermission(
+          actorId,
+          meeting.businessUnitId,
+          PERMISSIONS.MEETINGS.MANAGE,
+        )
+      : false;
+
+    if (!isConvener && !hasManagePermission) {
+      throw new ForbiddenException(
+        'Solo el convocante puede editar esta reunión.',
+      );
+    }
+
     if (dto.scope === UpdateScope.THIS_AND_FUTURE) {
       return this.updateThisAndFuture(meeting, dto, actorId);
     } else if (dto.scope === UpdateScope.ONLY_THIS) {
@@ -200,7 +262,14 @@ export class MeetingsService {
       });
 
       // 3. Crear la nueva serie con los datos actualizados
-      const { scope, occurrenceDate: _, participants, ...newMeetingData } = dto;
+      const {
+        scope,
+        occurrenceDate: _,
+        participants,
+        companyId: _companyIdFromDto,
+        businessUnitId: _businessUnitIdFromDto,
+        ...newMeetingData
+      } = dto;
       const newStartDate = new Date(newMeetingData.startDate || occurrenceDate);
       const newEndDate = new Date(
         newMeetingData.endDate ||
@@ -220,6 +289,12 @@ export class MeetingsService {
         occurrences: _occurrences,
         googleCalendarId: _googleCalendarId,
         outlookCalendarId: _outlookCalendarId,
+        creator: _creator,
+        company: _company,
+        businessUnit: _businessUnit,
+        companyId: _companyId,
+        createdBy: _createdBy,
+        businessUnitId: _businessUnitId,
         ...cleanOriginalMeeting
       } = originalMeeting;
 
@@ -232,7 +307,11 @@ export class MeetingsService {
           seriesEndDate: newMeetingData.seriesEndDate
             ? new Date(newMeetingData.seriesEndDate)
             : null,
-          createdBy: actorId,
+          company: { connect: { id: originalMeeting.companyId } },
+          creator: { connect: { id: actorId } },
+          businessUnit: originalMeeting.businessUnitId
+            ? { connect: { id: originalMeeting.businessUnitId } }
+            : undefined,
           updatedBy: actorId,
           googleCalendarId: null,
           outlookCalendarId: null,
@@ -330,7 +409,14 @@ export class MeetingsService {
       });
 
       // 3. Crear una NUEVA reunión tipo ONCE (Excepción)
-      const { scope, occurrenceDate: _, participants, ...newData } = dto;
+      const {
+        scope,
+        occurrenceDate: _,
+        participants,
+        companyId: _companyIdFromDto,
+        businessUnitId: _businessUnitIdFromDto,
+        ...newData
+      } = dto;
 
       const newStartDate = newData.startDate
         ? new Date(newData.startDate)
@@ -348,6 +434,12 @@ export class MeetingsService {
         occurrences: _occurrences,
         googleCalendarId: _googleCalendarId,
         outlookCalendarId: _outlookCalendarId,
+        creator: _creator,
+        company: _company,
+        businessUnit: _businessUnit,
+        companyId: _companyId,
+        createdBy: _createdBy,
+        businessUnitId: _businessUnitId,
         ...cleanOriginalMeeting
       } = originalMeeting;
 
@@ -360,11 +452,15 @@ export class MeetingsService {
           endDate: newEndDate,
           seriesEndDate: null,
           dayValue: null,
-          createdBy: actorId,
+          company: { connect: { id: originalMeeting.companyId } },
+          creator: { connect: { id: actorId } },
+          businessUnit: originalMeeting.businessUnitId
+            ? { connect: { id: originalMeeting.businessUnitId } }
+            : undefined,
           updatedBy: actorId,
           googleCalendarId: null,
           outlookCalendarId: null,
-          daysOfWeek: null, // Una excepción ONCE no tiene días de semana múltiples
+          daysOfWeek: [], // Una excepción ONCE no tiene días de semana múltiples
         },
       });
 
@@ -419,6 +515,23 @@ export class MeetingsService {
   ) {
     const meeting = await this.meetingsRepo.findById(meetingId);
     if (!meeting) throw new NotFoundException('Reunión no encontrada');
+
+    const isConvener = (meeting as any).participants?.some(
+      (p: any) => p.role === 'CONVENER' && p.userId === actorId,
+    );
+    const hasManagePermission = meeting.businessUnitId
+      ? await this.permissionValidator.hasPermission(
+          actorId,
+          meeting.businessUnitId,
+          PERMISSIONS.MEETINGS.MANAGE,
+        )
+      : false;
+
+    if (!isConvener && !hasManagePermission) {
+      throw new ForbiddenException(
+        'Solo el convocante puede cancelar esta reunión.',
+      );
+    }
 
     if (scope === 'ONLY_THIS') {
       if (!occurrenceDate) {

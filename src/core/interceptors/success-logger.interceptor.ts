@@ -26,7 +26,7 @@ export class SuccessLoggerInterceptor implements NestInterceptor {
     const excludedPaths = ['/api/v1/uploads', '/api/v1/health'];
     if (excludedPaths.includes(url)) return next.handle();
 
-    const user = req.user?.email || req.user?.id || 'Ruta pública / Anónimo';
+    const user = (req.user as any)?.sub || (req.user as any)?.email || 'Ruta pública / Anónimo';
 
     const start = Date.now();
 

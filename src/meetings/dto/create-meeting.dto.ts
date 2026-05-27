@@ -70,4 +70,9 @@ export class CreateMeetingDto {
   @ValidateNested({ each: true })
   @Type(() => ParticipantDto)
   participants: ParticipantDto[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  agenda?: string[];
 }

@@ -127,10 +127,10 @@ model Position {
   subordinates       Position[] @relation("PositionHierarchy")
 
   // Otras relaciones
-  priorities          Priority[]
-  levers              Lever[]
-  objectives          Objective[]
-  strategicProjects   StrategicProject[]
+  priorities        Priority[]
+  levers            Lever[]
+  objectives        Objective[]
+  strategicProjects StrategicProject[]
 
   objectiveResponsibilities ObjectiveResponsibility[]
   taskParticipations        ProjectTaskParticipant[]
@@ -230,7 +230,11 @@ model User {
   telephone String?
   firstName String
   lastName  String
-  password  String
+  password  String? // Nullable: permite login con OAuth
+
+  // Campos para OAuth
+  googleId  String? @unique @db.VarChar(100)
+  outlookId String? @unique @db.VarChar(100)
 
   // Contexto multi-empresa
   userCompanies     UserCompany[]
@@ -259,7 +263,7 @@ model User {
   termsAcceptances TermsAcceptance[]
 
   // Relaciones para el módulo de Reuniones
-  meetingsCreated       Meeting[]              @relation("MeetingCreator")
+  meetingsCreated       Meeting[]            @relation("MeetingCreator")
   meetingsParticipating MeetingParticipant[]
 
   // Auditoría
@@ -439,7 +443,7 @@ model Objective {
   strategicProjects StrategicProject[]
   priorities        Priority[]
 
-  responsibilities  ObjectiveResponsibility[]
+  responsibilities ObjectiveResponsibility[]
 }
 
 /// Indicador de desempeño (periodicidad, tendencia, etc.).
@@ -554,11 +558,11 @@ enum ResponsibilityType {
 model ObjectiveResponsibility {
   id String @id @default(uuid()) @db.Uuid
 
-  objectiveId String @db.Uuid
-  positionId  String @db.Uuid
+  objectiveId String             @db.Uuid
+  positionId  String             @db.Uuid
   type        ResponsibilityType
 
-  isActive Boolean @default(true)
+  isActive  Boolean  @default(true)
   createdBy String?  @db.Uuid
   updatedBy String?  @db.Uuid
   createdAt DateTime @default(now())
@@ -600,7 +604,7 @@ model StrategicProject {
   objective   Objective? @relation(fields: [objectiveId], references: [id])
 
   // Relaciones
-  factors      ProjectFactor[]
+  factors ProjectFactor[]
 
   // Auditoría
   isActive  Boolean  @default(true)
@@ -635,10 +639,10 @@ model ProjectFactor {
 
 /// Usuario externo (colaborador/consultor fuera de la organización).
 model ExternalUser {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String   @db.VarChar(500)
-  email     String   @db.VarChar(255)
-  companyId String   @db.Uuid
+  id        String @id @default(uuid()) @db.Uuid
+  name      String @db.VarChar(500)
+  email     String @db.VarChar(255)
+  companyId String @db.Uuid
 
   // Auditoría
   isActive  Boolean  @default(true)
@@ -648,7 +652,7 @@ model ExternalUser {
   updatedAt DateTime @updatedAt
 
   // Relaciones
-  company            Company                 @relation(fields: [companyId], references: [id])
+  company            Company                  @relation(fields: [companyId], references: [id])
   taskParticipations ProjectTaskParticipant[]
 
   @@unique([companyId, email])
@@ -660,7 +664,7 @@ model ExternalUser {
 model ProjectTaskParticipant {
   id String @id @default(uuid()) @db.Uuid
 
-  taskId          String  @db.Uuid
+  taskId         String  @db.Uuid
   positionId     String? @db.Uuid
   externalUserId String? @db.Uuid
 
@@ -670,8 +674,8 @@ model ProjectTaskParticipant {
   createdAt DateTime @default(now())
 
   // Relaciones
-  task          ProjectTask   @relation(fields: [taskId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  position      Position?     @relation(fields: [positionId], references: [id])
+  task         ProjectTask   @relation(fields: [taskId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  position     Position?     @relation(fields: [positionId], references: [id])
   externalUser ExternalUser? @relation(fields: [externalUserId], references: [id])
 
   @@unique([taskId, positionId])
@@ -710,7 +714,7 @@ model ProjectTask {
   updatedAt DateTime @updatedAt
 
   // Relaciones
-  factor       ProjectFactor         @relation(fields: [projectFactorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  factor       ProjectFactor            @relation(fields: [projectFactorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   participants ProjectTaskParticipant[]
 
   @@index([projectFactorId])
@@ -1026,16 +1030,16 @@ enum MeetingParticipantRole {
 /// Define la serie de una reunión y sus reglas de recurrencia.
 /// Es la "plantilla" de la cual se generan las ocurrencias.
 model Meeting {
-  id        String  @id @default(uuid()) @db.Uuid
-  name      String  @db.VarChar(500)
-  purpose   String? @db.Text
-  location  String? @db.VarChar(500) // Puede ser un lugar físico o un enlace a una videollamada.
-  tools     String? @db.Text // Herramientas para el análisis, formato libre.
+  id       String  @id @default(uuid()) @db.Uuid
+  name     String  @db.VarChar(500)
+  purpose  String? @db.Text
+  location String? @db.VarChar(500) // Puede ser un lugar físico o un enlace a una videollamada.
+  tools    String? @db.Text // Herramientas para el análisis, formato libre.
 
   // --- Multi-empresa ---
-  companyId      String       @db.Uuid
-  company        Company      @relation(fields: [companyId], references: [id])
-  businessUnitId String?      @db.Uuid
+  companyId      String        @db.Uuid
+  company        Company       @relation(fields: [companyId], references: [id])
+  businessUnitId String?       @db.Uuid
   businessUnit   BusinessUnit? @relation(fields: [businessUnitId], references: [id])
 
   // --- Campos de Recurrencia ---
@@ -1063,6 +1067,10 @@ model Meeting {
   // Participantes de la serie.
   participants MeetingParticipant[]
 
+  // --- Acta de reunión ---
+  agenda  Json? // Array de strings: ["Punto 1", "Punto 2"]
+  minutes MeetingMinutes[]
+
   // --- Espacio para futuras integraciones ---
   // IDs para sincronización con calendarios externos.
   googleCalendarId  String? @unique
@@ -1074,11 +1082,11 @@ model Meeting {
 /// Representa una instancia específica de una reunión en una fecha y hora concretas.
 /// Esto es lo que se muestra en el calendario.
 model MeetingOccurrence {
-  id        String   @id @default(uuid()) @db.Uuid
-  meetingId String   @db.Uuid
-  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
-  startDate DateTime
-  endDate   DateTime
+  id          String   @id @default(uuid()) @db.Uuid
+  meetingId   String   @db.Uuid
+  meeting     Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  startDate   DateTime
+  endDate     DateTime
   isExecuted  Boolean  @default(false) // Marcada como 'true' cuando la reunión se ha realizado.
   isCancelled Boolean  @default(false) // Marcada como 'true' si esta ocurrencia específica se cancela.
   updatedBy   String?  @db.Uuid
@@ -1103,6 +1111,23 @@ model MeetingParticipant {
   @@unique([meetingId, userId])
 }
 
+/// Acta de reunión de desempeño. Almacena un snapshot JSON del estado estratégico.
+model MeetingMinutes {
+  id        String   @id @default(uuid()) @db.Uuid
+  meetingId String   @db.Uuid
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  version   Int      @default(1)
+  status    String   @default("DRAFT") @db.VarChar(10) // DRAFT | FINALIZED
+  data      Json
+  createdBy String   @db.Uuid
+  updatedBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([meetingId, version])
+  @@index([meetingId])
+}
+
 // ============================================================================
 // TERMS AND CONDITIONS
 // ============================================================================
@@ -1122,14 +1147,14 @@ model TermsAndConditions {
 
 /// Registro de aceptación de términos por usuario (auditoría legal).
 model TermsAcceptance {
-  id           String             @id @default(uuid()) @db.Uuid
-  userId       String             @db.Uuid
-  termsId      String             @db.Uuid
-  termsVersion String             @db.VarChar(20)
-  acceptedAt   DateTime           @default(now())
-  ipAddress    String?            @db.VarChar(45)
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  termsId      String   @db.Uuid
+  termsVersion String   @db.VarChar(20)
+  acceptedAt   DateTime @default(now())
+  ipAddress    String?  @db.VarChar(45)
 
-  user  User                @relation(fields: [userId], references: [id])
+  user  User               @relation(fields: [userId], references: [id])
   terms TermsAndConditions @relation(fields: [termsId], references: [id])
 
   @@unique([userId, termsId])

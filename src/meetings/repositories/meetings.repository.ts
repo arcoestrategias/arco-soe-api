@@ -47,7 +47,15 @@ export class MeetingsRepository {
       include: {
         participants: {
           include: {
-            user: true,
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                username: true,
+              },
+            },
           },
         },
       },
