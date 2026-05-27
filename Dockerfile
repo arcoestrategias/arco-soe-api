@@ -19,7 +19,7 @@ RUN npx prisma generate
 RUN npm run build
 
 # Compila el seed a JS para produccion (sin src/)
-RUN npx tsc prisma/seed-simple.ts --outDir prisma --esModuleInterop --resolveJsonModule --skipLibCheck --module commonjs
+RUN npx tsc prisma/seed-simple.ts --outDir . --esModuleInterop --resolveJsonModule --skipLibCheck --module commonjs
 
 # ----------------------------
 # Etapa 2: Producción
