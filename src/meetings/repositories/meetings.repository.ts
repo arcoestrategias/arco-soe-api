@@ -31,6 +31,13 @@ export class MeetingsRepository {
     });
   }
 
+  async findSiblings(parentId: string) {
+    return this.prisma.meeting.findMany({
+      where: { parentId },
+      select: { id: true, startDate: true },
+    });
+  }
+
   async findUserMeetings(
     userId: string,
     companyId: string,
@@ -39,9 +46,7 @@ export class MeetingsRepository {
       where: {
         companyId,
         participants: {
-          some: {
-            userId,
-          },
+          some: { userId },
         },
       },
       include: {

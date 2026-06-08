@@ -1,18 +1,7 @@
 import {
-  Controller,
-  Post,
-  Body,
-  UseGuards,
-  Get,
-  Query,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Delete,
-  BadRequestException,
-  NotFoundException,
-  Res,
-  HttpStatus,
+  Controller, Post, Body, UseGuards, Get, Query, Param,
+  ParseUUIDPipe, Patch, Delete, BadRequestException,
+  Res, HttpStatus,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -20,11 +9,10 @@ import { PermissionsGuard } from 'src/core/guards/permissions.guard';
 import { Permissions } from 'src/core/decorators/permissions.decorator';
 import { PERMISSIONS } from 'src/common/constants/permissions.constant';
 import { UserId } from 'src/common/decorators/user-id.decorator';
-import { CalendarQueryDto, CreateMeetingDto, UpdateMeetingDto } from './dto';
+import { CreateMeetingDto, UpdateMeetingDto } from './dto';
 import { CreateMinutesDto, UpdateMinutesDto, CreatePriorityFromMinutesDto } from './dto/minutes';
 import { MeetingsService } from './services/meetings.service';
 import { MeetingMinutesService } from './services/meeting-minutes.service';
-import { MeetingOccurrenceService } from './services/meeting-occurrence.service';
 import { SuccessMessage } from 'src/core/decorators/success-message.decorator';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -32,44 +20,56 @@ import { SuccessMessage } from 'src/core/decorators/success-message.decorator';
 export class MeetingsController {
   constructor(
     private readonly meetingsService: MeetingsService,
-    private readonly occurrenceService: MeetingOccurrenceService,
     private readonly minutesService: MeetingMinutesService,
   ) {}
 
   @Post()
   @Permissions(PERMISSIONS.MEETINGS.CREATE)
-  create(
-    @Body() createMeetingDto: CreateMeetingDto,
-    @UserId() actorId: string,
-  ) {
+  create(@Body() createMeetingDto: CreateMeetingDto, @UserId() actorId: string) {
     return this.meetingsService.create(createMeetingDto, actorId);
   }
 
-  @Get('my')
+  @Get('siblings/:parentId')
   @Permissions(PERMISSIONS.MEETINGS.READ)
-  findMyMeetings(
-    @UserId() userId: string,
-    @Query('companyId') companyId: string,
-  ) {
-    return this.meetingsService.findMyMeetings(userId, companyId);
+  async findSiblings(@Param('parentId') parentId: string) {
+    return this.meetingsService.findSiblings(parentId);
   }
 
   @Get('calendar')
   @Permissions(PERMISSIONS.MEETINGS.READ)
-  findForCalendar(
-    @Query() query: CalendarQueryDto,
+  async findForCalendar(
+    @Query('from') from: string,
+    @Query('to') to: string,
     @Query('companyId') companyId: string,
     @Query('businessUnitId') businessUnitId: string,
     @UserId() userId: string,
+    @Query('onlyMine') onlyMine?: string,
   ) {
-    const actorId = query.onlyMine ? userId : undefined;
-    return this.occurrenceService.findForCalendar(
-      query.from,
-      query.to,
-      actorId,
-      companyId,
-      businessUnitId,
-    );
+    const meetings = await this.meetingsService.findMyMeetings(userId, companyId);
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+    return meetings
+      .filter((m) => m.startDate >= fromDate && m.endDate <= toDate)
+      .map((m) => ({
+        id: m.id,
+        meetingId: m.id,
+        title: m.name,
+        start: m.startDate.toISOString(),
+        end: m.endDate.toISOString(),
+        location: m.location,
+      }));
+  }
+
+  @Get('my')
+  @Permissions(PERMISSIONS.MEETINGS.READ)
+  findMyMeetings(@UserId() userId: string, @Query('companyId') companyId: string) {
+    return this.meetingsService.findMyMeetings(userId, companyId);
+  }
+
+  @Get('company/:companyId/candidates')
+  @Permissions(PERMISSIONS.MEETINGS.READ_USERS)
+  async findCandidates(@Param('companyId') companyId: string) {
+    return this.meetingsService.findCandidates(companyId);
   }
 
   @Get(':id')
@@ -80,11 +80,7 @@ export class MeetingsController {
 
   @Patch(':id')
   @Permissions(PERMISSIONS.MEETINGS.UPDATE)
-  update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() updateMeetingDto: UpdateMeetingDto,
-    @UserId() actorId: string,
-  ) {
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() updateMeetingDto: UpdateMeetingDto, @UserId() actorId: string) {
     return this.meetingsService.update(id, updateMeetingDto, actorId);
   }
 
@@ -93,27 +89,9 @@ export class MeetingsController {
   @SuccessMessage('Reunión cancelada correctamente')
   async cancel(
     @Param('id', ParseUUIDPipe) id: string,
-    @Query('scope') scope: 'SERIES' | 'ONLY_THIS',
-    @Query('occurrenceDate') occurrenceDate: string,
     @UserId() actorId: string,
   ) {
-    if (scope === 'ONLY_THIS' && !occurrenceDate) {
-      throw new BadRequestException(
-        'Para cancelar una sola ocurrencia se requiere el parámetro occurrenceDate',
-      );
-    }
-    await this.meetingsService.remove(
-      id,
-      scope || 'SERIES',
-      occurrenceDate,
-      actorId,
-    );
-  }
-
-  @Get('company/:companyId/candidates')
-  @Permissions(PERMISSIONS.MEETINGS.READ_USERS)
-  async findCandidates(@Param('companyId') companyId: string) {
-    return this.meetingsService.findCandidates(companyId);
+    await this.meetingsService.remove(id, actorId);
   }
 
   // ---- Minutes (Actas) ----
@@ -164,17 +142,7 @@ export class MeetingsController {
     @Body() dto: CreatePriorityFromMinutesDto,
     @UserId() actorId: string,
   ) {
-    return this.minutesService.createPriority(
-      id,
-      dto,
-      actorId,
-    );
-  }
-
-  @Get(':id/priorities-today')
-  @Permissions(PERMISSIONS.MEETINGS.READ)
-  async getPrioritiesToday(@Param('id', ParseUUIDPipe) id: string) {
-    return this.minutesService.listPrioritiesToday(id);
+    return this.minutesService.createPriority(id, dto, actorId);
   }
 
   @Get(':id/participants-performance')
@@ -191,24 +159,11 @@ export class MeetingsController {
   ) {
     const latest = await this.minutesService.findLatestByMeetingId(id);
     if (!latest) {
-      throw new NotFoundException('No hay acta para esta reunión');
+      throw new BadRequestException('No hay acta para esta reunión');
     }
     const buffer = await this.minutesService.generatePdf(latest.id);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename=acta-v${latest.version}.pdf`,
-    );
+    res.setHeader('Content-Disposition', `attachment; filename=acta-v${latest.version}.pdf`);
     res.status(HttpStatus.OK).send(buffer);
-  }
-
-  @Patch('occurrences/:id/execute')
-  @Permissions(PERMISSIONS.MEETINGS.UPDATE)
-  @SuccessMessage('Reunión marcada como ejecutada')
-  async markAsExecuted(
-    @Param('id', ParseUUIDPipe) id: string,
-    @UserId() actorId: string,
-  ) {
-    await this.meetingsService.markOccurrenceAsExecuted(id, actorId);
   }
 }

@@ -13,6 +13,10 @@ export class CreateMinutesDto {
   @IsArray()
   @IsString({ each: true })
   agenda?: string[];
+
+  @IsOptional()
+  @IsUUID()
+  occurrenceId?: string;
 }
 
 export class UpdateMinutesDto {

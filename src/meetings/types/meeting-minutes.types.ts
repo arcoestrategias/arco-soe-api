@@ -17,6 +17,8 @@ export interface MinutesPrioritySnapshot {
   canceledAt?: string;
   fromAt?: string;
   createdAt?: string;
+  objectiveName?: string;
+  description?: string;
 }
 
 export interface MinutesPosition {

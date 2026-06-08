@@ -1,18 +1,8 @@
 import { Type } from 'class-transformer';
 import {
-  IsArray,
-  IsDateString,
-  IsEnum,
-  IsInt,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  ValidateNested,
-  Min,
-  Max,
-  IsUUID,
+  IsArray, IsDateString, IsNotEmpty, IsOptional, IsString,
+  ValidateNested, IsUUID,
 } from 'class-validator';
-import { MeetingFrequency } from '@prisma/client';
 import { ParticipantDto } from './participant.dto';
 
 export class CreateMeetingDto {
@@ -40,31 +30,11 @@ export class CreateMeetingDto {
   @IsOptional()
   tools?: string;
 
-  @IsEnum(MeetingFrequency)
-  frequency: MeetingFrequency;
-
   @IsDateString()
   startDate: string;
 
   @IsDateString()
   endDate: string;
-
-  @IsDateString()
-  @IsOptional()
-  seriesEndDate?: string;
-
-  @IsInt()
-  @Min(0)
-  @Max(31)
-  @IsOptional()
-  dayValue?: number;
-
-  @IsArray()
-  @IsInt({ each: true })
-  @Min(0, { each: true })
-  @Max(6, { each: true })
-  @IsOptional()
-  daysOfWeek?: number[];
 
   @IsArray()
   @ValidateNested({ each: true })
@@ -75,4 +45,8 @@ export class CreateMeetingDto {
   @IsArray()
   @IsString({ each: true })
   agenda?: string[];
+
+  @IsOptional()
+  @IsUUID()
+  parentId?: string;
 }

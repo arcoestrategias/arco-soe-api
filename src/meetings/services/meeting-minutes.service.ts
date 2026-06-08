@@ -43,9 +43,11 @@ export class MeetingMinutesService {
     };
   }
 
-  async findByMeetingId(meetingId: string): Promise<MinutesResponse[]> {
+  async findByMeetingId(meetingId: string, occurrenceId?: string): Promise<MinutesResponse[]> {
+    const where: any = { meetingId };
+    if (occurrenceId) where.occurrenceId = occurrenceId;
     const list = await this.prisma.meetingMinutes.findMany({
-      where: { meetingId },
+      where,
       orderBy: { version: 'desc' },
     });
     return list.map(this.mapMinutes);
@@ -53,9 +55,12 @@ export class MeetingMinutesService {
 
   async findLatestByMeetingId(
     meetingId: string,
+    occurrenceId?: string,
   ): Promise<MinutesResponse | null> {
+    const where: any = { meetingId };
+    if (occurrenceId) where.occurrenceId = occurrenceId;
     const raw = await this.prisma.meetingMinutes.findFirst({
-      where: { meetingId },
+      where,
       orderBy: { version: 'desc' },
     });
     return raw ? this.mapMinutes(raw) : null;
@@ -65,12 +70,15 @@ export class MeetingMinutesService {
     meetingId: string,
     actorId: string,
     agenda?: string[],
+    occurrenceId?: string,
   ): Promise<MinutesResponse> {
     const meeting = await this.prisma.meeting.findUnique({
       where: { id: meetingId },
       include: {
         participants: {
-          include: { user: { select: { id: true, firstName: true, lastName: true } } },
+          include: {
+            user: { select: { id: true, firstName: true, lastName: true } },
+          },
         },
       },
     });
@@ -116,6 +124,7 @@ export class MeetingMinutesService {
     const created = await this.prisma.meetingMinutes.create({
       data: {
         meetingId,
+        ...(occurrenceId ? { occurrenceId } : {}),
         version,
         status: 'DRAFT',
         data: data as any,
@@ -178,7 +187,15 @@ export class MeetingMinutesService {
 
   async createPriority(
     meetingId: string,
-    dto: { positionId: string; name: string; description?: string; fromAt?: string; untilAt?: string; status?: string; objectiveId?: string },
+    dto: {
+      positionId: string;
+      name: string;
+      description?: string;
+      fromAt?: string;
+      untilAt?: string;
+      status?: string;
+      objectiveId?: string;
+    },
     actorId: string,
   ): Promise<any> {
     // Verify meeting and check permissions
@@ -208,13 +225,15 @@ export class MeetingMinutesService {
 
     if (!isConvener && !hasManage) {
       throw new ForbiddenException(
-        'Solo el convocante puede crear compromisos en esta reunión.',
+        'Solo el convocante puede crear prioridades en esta reunión.',
       );
     }
 
     const now = new Date();
     const fromAt = dto.fromAt ? new Date(dto.fromAt) : now;
-    const untilAt = dto.untilAt ? new Date(dto.untilAt) : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const untilAt = dto.untilAt
+      ? new Date(dto.untilAt)
+      : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
     const priority = await this.priorityService.create(
       {
@@ -232,11 +251,16 @@ export class MeetingMinutesService {
     return {
       id: priority.id,
       name: priority.name,
+      description: priority.description,
       status: priority.status,
       fromAt: priority.fromAt?.toISOString?.() ?? fromAt.toISOString(),
       untilAt: priority.untilAt?.toISOString?.() ?? untilAt.toISOString(),
+      finishedAt: priority.finishedAt?.toISOString?.(),
       priorityId: priority.id,
-      createdAt: priority.createdAt?.toISOString?.() ?? new Date().toISOString(),
+      objectiveId: priority.objectiveId,
+      monthlyClass: priority.monthlyClass,
+      createdAt:
+        priority.createdAt?.toISOString?.() ?? new Date().toISOString(),
     };
   }
 
@@ -367,236 +391,694 @@ export class MeetingMinutesService {
 
     const meeting = raw.meeting;
     const data = raw.data as unknown as MeetingMinutesData;
+    const logoImage = await this.resolveLogoBuffer(meeting.companyId);
 
-    const logoBuffer = await this.resolveLogoBuffer(meeting.companyId);
+    // ---- Helpers ----
+    function mm(v: number) {
+      return (v / 25.4) * 72;
+    }
+    function fmtDate(s?: string | null): string {
+      if (!s) return '-';
+      const ymd = s.includes('T') ? s.slice(0, 10) : s;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return '-';
+      const [y, m, d] = ymd.split('-').map(Number);
+      return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+    }
+
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1;
+    const nextYear = currentMonth === 12 ? currentYear + 1 : currentYear;
+
+    function priorityInMonth(
+      pr: MinutesPrioritySnapshot,
+      month: number,
+      year: number,
+    ): boolean {
+      if (!pr.untilAt) return false;
+      const d = new Date(pr.untilAt);
+      return d.getMonth() + 1 === month && d.getFullYear() === year;
+    }
 
     return new Promise<Buffer>((resolve, reject) => {
       const doc = new PDFDocument({
         size: 'A4',
-        margins: { top: 60, bottom: 60, left: 50, right: 50 },
+        layout: 'landscape',
+        margins: { top: mm(14), bottom: mm(14), left: mm(12), right: mm(12) },
         bufferPages: true,
       });
+      doc.font('Helvetica');
 
       const chunks: Buffer[] = [];
       doc.on('data', (c) => chunks.push(c));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      // ---- Colors ----
-      const primary = '#0F274A';
-      const gray = '#6B7280';
-      const lightGray = '#F3F6FB';
-      const border = '#CDD6E1';
+      // ====== Paleta ======
+      const H = {
+        header: '#0F274A',
+        subheader: '#1F3866',
+        border: '#CDD6E1',
+        bgSoft: '#F3F6FB',
+        white: '#FFFFFF',
+        black: '#000000',
+        rowAlt: '#FAFBFD',
+        gray: '#6B7280',
+      };
 
-      const pageWidth =
-        doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const pageW = doc.page.width;
+      const contentW = pageW - doc.page.margins.left - doc.page.margins.right;
 
-      // ---- Header ----
-      if (logoBuffer) {
-        doc.image(logoBuffer, doc.page.margins.left, 40, {
-          width: 60,
-          height: 60,
-        });
+      const HEADER_H = mm(28);
+      const COL_L = contentW * 0.22;
+      const COL_C = contentW * 0.56;
+      const COL_R = contentW * 0.22;
+      const FOOTER_ZONE = 30;
+
+      // ====== Header skeleton (cada página) ======
+      const drawHeaderSkeleton = () => {
+        const x = doc.page.margins.left;
+        const y = doc.page.margins.top;
+        doc.save().rect(x, y, contentW, HEADER_H).fill(H.bgSoft).restore();
+        doc
+          .moveTo(x, y + HEADER_H + 2)
+          .lineTo(x + contentW, y + HEADER_H + 2)
+          .strokeColor(H.border)
+          .lineWidth(1)
+          .stroke();
+
+        const padBox = 6,
+          box = {
+            x: x + padBox,
+            y: y + padBox,
+            w: COL_L - padBox * 2,
+            h: HEADER_H - padBox * 2,
+          };
+        if (logoImage) {
+          try {
+            doc.image(logoImage, box.x, box.y, {
+              fit: [box.w, box.h],
+              align: 'center',
+              valign: 'center',
+            });
+          } catch {
+            doc.rect(box.x, box.y, box.w, box.h).strokeColor(H.border).stroke();
+            doc
+              .fontSize(8)
+              .text('—', box.x, box.y + box.h / 2 - 4, {
+                width: box.w,
+                align: 'center',
+              });
+          }
+        } else {
+          doc.rect(box.x, box.y, box.w, box.h).strokeColor(H.border).stroke();
+          doc
+            .fontSize(8)
+            .fillColor(H.black)
+            .text('—', box.x, box.y + box.h / 2 - 4, {
+              width: box.w,
+              align: 'center',
+            });
+        }
+
+        doc
+          .save()
+          .fillColor(H.header)
+          .font('Helvetica-Bold')
+          .fontSize(16)
+          .text('ACTA DE REUNIÓN', x + COL_L, y + HEADER_H / 2 - 10, {
+            width: COL_C,
+            align: 'center',
+          })
+          .restore();
+
+        const rp = 6,
+          rw = COL_R - rp * 2,
+          ry = y + rp,
+          cellH = 16;
+        for (let i = 0; i < 3; i++)
+          doc
+            .rect(x + COL_L + COL_C + rp, ry + i * cellH, rw, cellH)
+            .strokeColor(H.border)
+            .lineWidth(1)
+            .stroke();
+      };
+
+      const drawHeaderTexts = (page: number, total: number) => {
+        const x = doc.page.margins.left,
+          y = doc.page.margins.top;
+        const rp = 6,
+          rx = x + COL_L + COL_C + rp,
+          ry = y + rp,
+          rw = COL_R - rp * 2,
+          cellH = 16;
+        doc
+          .save()
+          .rect(rx + 1, ry + 1, rw - 2, cellH * 3 - 2)
+          .fill(H.white)
+          .restore();
+        doc.fontSize(9).fillColor(H.black);
+        doc
+          .font('Helvetica-Bold')
+          .text('Versión: ', rx + 4, ry + 3, { continued: true });
+        doc.font('Helvetica').text(`v${raw.version}`, { lineBreak: false });
+        doc
+          .font('Helvetica-Bold')
+          .text('Fecha: ', rx + 4, ry + 3 + cellH, { continued: true });
+        doc
+          .font('Helvetica')
+          .text(fmtDate(now.toISOString()), { lineBreak: false });
+        doc
+          .font('Helvetica-Bold')
+          .text('Página: ', rx + 4, ry + 3 + cellH * 2, { continued: true });
+        doc.font('Helvetica').text(`${page} de ${total}`, { lineBreak: false });
+      };
+
+      const drawFooter = () => {
+        const y = doc.page.height - doc.page.margins.bottom - FOOTER_ZONE + 4;
+        doc.fontSize(7).fillColor(H.gray)
+          .text('Copyright ©2025 Arco Estrategias. Todos los derechos reservados.',
+            doc.page.margins.left, y, { width: contentW, align: 'center' });
+      };
+
+      // ====== Content helpers ======
+      function drawMetadataRow(label: string, value: string, y: number) {
+        const rowH = 18;
+        doc
+          .rect(doc.page.margins.left, y, contentW, rowH)
+          .fill(H.bgSoft)
+          .strokeColor(H.border)
+          .lineWidth(1)
+          .stroke();
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(9)
+          .fillColor(H.header)
+          .text(label, doc.page.margins.left + 6, y + 4, {
+            width: contentW * 0.2,
+          });
+        doc
+          .font('Helvetica')
+          .fontSize(9)
+          .fillColor(H.black)
+          .text(value, doc.page.margins.left + contentW * 0.22, y + 4, {
+            width: contentW * 0.76,
+          });
+        return y + rowH;
       }
 
-      doc.fontSize(18).fillColor(primary).text('Acta de Reunión', {
-        align: 'center',
-      });
-      doc.moveDown(0.5);
-      doc
-        .fontSize(12)
-        .fillColor(primary)
-        .text(meeting.name, { align: 'center' });
-      doc
-        .fontSize(9)
-        .fillColor(gray)
-        .text(
-          `Versión ${raw.version} · ${raw.status === 'FINALIZED' ? 'Finalizada' : 'Borrador'}`,
-          { align: 'center' },
-        );
-      doc.moveDown(0.3);
+      function resolveMonthlyLabel(mc?: string): string | undefined {
+        const map: Record<string, string> = {
+          ABIERTAS: 'En proceso',
+          EN_PROCESO: 'En proceso',
+          ANULADAS: 'Anulada',
+          CUMPLIDAS_A_TIEMPO: 'Cumplida a tiempo',
+          CUMPLIDAS_ATRASADAS_DEL_MES: 'Cumplida tarde',
+          CUMPLIDAS_ATRASADAS_MESES_ANTERIORES: 'Cumplida tarde',
+          CUMPLIDAS_DE_OTRO_MES: 'Cumplida otro mes',
+          NO_CUMPLIDAS_ATRASADAS_DEL_MES: 'Atrasada',
+          NO_CUMPLIDAS_ATRASADAS_MESES_ANTERIORES: 'Muy atrasada',
+          NO_CUMPLIDAS_ATRASADAS: 'Atrasada',
+          NO_CUMPLIDAS_MESES_ATRAS: 'Muy atrasada',
+        };
+        if (!mc) return undefined;
+        const key = mc.toUpperCase();
+        if (map[key]) return map[key];
+        if (key.includes('CUMPLIDAS') && key.includes('ATRASADAS'))
+          return 'Cumplida tarde';
+        if (key.startsWith('NO_CUMPLIDAS')) {
+          if (
+            key.includes('MESES') ||
+            key.includes('ANTERIORES') ||
+            key.includes('ATRAS')
+          )
+            return 'Muy atrasada';
+          return 'Atrasada';
+        }
+        return undefined;
+      }
 
-      // Meeting info
-      doc.fontSize(9).fillColor(gray);
-      doc.text(
-        `Fecha: ${new Date(meeting.startDate).toLocaleDateString('es-ES', { dateStyle: 'long' })}`,
+      function resolveMonthlyStyle(
+        mc?: string,
+      ): { bg: string; fg: string } | undefined {
+        const map: Record<string, { bg: string; fg: string }> = {
+          ABIERTAS: { bg: '#fde047', fg: '#b09c31' },
+          EN_PROCESO: { bg: '#fde047', fg: '#b09c31' },
+          ANULADAS: { bg: '#d1d5db', fg: '#000000' },
+          CUMPLIDAS_A_TIEMPO: { bg: '#86efac', fg: '#16a34a' },
+          CUMPLIDAS_ATRASADAS_DEL_MES: { bg: '#16a34a', fg: '#ffffff' },
+          CUMPLIDAS_ATRASADAS_MESES_ANTERIORES: {
+            bg: '#16a34a',
+            fg: '#ffffff',
+          },
+          CUMPLIDAS_DE_OTRO_MES: { bg: '#116b31', fg: '#ffffff' },
+          NO_CUMPLIDAS_ATRASADAS_DEL_MES: { bg: '#fca5a5', fg: '#dc2626' },
+          NO_CUMPLIDAS_ATRASADAS_MESES_ANTERIORES: {
+            bg: '#dc2626',
+            fg: '#ffffff',
+          },
+          NO_CUMPLIDAS_ATRASADAS: { bg: '#fca5a5', fg: '#dc2626' },
+          NO_CUMPLIDAS_MESES_ATRAS: { bg: '#dc2626', fg: '#ffffff' },
+        };
+        if (!mc) return undefined;
+        const key = mc.toUpperCase();
+        if (map[key]) return map[key];
+        if (key.includes('CUMPLIDAS') && key.includes('ATRASADAS'))
+          return { bg: '#16a34a', fg: '#ffffff' };
+        if (key.startsWith('NO_CUMPLIDAS')) {
+          if (
+            key.includes('MESES') ||
+            key.includes('ANTERIORES') ||
+            key.includes('ATRAS')
+          )
+            return { bg: '#dc2626', fg: '#ffffff' };
+          return { bg: '#fca5a5', fg: '#dc2626' };
+        }
+        return undefined;
+      }
+
+      // ====== PRIMERA PÁGINA: dibujar contenido ======
+      drawHeaderSkeleton();
+      doc.y = doc.page.margins.top + HEADER_H + 12;
+
+      // ---- 1. Metadata ----
+      doc.y = drawMetadataRow('Reunión:', meeting.name ?? '-', doc.y);
+      doc.y = drawMetadataRow(
+        'Fecha:',
+        fmtDate(new Date(meeting.startDate).toISOString()),
+        doc.y,
       );
-      doc.text(`Lugar: ${meeting.location ?? 'No especificado'}`);
-
+      doc.y = drawMetadataRow(
+        'Lugar:',
+        meeting.location ?? 'No especificado',
+        doc.y,
+      );
+      doc.y = drawMetadataRow('Compañía:', meeting.company?.name ?? '-', doc.y);
       if (data.finalizedAt) {
-        doc.text(
-          `Finalizada: ${new Date(data.finalizedAt).toLocaleDateString('es-ES', { dateStyle: 'long' })}`,
+        doc.y = drawMetadataRow(
+          'Estado:',
+          `Finalizada · ${fmtDate(data.finalizedAt)}`,
+          doc.y,
         );
+      } else {
+        doc.y = drawMetadataRow('Estado:', `Borrador · v${raw.version}`, doc.y);
       }
-
       doc.moveDown(0.5);
 
-      // ---- Separator ----
+      const halfW = contentW * 0.48;
+      const cellPad = 6;
+
+      // Draw two-column row header
+      const headerY = doc.y;
+      const rowHeaderH = 20;
       doc
-        .moveTo(doc.page.margins.left, doc.y)
-        .lineTo(doc.page.margins.left + pageWidth, doc.y)
-        .strokeColor(border)
-        .stroke();
-      doc.moveDown(0.5);
+        .save()
+        .rect(doc.page.margins.left, headerY, halfW, rowHeaderH)
+        .fill(H.header)
+        .restore();
+      doc
+        .save()
+        .rect(
+          doc.page.margins.left + halfW + contentW * 0.04,
+          headerY,
+          halfW,
+          rowHeaderH,
+        )
+        .fill(H.header)
+        .restore();
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(9)
+        .fillColor('#fff')
+        .text('Agenda del día', doc.page.margins.left + cellPad, headerY + 4, {
+          width: halfW - cellPad * 2,
+        });
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(9)
+        .fillColor('#fff')
+        .text(
+          'Asistencia',
+          doc.page.margins.left + halfW + contentW * 0.04 + cellPad,
+          headerY + 4,
+          { width: halfW - cellPad * 2 },
+        );
+      doc.y = headerY + rowHeaderH;
 
-      // ---- 1. Agenda ----
-      doc.fontSize(12).fillColor(primary).text('1. Agenda del día');
-      doc.moveDown(0.3);
+      // Agenda items
+      const agendaStartY = doc.y;
       if (data.agenda.length === 0) {
-        doc.fontSize(9).fillColor(gray).text('Sin agenda registrada.');
+        doc
+          .font('Helvetica')
+          .fontSize(8)
+          .fillColor(H.gray)
+          .text(
+            'Sin agenda registrada.',
+            doc.page.margins.left + cellPad,
+            doc.y,
+            { width: halfW - cellPad * 2 },
+          );
       } else {
         data.agenda.forEach((item, i) => {
-          doc.fontSize(9).fillColor('#000').text(`${i + 1}. ${item}`, {
-            indent: 10,
-          });
+          doc
+            .font('Helvetica')
+            .fontSize(8)
+            .fillColor(H.black)
+            .text(`${i + 1}. ${item}`, doc.page.margins.left + cellPad, doc.y, {
+              width: halfW - cellPad * 2,
+            });
         });
       }
-      doc.moveDown(0.5);
+      const agendaEndY = doc.y;
 
-      // ---- Separator ----
+      // Attendance items (right column)
+      doc.y = agendaStartY;
+      for (const a of data.attendance) {
+        doc
+          .font('Helvetica')
+          .fontSize(8)
+          .fillColor(H.black)
+          .text(
+            `${a.present ? '✓' : '✗'} ${a.userName}`,
+            doc.page.margins.left + halfW + contentW * 0.04 + cellPad,
+            doc.y,
+            { width: halfW - cellPad * 2 },
+          );
+      }
+
+      doc.y = Math.max(agendaEndY, doc.y);
+      doc.moveDown(0.3);
+
+      // Bottom border for the two-column block
       doc
         .moveTo(doc.page.margins.left, doc.y)
-        .lineTo(doc.page.margins.left + pageWidth, doc.y)
-        .strokeColor(border)
+        .lineTo(doc.page.margins.left + contentW, doc.y)
+        .strokeColor(H.border)
+        .lineWidth(0.5)
         .stroke();
       doc.moveDown(0.5);
 
-      // ---- 2. Desempeño por posición ----
-      doc.fontSize(12).fillColor(primary).text('2. Desempeño por posición');
-      doc.moveDown(0.3);
+      const perfCols = ['ICO', 'ICP', 'Performance', 'Avance del Proyecto'];
+      const perfWidths = [
+        contentW * 0.25,
+        contentW * 0.25,
+        contentW * 0.25,
+        contentW * 0.25,
+      ];
+      const rowH = 22;
+      const footerZone = doc.page.height - FOOTER_ZONE;
+
+      function checkPageBreak(needed: number) {
+        if (doc.y + needed > footerZone) {
+          doc.addPage();
+          drawHeaderSkeleton();
+          doc.y = doc.page.margins.top + HEADER_H + 12;
+          return true;
+        }
+        return false;
+      }
+
+      function drawPerfHeader() {
+        const phy = doc.y;
+        doc
+          .save()
+          .rect(doc.page.margins.left, phy, contentW, rowH)
+          .fill(H.header)
+          .restore();
+        let px = doc.page.margins.left;
+        perfCols.forEach((text, i) => {
+          doc.rect(px, phy, perfWidths[i], rowH).stroke(H.border);
+          doc
+            .font('Helvetica-Bold')
+            .fontSize(8)
+            .fillColor('#fff')
+            .text(text, px + 4, phy + 5, {
+              width: perfWidths[i] - 8,
+              align: 'center',
+            });
+          px += perfWidths[i];
+        });
+        doc.y = phy + rowH;
+      }
+
+      function drawPriorityTable(
+        title: string,
+        filtered: MinutesPrioritySnapshot[],
+      ) {
+        const unique = Array.from(
+          new Map(filtered.map((p) => [p.id, p])).values(),
+        );
+        if (unique.length === 0) return;
+        checkPageBreak(rowH * 2 + unique.length * rowH + 20);
+        doc.x = doc.page.margins.left;
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(9)
+          .fillColor(H.subheader)
+          .text(title);
+        doc.moveDown(0.2);
+
+        const cw = {
+          n: contentW * 0.025,
+          name: contentW * 0.195,
+          objective: contentW * 0.17,
+          result: contentW * 0.165,
+          fromAt: contentW * 0.08,
+          untilAt: contentW * 0.09,
+          finishedAt: contentW * 0.09,
+          progress: contentW * 0.09,
+          notes: contentW * 0.085,
+        };
+        const colKeys = [
+          'n',
+          'name',
+          'objective',
+          'result',
+          'fromAt',
+          'untilAt',
+          'finishedAt',
+          'progress',
+          'notes',
+        ] as const;
+        const headers = [
+          'N°',
+          'Prioridad',
+          'Objetivo al que impacta',
+          'Resultado',
+          'Fecha acuerdo',
+          'Fecha compromiso',
+          'Fecha culminación',
+          'Progreso',
+          'Notas',
+        ];
+        const headerAlign = [
+          'center',
+          'left',
+          'left',
+          'left',
+          'center',
+          'center',
+          'center',
+          'center',
+          'left',
+        ] as const;
+
+        const hy = doc.y;
+        doc
+          .save()
+          .rect(doc.page.margins.left, hy, contentW, rowH)
+          .fill(H.header)
+          .restore();
+        let hx = doc.page.margins.left;
+        headers.forEach((text, i) => {
+          const w = cw[colKeys[i]];
+          doc.rect(hx, hy, w, rowH).stroke(H.border);
+          doc
+            .font('Helvetica-Bold')
+            .fontSize(7)
+            .fillColor('#fff')
+            .text(text, hx + 3, hy + 4, {
+              width: w - 6,
+              align: headerAlign[i],
+              ellipsis: true,
+            });
+          hx += w;
+        });
+        doc.y = hy + rowH;
+
+        unique.forEach((pr, idx) => {
+          const ml = resolveMonthlyLabel(pr.monthlyClass);
+          const statusLabel =
+            ml ??
+            (pr.status === 'OPE'
+              ? 'En proceso'
+              : pr.status === 'CLO'
+                ? 'Terminado'
+                : 'Anulado');
+          const style = resolveMonthlyStyle(pr.monthlyClass);
+          const ry = doc.y;
+          const rowBg = idx % 2 === 1 ? H.rowAlt : undefined;
+          if (rowBg)
+            doc.rect(doc.page.margins.left, ry, contentW, rowH).fill(rowBg);
+
+          let rx = doc.page.margins.left;
+          const cts: Record<string, string> = {
+            n: String(idx + 1),
+            name: pr.name,
+            objective: pr.objectiveName ?? '-',
+            result: pr.description ?? '-',
+            fromAt: fmtDate(pr.fromAt),
+            untilAt: fmtDate(pr.untilAt),
+            finishedAt:
+              pr.status === 'CLO' && pr.finishedAt
+                ? fmtDate(pr.finishedAt)
+                : pr.status === 'CAN' && pr.canceledAt
+                  ? fmtDate(pr.canceledAt)
+                  : '-',
+            progress: statusLabel,
+            notes: '',
+          };
+
+          colKeys.forEach((key, i) => {
+            const w = cw[key];
+            const text = cts[key];
+            if (key === 'progress') {
+              const padX = 3,
+                padY = 2;
+              const bw = w - padX * 2,
+                bh = rowH - padY * 2;
+              if (style) {
+                doc
+                  .save()
+                  .rect(rx + padX, ry + padY, bw, bh)
+                  .fill(style.bg)
+                  .restore();
+                doc
+                  .font('Helvetica-Bold')
+                  .fontSize(7)
+                  .fillColor(style.fg)
+                  .text(text, rx + padX, ry + 4, {
+                    width: bw,
+                    align: 'center',
+                    ellipsis: true,
+                  });
+              } else {
+                doc.rect(rx, ry, w, rowH).stroke(H.border);
+                doc
+                  .font('Helvetica')
+                  .fontSize(7)
+                  .fillColor('#000')
+                  .text(text, rx + 3, ry + 4, {
+                    width: w - 6,
+                    align: 'center',
+                    ellipsis: true,
+                  });
+              }
+            } else {
+              doc.rect(rx, ry, w, rowH).stroke(H.border);
+              doc
+                .font('Helvetica')
+                .fontSize(7)
+                .fillColor('#000')
+                .text(text, rx + 3, ry + 4, {
+                  width: w - 6,
+                  align: headerAlign[i],
+                  ellipsis: true,
+                });
+            }
+            rx += w;
+          });
+          doc.y = ry + rowH;
+        });
+        doc.moveDown(0.3);
+      }
 
       for (const pos of data.positions) {
-        const yBefore = doc.y;
-        doc
-          .fontSize(10)
-          .fillColor(primary)
-          .text(`${pos.positionName} — ${pos.userName}`, { indent: 10 });
+        checkPageBreak(rowH * 4 + 40);
 
-        if (pos.performance) {
-          doc.fontSize(8).fillColor(gray);
-          const line = `ICO: ${pos.performance.ico.toFixed(1)}%  |  ICP: ${pos.performance.icp.toFixed(1)}%  |  Performance: ${pos.performance.performance.toFixed(1)}%  |  Avance: ${pos.performance.avance.toFixed(1)}%`;
-          doc.text(line, { indent: 20 });
-        } else {
-          doc.fontSize(8).fillColor(gray).text('Sin datos de desempeño', {
-            indent: 20,
-          });
+        // Title per position
+        doc.x = doc.page.margins.left;
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(11)
+          .fillColor(H.header)
+          .text(
+            `Desempeño y Prioridades - ${pos.positionName} - ${pos.userName}`,
+          );
+        doc.moveDown(0.4);
+
+        // Performance header + row
+        drawPerfHeader();
+        const perfY = doc.y;
+        let px = doc.page.margins.left;
+        const perfValues = [
+          pos.performance ? `${pos.performance.ico.toFixed(1)}%` : '-',
+          pos.performance ? `${pos.performance.icp.toFixed(1)}%` : '-',
+          pos.performance ? `${pos.performance.performance.toFixed(1)}%` : '-',
+          pos.performance ? `${pos.performance.avance.toFixed(1)}%` : '-',
+        ];
+        perfValues.forEach((text, i) => {
+          doc.rect(px, perfY, perfWidths[i], rowH).stroke(H.border);
+          doc
+            .font('Helvetica')
+            .fontSize(8)
+            .fillColor(H.black)
+            .text(text, px + 4, perfY + 5, {
+              width: perfWidths[i] - 8,
+              align: 'center',
+            });
+          px += perfWidths[i];
+        });
+        doc.y = perfY + rowH;
+
+        doc.moveDown(0.5);
+
+        // Priorities per month
+        const months = [
+          {
+            label: 'Prioridades del Mes actual',
+            filter: (p: MinutesPrioritySnapshot) =>
+              priorityInMonth(p, currentMonth, currentYear),
+          },
+          {
+            label: 'Prioridades del Próximo Mes',
+            filter: (p: MinutesPrioritySnapshot) =>
+              priorityInMonth(p, nextMonth, nextYear),
+          },
+          {
+            label: 'Otras prioridades',
+            filter: (p: MinutesPrioritySnapshot) =>
+              !priorityInMonth(p, currentMonth, currentYear) &&
+              !priorityInMonth(p, nextMonth, nextYear),
+          },
+        ];
+
+        for (const m of months) {
+          const filtered = (pos.priorities ?? []).filter(m.filter);
+          drawPriorityTable(m.label, filtered);
         }
         doc.moveDown(0.3);
       }
 
-      // ---- 3. Prioridades ----
+      doc.x = doc.page.margins.left;
       doc
-        .moveTo(doc.page.margins.left, doc.y)
-        .lineTo(doc.page.margins.left + pageWidth, doc.y)
-        .strokeColor(border)
-        .stroke();
-      doc.moveDown(0.5);
-      doc.fontSize(12).fillColor(primary).text('3. Prioridades');
-      doc.moveDown(0.3);
-
-      for (const pos of data.positions) {
-        if (pos.priorities.length === 0) continue;
-        doc.fontSize(9).fillColor(primary).text(pos.positionName, { indent: 10 });
-        pos.priorities.forEach((pr) => {
-          const statusLabel =
-            pr.status === 'OPE'
-              ? 'En proceso'
-              : pr.status === 'CLO'
-                ? 'Terminado'
-                : 'Anulado';
-          doc.fontSize(8).fillColor('#000').text(`• ${pr.name} [${statusLabel}]`, {
-            indent: 20,
-          });
-        });
-      }
-
-      // ---- 4. Compromisos ----
-      doc.moveDown(0.3);
-      doc
-        .moveTo(doc.page.margins.left, doc.y)
-        .lineTo(doc.page.margins.left + pageWidth, doc.y)
-        .strokeColor(border)
-        .stroke();
-      doc.moveDown(0.5);
-      doc.fontSize(12).fillColor(primary).text('4. Compromisos');
-      doc.moveDown(0.3);
-
-      // 4. Compromisos - priorities created today
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
-      let hasCommitments = false;
-      for (const pos of data.positions) {
-        const todayPri = (pos.priorities ?? []).filter(
-          (p: any) => p.createdAt && new Date(p.createdAt) >= startOfDay,
-        );
-        if (todayPri.length === 0) continue;
-        hasCommitments = true;
-        doc
-          .fontSize(9)
-          .fillColor(primary)
-          .text(pos.positionName, { indent: 10 });
-        todayPri.forEach((c: any) => {
-          doc
-            .fontSize(8)
-            .fillColor('#000')
-            .text(`• ${c.name}${c.description ? `: ${c.description}` : ''}`, {
-              indent: 20,
-            });
-        });
-      }
-      if (!hasCommitments) {
-        doc.fontSize(9).fillColor(gray).text('Sin compromisos registrados.', { indent: 10 });
-      }
-
-      // ---- 5. Asistencia ----
-      doc.moveDown(0.3);
-      doc
-        .moveTo(doc.page.margins.left, doc.y)
-        .lineTo(doc.page.margins.left + pageWidth, doc.y)
-        .strokeColor(border)
-        .stroke();
-      doc.moveDown(0.5);
-      doc.fontSize(12).fillColor(primary).text('5. Asistencia');
-      doc.moveDown(0.3);
-
-      for (const a of data.attendance) {
-        doc
-          .fontSize(9)
-          .fillColor('#000')
-          .text(
-            `${a.present ? '✓' : '✗'} ${a.userName}`,
-            { indent: 10 },
-          );
-      }
-
-      // ---- 6. Observaciones ----
-      doc.moveDown(0.3);
-      doc
-        .moveTo(doc.page.margins.left, doc.y)
-        .lineTo(doc.page.margins.left + pageWidth, doc.y)
-        .strokeColor(border)
-        .stroke();
-      doc.moveDown(0.5);
-      doc.fontSize(12).fillColor(primary).text('6. Observaciones');
+        .font('Helvetica-Bold')
+        .fontSize(12)
+        .fillColor(H.header)
+        .text('Observaciones');
       doc.moveDown(0.3);
       doc
         .fontSize(9)
-        .fillColor('#000')
+        .fillColor(H.black)
         .text(data.observations || 'Sin observaciones.', { indent: 10 });
 
-      // ---- Footer ----
-      const totalPages = doc.bufferedPageRange().count;
-      for (let i = 0; i < totalPages; i++) {
+      // ====== Post-render: header texts + footer en cada página ======
+      const range = doc.bufferedPageRange();
+      for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
-        doc
-          .fontSize(7)
-          .fillColor(gray)
-          .text(
-            `Generado por SOE · Página ${i + 1} de ${totalPages}`,
-            doc.page.margins.left,
-            doc.page.height - 40,
-            { width: pageWidth, align: 'center' },
-          );
+        drawHeaderTexts(i - range.start + 1, range.count);
+        drawFooter();
       }
 
       doc.end();
