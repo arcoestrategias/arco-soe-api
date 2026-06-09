@@ -65,7 +65,7 @@ export class MeetingsService {
   }
 
   async findMyMeetings(userId: string, companyId: string) {
-    return this.meetingsRepo.findUserMeetings(userId, companyId);
+    return this.meetingsRepo.findUserMeetingsWithMinutes(userId, companyId);
   }
 
   async findSiblings(parentId: string) {

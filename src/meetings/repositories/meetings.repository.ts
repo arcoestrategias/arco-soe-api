@@ -67,6 +67,41 @@ export class MeetingsRepository {
     });
   }
 
+  async findUserMeetingsWithMinutes(
+    userId: string,
+    companyId: string,
+  ) {
+    return this.prisma.meeting.findMany({
+      where: {
+        companyId,
+        participants: {
+          some: { userId },
+        },
+      },
+      include: {
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                username: true,
+              },
+            },
+          },
+        },
+        minutes: {
+          orderBy: { version: 'desc' },
+          take: 1,
+          select: { id: true, version: true, status: true, createdAt: true },
+        },
+        _count: { select: { minutes: true } },
+      },
+    });
+  }
+
   async update(id: string, data: Prisma.MeetingUpdateInput): Promise<Meeting> {
     return this.prisma.meeting.update({ where: { id }, data });
   }

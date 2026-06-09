@@ -96,6 +96,12 @@ export class MeetingsController {
 
   // ---- Minutes (Actas) ----
 
+  @Get(':id/minutes/versions')
+  @Permissions(PERMISSIONS.MEETINGS.READ)
+  async getMinutesVersions(@Param('id', ParseUUIDPipe) id: string) {
+    return this.minutesService.findByMeetingId(id);
+  }
+
   @Get(':id/minutes')
   @Permissions(PERMISSIONS.MEETINGS.READ)
   async getMinutes(@Param('id', ParseUUIDPipe) id: string) {
