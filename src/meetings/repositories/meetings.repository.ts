@@ -35,8 +35,22 @@ export class MeetingsRepository {
   async findSiblings(parentId: string) {
     return this.prisma.meeting.findMany({
       where: { parentId },
-      select: { id: true, startDate: true },
+      select: {
+        id: true,
+        startDate: true,
+        endDate: true,
+        status: true,
+        _count: { select: { minutes: true } },
+      },
     });
+  }
+
+  async findParentAndSiblings(parentId: string) {
+    const [parent, siblings] = await Promise.all([
+      this.findById(parentId),
+      this.findSiblings(parentId),
+    ]);
+    return { parent, siblings };
   }
 
   async findUserMeetings(

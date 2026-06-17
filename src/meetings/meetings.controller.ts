@@ -46,8 +46,10 @@ export class MeetingsController {
     @Query('onlyMine') onlyMine?: string,
   ) {
     const meetings = await this.meetingsService.findMyMeetings(userId, companyId);
-    const fromDate = new Date(from);
-    const toDate = new Date(to);
+    const [fy, fm, fd] = from.split('-').map(Number);
+    const fromDate = new Date(fy, fm - 1, fd);
+    const [ty, tm, td] = to.split('-').map(Number);
+    const toDate = new Date(ty, tm - 1, td, 23, 59, 59, 999);
     return meetings
       .filter((m) => m.startDate >= fromDate && m.endDate <= toDate)
       .map((m) => ({
