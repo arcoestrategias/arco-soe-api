@@ -33,6 +33,8 @@ export interface MinutesAttendance {
   userId: string;
   userName: string;
   present: boolean;
+  isRequired: boolean;
+  role: string;
 }
 
 export interface MeetingMinutesData {

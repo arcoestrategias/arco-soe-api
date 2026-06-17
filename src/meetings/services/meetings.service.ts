@@ -65,6 +65,13 @@ export class MeetingsService {
   }
 
   async findMyMeetings(userId: string, companyId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { isPlatformAdmin: true },
+    });
+    if (user?.isPlatformAdmin) {
+      return this.meetingsRepo.findAllByCompanyWithMinutes(companyId);
+    }
     return this.meetingsRepo.findUserMeetingsWithMinutes(userId, companyId);
   }
 
@@ -102,6 +109,7 @@ export class MeetingsService {
       startDate,
       endDate,
       agenda: meetingData.agenda ?? [],
+      frequency: meetingData.frequency ?? 'ONCE',
       company: { connect: { id: companyId } },
       businessUnit: dto.businessUnitId
         ? { connect: { id: dto.businessUnitId } }

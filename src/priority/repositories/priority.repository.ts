@@ -28,7 +28,10 @@ export class PriorityRepository {
       createdBy: userId,
       updatedBy: userId,
     };
-    const row = await this.prisma.priority.create({ data });
+    const row = await this.prisma.priority.create({
+      data,
+      include: { objective: { select: { id: true, name: true } } },
+    });
     return new PriorityEntity(row);
   }
 

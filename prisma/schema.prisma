@@ -1041,6 +1041,7 @@ model Meeting {
   // --- Fecha y hora ---
   startDate      DateTime
   endDate        DateTime
+  frequency      String?              @db.VarChar(20)
 
   // --- Estado y Auditoría ---
   status         MeetingStatus        @default(ACTIVE)

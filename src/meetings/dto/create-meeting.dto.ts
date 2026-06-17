@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  IsArray, IsDateString, IsNotEmpty, IsOptional, IsString,
+  IsArray, IsDateString, IsIn, IsNotEmpty, IsOptional, IsString,
   ValidateNested, IsUUID,
 } from 'class-validator';
 import { ParticipantDto } from './participant.dto';
@@ -49,4 +49,8 @@ export class CreateMeetingDto {
   @IsOptional()
   @IsUUID()
   parentId?: string;
+
+  @IsOptional()
+  @IsIn(['ONCE', 'DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY'])
+  frequency?: string;
 }

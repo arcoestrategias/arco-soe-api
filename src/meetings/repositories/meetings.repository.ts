@@ -27,6 +27,7 @@ export class MeetingsRepository {
             },
           },
         },
+        _count: { select: { minutes: true, children: true } },
       },
     });
   }
@@ -45,6 +46,7 @@ export class MeetingsRepository {
     return this.prisma.meeting.findMany({
       where: {
         companyId,
+        status: 'ACTIVE',
         participants: {
           some: { userId },
         },
@@ -63,6 +65,7 @@ export class MeetingsRepository {
             },
           },
         },
+        _count: { select: { minutes: true, children: true } },
       },
     });
   }
@@ -74,6 +77,7 @@ export class MeetingsRepository {
     return this.prisma.meeting.findMany({
       where: {
         companyId,
+        status: 'ACTIVE',
         participants: {
           some: { userId },
         },
@@ -97,7 +101,34 @@ export class MeetingsRepository {
           take: 1,
           select: { id: true, version: true, status: true, createdAt: true },
         },
-        _count: { select: { minutes: true } },
+        _count: { select: { minutes: true, children: true } },
+      },
+    });
+  }
+
+  async findAllByCompanyWithMinutes(companyId: string) {
+    return this.prisma.meeting.findMany({
+      where: { companyId, status: 'ACTIVE' },
+      include: {
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                username: true,
+              },
+            },
+          },
+        },
+        minutes: {
+          orderBy: { version: 'desc' },
+          take: 1,
+          select: { id: true, version: true, status: true, createdAt: true },
+        },
+        _count: { select: { minutes: true, children: true } },
       },
     });
   }

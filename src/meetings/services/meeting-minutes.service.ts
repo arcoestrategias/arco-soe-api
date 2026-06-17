@@ -112,10 +112,14 @@ export class MeetingMinutesService {
       userId: p.userId,
       userName: `${p.user.firstName} ${p.user.lastName}`,
       present: false,
+      isRequired: p.isRequired,
+      role: p.role,
     }));
 
+    const meetingAgenda = (meeting.agenda as string[]) ?? [];
+
     const data: MeetingMinutesData = {
-      agenda: agenda ?? [],
+      agenda: agenda ?? meetingAgenda,
       positions,
       attendance,
       observations: '',
@@ -258,6 +262,7 @@ export class MeetingMinutesService {
       finishedAt: priority.finishedAt?.toISOString?.(),
       priorityId: priority.id,
       objectiveId: priority.objectiveId,
+      objectiveName: priority.objectiveName,
       monthlyClass: priority.monthlyClass,
       createdAt:
         priority.createdAt?.toISOString?.() ?? new Date().toISOString(),
@@ -760,7 +765,7 @@ export class MeetingMinutesService {
           .fontSize(8)
           .fillColor(H.black)
           .text(
-            `${a.present ? '✓' : '✗'} ${a.userName}`,
+            `${a.present ? 'Asistió:' : 'No asistió:'} ${a.userName}${a.role === 'CONVENER' ? ' (Convocante)' : ''}${a.isRequired ? ' · Obligatorio' : ''}`,
             doc.page.margins.left + halfW + contentW * 0.04 + cellPad,
             doc.y,
             { width: halfW - cellPad * 2 },
@@ -1037,6 +1042,12 @@ export class MeetingMinutesService {
         // Priorities per month
         const months = [
           {
+            label: 'Prioridades Atrasadas',
+            filter: (p: MinutesPrioritySnapshot) =>
+              !priorityInMonth(p, currentMonth, currentYear) &&
+              !priorityInMonth(p, nextMonth, nextYear),
+          },
+          {
             label: 'Prioridades del Mes actual',
             filter: (p: MinutesPrioritySnapshot) =>
               priorityInMonth(p, currentMonth, currentYear),
@@ -1045,12 +1056,6 @@ export class MeetingMinutesService {
             label: 'Prioridades del Próximo Mes',
             filter: (p: MinutesPrioritySnapshot) =>
               priorityInMonth(p, nextMonth, nextYear),
-          },
-          {
-            label: 'Otras prioridades',
-            filter: (p: MinutesPrioritySnapshot) =>
-              !priorityInMonth(p, currentMonth, currentYear) &&
-              !priorityInMonth(p, nextMonth, nextYear),
           },
         ];
 
