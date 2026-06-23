@@ -472,12 +472,14 @@ export class PriorityService {
       closedInMonth,
       canceledInMonth,
       completedInOtherMonth,
+      completedBeforeMonth,
     ] = await Promise.all([
       this.repo.listOpenPreviousMonthsFull(scope),
       this.repo.listOpenInMonthFull(scope),
       this.repo.listClosedInMonthFull(scope),
       this.repo.listCanceledInMonthFull(scope),
       this.repo.listCompletedInOtherMonthFull(scope),
+      this.repo.listCompletedBeforeMonthFull(scope),
     ]);
     return {
       openPrev,
@@ -485,6 +487,7 @@ export class PriorityService {
       closedInMonth,
       canceledInMonth,
       completedInOtherMonth,
+      completedBeforeMonth,
     };
   }
 
@@ -499,6 +502,7 @@ export class PriorityService {
       closedInMonth: PriorityEntity[];
       canceledInMonth: PriorityEntity[];
       completedInOtherMonth: PriorityEntity[];
+      completedBeforeMonth: PriorityEntity[];
     },
   ): {
     items: ResponsePriorityDto[];
@@ -540,7 +544,8 @@ export class PriorityService {
       } else if (limBeforeThisMonth) {
         completedPreviousMonths.push(r);
       } else if (limAfterThisMonth) {
-        completedEarly++; // no entra a ICP ni a items del período
+        completedOnTime.push(r);
+        completedEarly++;
       }
     }
 
@@ -602,6 +607,9 @@ export class PriorityService {
       ...completedPreviousMonths.map((e) =>
         tag(e, 'CUMPLIDAS_ATRASADAS_MESES_ANTERIORES', '100%'),
       ),
+      ...ds.completedBeforeMonth.map((e) =>
+        tag(e, 'CUMPLIDAS_A_TIEMPO', '100%'),
+      ),
       ...ds.completedInOtherMonth.map((e) =>
         tag(e, 'CUMPLIDAS_DE_OTRO_MES', '100%'),
       ),
@@ -616,7 +624,7 @@ export class PriorityService {
       inProgress: inProgress.length,
       completedPreviousMonths: completedPreviousMonths.length,
       completedLate: completedLate.length,
-      completedOnTime: completedOnTime.length,
+      completedOnTime: completedOnTime.length + ds.completedBeforeMonth.length,
       completedInOtherMonth: ds.completedInOtherMonth.length,
       canceled: ds.canceledInMonth.length,
       completedEarly, // solo informativo

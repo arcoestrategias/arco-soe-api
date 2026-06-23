@@ -214,6 +214,29 @@ export class PriorityRepository {
     return rows.map((r) => new PriorityEntity(r));
   }
 
+  /** CLO planificadas en el mes (untilAt ∈ M) pero cerradas ANTES del mes (finishedAt < start(M)) */
+  async listCompletedBeforeMonthFull(q: {
+    month: number;
+    year: number;
+    positionId?: string;
+    objectiveId?: string;
+  }) {
+    const { start, end } = this.monthRange(q.year, q.month);
+    const rows = await this.prisma.priority.findMany({
+      where: {
+        isActive: true,
+        status: 'CLO',
+        untilAt: { gte: start, lte: end },
+        finishedAt: { lt: start },
+        ...(q.positionId ? { positionId: q.positionId } : {}),
+        ...(q.objectiveId ? { objectiveId: q.objectiveId } : {}),
+      },
+      include: { objective: { select: { id: true, name: true } } },
+      orderBy: [{ untilAt: 'asc' }, { order: 'asc' }, { createdAt: 'asc' }],
+    });
+    return rows.map((r) => new PriorityEntity(r));
+  }
+
   // ============================================================
   // ======  MÉTODOS "SELECT/COUNT" (compatibilidad/ICP)  =======
   // ============================================================
