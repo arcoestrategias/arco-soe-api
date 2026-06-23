@@ -53,4 +53,8 @@ export class CreateMeetingDto {
   @IsOptional()
   @IsIn(['ONCE', 'DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY'])
   frequency?: string;
+
+  @IsOptional()
+  @IsDateString()
+  repeatUntil?: string;
 }

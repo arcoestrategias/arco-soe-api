@@ -34,9 +34,10 @@ export class MeetingsRepository {
 
   async findSiblings(parentId: string) {
     return this.prisma.meeting.findMany({
-      where: { parentId },
+      where: { parentId, status: 'ACTIVE' },
       select: {
         id: true,
+        name: true,
         startDate: true,
         endDate: true,
         status: true,

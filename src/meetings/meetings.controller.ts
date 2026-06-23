@@ -1,7 +1,7 @@
 import {
   Controller, Post, Body, UseGuards, Get, Query, Param,
   ParseUUIDPipe, Patch, Delete, BadRequestException,
-  Res, HttpStatus,
+  Res, HttpStatus, ParseBoolPipe,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -92,8 +92,9 @@ export class MeetingsController {
   async cancel(
     @Param('id', ParseUUIDPipe) id: string,
     @UserId() actorId: string,
+    @Query('applyToGroup', new ParseBoolPipe({ optional: true })) applyToGroup?: boolean,
   ) {
-    await this.meetingsService.remove(id, actorId);
+    await this.meetingsService.remove(id, actorId, applyToGroup);
   }
 
   // ---- Minutes (Actas) ----

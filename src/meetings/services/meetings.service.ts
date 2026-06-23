@@ -162,7 +162,7 @@ export class MeetingsService {
       return this.handleGroupRecalculation(meeting, dto, actorId);
     }
 
-    const { participants, companyId, businessUnitId, applyToGroup, ...updateData } = dto;
+    const { participants, companyId, businessUnitId, applyToGroup, repeatUntil, ...updateData } = dto;
 
     const dataToUpdate: any = {
       ...updateData,
@@ -171,6 +171,16 @@ export class MeetingsService {
       updatedBy: actorId,
     };
 
+    const isChild = !!meeting.parentId;
+
+    let existingSiblings: any[] = [];
+    if (isChild && repeatUntil) {
+      existingSiblings = await this.meetingsRepo.findSiblings(meeting.parentId!);
+      dataToUpdate.parentId = null;
+    } else if (dto.frequency === 'ONCE') {
+      dataToUpdate.parentId = null;
+    }
+
     if (participants) {
       dataToUpdate.participants = {
         deleteMany: {},
@@ -178,10 +188,18 @@ export class MeetingsService {
       };
     }
 
-    return this.meetingsRepo.update(meetingId, dataToUpdate);
+    await this.meetingsRepo.update(meetingId, dataToUpdate);
+
+    if (isChild && repeatUntil) {
+      await this.createChildrenUntilRepeat(
+        meeting, dto, repeatUntil, actorId, existingSiblings,
+      );
+    }
+
+    return this.meetingsRepo.findById(meetingId);
   }
 
-  async remove(meetingId: string, actorId: string) {
+  async remove(meetingId: string, actorId: string, applyToGroup?: boolean) {
     const meeting = await this.meetingsRepo.findById(meetingId);
     if (!meeting) throw new NotFoundException('Reunión no encontrada');
 
@@ -202,10 +220,51 @@ export class MeetingsService {
       );
     }
 
+    if (applyToGroup) {
+      return this.handleGroupCancellation(meeting, actorId);
+    }
+
+    const minutesCount = (meeting as any)._count?.minutes ?? 0;
+    if (minutesCount > 0) {
+      throw new BadRequestException(
+        'No se puede eliminar una reunión que tiene actas.',
+      );
+    }
+
     await this.meetingsRepo.prisma.meeting.update({
       where: { id: meetingId },
       data: { status: MeetingStatus.CANCELLED, updatedBy: actorId },
     });
+  }
+
+  private async handleGroupCancellation(meeting: any, actorId: string) {
+    const parentId = (meeting.parentId ?? meeting.id) as string;
+    const { siblings } = await this.meetingsRepo.findParentAndSiblings(parentId);
+    const meetingStart = new Date(meeting.startDate);
+
+    // Cancel future siblings without minutes
+    for (const child of siblings) {
+      const childStart = new Date(child.startDate);
+      const hasMinutes = ((child as any)._count?.minutes ?? 0) > 0;
+
+      // Skip the meeting being edited (handled below), siblings before edit date, and meetings with minutes
+      if (child.id === meeting.id) continue;
+      if (childStart < meetingStart || hasMinutes) continue;
+
+      await this.meetingsRepo.update(child.id, {
+        status: MeetingStatus.CANCELLED,
+        updatedBy: actorId,
+      });
+    }
+
+    // Cancel the meeting itself (skip if it has minutes)
+    const meetingMinutes = ((meeting as any)._count?.minutes ?? 0);
+    if (meetingMinutes === 0) {
+      await this.meetingsRepo.update(meeting.id, {
+        status: MeetingStatus.CANCELLED,
+        updatedBy: actorId,
+      });
+    }
   }
 
   // ---- Helper methods ----
@@ -216,6 +275,11 @@ export class MeetingsService {
       a.getMonth() === b.getMonth() &&
       a.getDate() === b.getDate()
     );
+  }
+
+  private parseLocalDate(dateStr: string): Date {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d);
   }
 
   private applyTimeToDate(date: Date, timeSource: Date): Date {
@@ -259,11 +323,12 @@ export class MeetingsService {
           return dates;
       }
 
-      // Truncate time for comparison
       const truncated = new Date(current);
       truncated.setHours(0, 0, 0, 0);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
+      const end = new Date(
+        endDate.getFullYear(), endDate.getMonth(), endDate.getDate(),
+        23, 59, 59, 999,
+      );
 
       if (truncated > end) break;
       dates.push(new Date(current));
@@ -283,11 +348,16 @@ export class MeetingsService {
       throw new NotFoundException('Reunión padre no encontrada.');
     }
 
-    // Determine range end = max startDate among all group meetings
-    const allMeetings = [parent as any, ...siblings];
-    const maxDate = new Date(
-      Math.max(...allMeetings.map((m: any) => new Date(m.startDate).getTime())),
-    );
+    // Determine range end = repeatUntil from DTO, or max startDate among siblings
+    const rangeEnd = dto.repeatUntil
+      ? this.parseLocalDate(dto.repeatUntil)
+      : new Date(
+          Math.max(
+            ...([parent as any, ...siblings] as any[]).map((m: any) =>
+              new Date(m.startDate).getTime(),
+            ),
+          ),
+        );
 
     const now = new Date();
     const newFrequency = dto.frequency;
@@ -299,27 +369,45 @@ export class MeetingsService {
 
     if (frequencyChanged) {
       // ---- RECALCULATE CHILDREN WITH NEW FREQUENCY ----
+      const meetingStart = new Date(meeting.startDate);
+      const isChildEdit = !!meeting.parentId;
+
       const expectedDates = this.generateExpectedDates(
-        new Date(parent.startDate),
+        meetingStart,
         newFrequency!,
-        maxDate,
+        rangeEnd,
       );
+
+      const isOnce = newFrequency === 'ONCE';
 
       // Process existing siblings
       for (const child of siblings) {
         const childStart = new Date(child.startDate);
-        const hasMinutes = (child as any)._count?.minutes > 0;
+        const hasMinutes = ((child as any)._count?.minutes ?? 0) > 0;
 
-        // Skip past meetings or meetings with minutes
-        if (childStart < now || hasMinutes) continue;
+        // Always skip the meeting being edited (handled separately at end)
+        if (child.id === meeting.id) continue;
+
+        // Skip siblings before the edit date and meetings with minutes
+        if (childStart < meetingStart || hasMinutes) continue;
+
+        if (isOnce) {
+          // ONCE: cancel all future siblings (no recurring series anymore)
+          await this.meetingsRepo.update(child.id, {
+            status: MeetingStatus.CANCELLED,
+            updatedBy: actorId,
+          });
+          continue;
+        }
 
         const matchingDate = expectedDates.find((ed) =>
           this.isSameDay(ed, childStart),
         );
 
         if (matchingDate) {
-          // Keep this meeting, update fields
-          const updatePayload: any = {};
+          // Keep this meeting, update fields and reparent to new parent
+          const updatePayload: any = { frequency: newFrequency };
+          if (isChildEdit) updatePayload.parentId = meeting.id;
           if (dto.name) updatePayload.name = dto.name;
           if (dto.purpose !== undefined) updatePayload.purpose = dto.purpose;
           if (dto.location !== undefined) updatePayload.location = dto.location;
@@ -348,60 +436,63 @@ export class MeetingsService {
         }
       }
 
-      // Create new children for expected dates that don't exist yet
-      for (const ed of expectedDates) {
-        // Skip parent's own date
-        if (this.isSameDay(ed, new Date(parent.startDate))) continue;
+      // Create new children for expected dates that don't exist yet (skip for ONCE)
+      if (!isOnce) {
+        const newParentId = isChildEdit ? meeting.id : parent.id;
+        for (const ed of expectedDates) {
+          // Skip the meeting being edited (already exists)
+          if (this.isSameDay(ed, meetingStart)) continue;
 
-        // Check if a child (kept or existing) already occupies this date
-        const alreadyExists = siblings.some((s: any) =>
-          this.isSameDay(new Date(s.startDate), ed),
-        );
-        if (alreadyExists) continue;
+          // Check if a child (kept or existing) already occupies this date
+          const alreadyExists = siblings.some((s: any) =>
+            this.isSameDay(new Date(s.startDate), ed),
+          );
+          if (alreadyExists) continue;
 
-        // Don't create past meetings
-        if (ed < now) continue;
+          // Don't create past meetings
+          if (ed < meetingStart) continue;
 
-        const childStart = payloadStartDate
-          ? this.applyTimeToDate(ed, payloadStartDate)
-          : ed;
-        const duration = payloadStartDate && payloadEndDate
-          ? payloadEndDate.getTime() - payloadStartDate.getTime()
-          : 3600000;
-        const childEnd = new Date(childStart.getTime() + duration);
+          const childStart = payloadStartDate
+            ? this.applyTimeToDate(ed, payloadStartDate)
+            : ed;
+          const duration = payloadStartDate && payloadEndDate
+            ? payloadEndDate.getTime() - payloadStartDate.getTime()
+            : 3600000;
+          const childEnd = new Date(childStart.getTime() + duration);
 
-        const participantsToCreate = dto.participants
-          ?? (meeting as any).participants
-          ?? [];
+          const participantsToCreate = dto.participants
+            ?? (meeting as any).participants
+            ?? [];
 
-        await this.meetingsRepo.create({
-          name: dto.name ?? parent.name,
-          purpose: dto.purpose ?? parent.purpose,
-          location: dto.location ?? parent.location,
-          tools: dto.tools ?? parent.tools,
-          startDate: childStart,
-          endDate: childEnd,
-          agenda: dto.agenda ?? ((parent.agenda as any) ?? []),
-          frequency: newFrequency!,
-          company: { connect: { id: parent.companyId } },
-          businessUnit: parent.businessUnitId
-            ? { connect: { id: parent.businessUnitId } }
-            : undefined,
-          parent: { connect: { id: parent.id } },
-          creator: { connect: { id: actorId } },
-          participants: {
-            create: participantsToCreate.map((p: any) => ({
-              userId: p.userId,
-              role: p.role,
-              isRequired: p.isRequired,
-              createdBy: actorId,
-            })),
-          },
-        });
+          await this.meetingsRepo.create({
+            name: dto.name ?? parent.name,
+            purpose: dto.purpose ?? parent.purpose,
+            location: dto.location ?? parent.location,
+            tools: dto.tools ?? parent.tools,
+            startDate: childStart,
+            endDate: childEnd,
+            agenda: dto.agenda ?? ((parent.agenda as any) ?? []),
+            frequency: newFrequency!,
+            company: { connect: { id: parent.companyId } },
+            businessUnit: parent.businessUnitId
+              ? { connect: { id: parent.businessUnitId } }
+              : undefined,
+            parent: { connect: { id: newParentId } },
+            creator: { connect: { id: actorId } },
+            participants: {
+              create: participantsToCreate.map((p: any) => ({
+                userId: p.userId,
+                role: p.role,
+                isRequired: p.isRequired,
+                createdBy: actorId,
+              })),
+            },
+          });
+        }
       }
 
-      // Update parent's frequency
-      if (newFrequency) {
+      // Update parent's frequency only if editing the original parent
+      if (newFrequency && !isChildEdit) {
         await this.meetingsRepo.update(parent.id, {
           frequency: newFrequency,
           updatedBy: actorId,
@@ -409,9 +500,11 @@ export class MeetingsService {
       }
     } else {
       // ---- FREQUENCY DIDN'T CHANGE - just update time for future siblings ----
+      const meetingStart = new Date(meeting.startDate);
       for (const child of siblings) {
         const childStart = new Date(child.startDate);
-        if (childStart < now) continue;
+        if (child.id === meeting.id) continue;
+        if (childStart < meetingStart) continue;
 
         const updatePayload: any = {};
         if (dto.name) updatePayload.name = dto.name;
@@ -434,10 +527,70 @@ export class MeetingsService {
         updatePayload.updatedBy = actorId;
         await this.meetingsRepo.update(child.id, updatePayload);
       }
+
+      // Create new children if repeatUntil extends beyond existing siblings
+      if (dto.repeatUntil && newFrequency) {
+        const repeatUntilDate = this.parseLocalDate(dto.repeatUntil);
+        const maxSiblingDate = siblings.length > 0
+          ? new Date(Math.max(...siblings.map((s: any) => new Date(s.startDate).getTime())))
+          : meetingStart;
+        if (repeatUntilDate > maxSiblingDate) {
+          const expectedDates = this.generateExpectedDates(
+            meetingStart,
+            newFrequency,
+            repeatUntilDate,
+          );
+          const newParentId = meeting.parentId ? meeting.id : parent.id;
+          for (const ed of expectedDates) {
+            if (this.isSameDay(ed, meetingStart)) continue;
+            const alreadyExists = siblings.some((s: any) =>
+              this.isSameDay(new Date(s.startDate), ed),
+            );
+            if (alreadyExists) continue;
+            if (ed < meetingStart) continue;
+
+            const childStart = payloadStartDate
+              ? this.applyTimeToDate(ed, payloadStartDate)
+              : new Date(ed);
+            const duration = payloadStartDate && payloadEndDate
+              ? payloadEndDate.getTime() - payloadStartDate.getTime()
+              : 3600000;
+            const childEnd = new Date(childStart.getTime() + duration);
+
+            const participantsToCreate = dto.participants ?? (meeting as any).participants ?? [];
+
+            await this.meetingsRepo.create({
+              name: dto.name ?? parent.name,
+              purpose: dto.purpose ?? parent.purpose,
+              location: dto.location ?? parent.location,
+              tools: dto.tools ?? parent.tools,
+              startDate: childStart,
+              endDate: childEnd,
+              agenda: dto.agenda ?? ((parent.agenda as any) ?? []),
+              frequency: newFrequency,
+              company: { connect: { id: parent.companyId } },
+              businessUnit: parent.businessUnitId
+                ? { connect: { id: parent.businessUnitId } }
+                : undefined,
+              parent: { connect: { id: newParentId } },
+              creator: { connect: { id: actorId } },
+              participants: {
+                create: participantsToCreate.map((p: any) => ({
+                  userId: p.userId,
+                  role: p.role,
+                  isRequired: p.isRequired,
+                  createdBy: actorId,
+                })),
+              },
+            });
+          }
+        }
+      }
     }
 
     // Also update the current meeting's own fields
     const meetingUpdate: any = { updatedBy: actorId };
+    if (dto.frequency) meetingUpdate.frequency = dto.frequency;
     if (dto.name) meetingUpdate.name = dto.name;
     if (dto.purpose !== undefined) meetingUpdate.purpose = dto.purpose;
     if (dto.location !== undefined) meetingUpdate.location = dto.location;
@@ -453,10 +606,77 @@ export class MeetingsService {
       meetingUpdate.startDate = payloadStartDate;
       meetingUpdate.endDate = payloadEndDate;
     }
+    // If editing a child with frequency change, detach from parent series
+    if (newFrequency && meeting.parentId && frequencyChanged) {
+      meetingUpdate.parentId = null;
+    }
     if (Object.keys(meetingUpdate).length > 1) {
       await this.meetingsRepo.update(meeting.id, meetingUpdate);
     }
 
     return this.meetingsRepo.findById(meeting.id);
+  }
+
+  private async createChildrenUntilRepeat(
+    meeting: any,
+    dto: UpdateMeetingDto,
+    repeatUntil: string,
+    actorId: string,
+    existingSiblings: any[],
+  ) {
+    const meetingStart = new Date(meeting.startDate);
+    const repeatUntilDate = this.parseLocalDate(repeatUntil);
+    const frequency = dto.frequency ?? meeting.frequency ?? 'ONCE';
+    if (frequency === 'ONCE') return;
+
+    const maxSiblingDate = existingSiblings.length > 0
+      ? new Date(Math.max(...existingSiblings.map((s: any) => new Date(s.startDate).getTime())))
+      : meetingStart;
+
+    if (repeatUntilDate <= maxSiblingDate) return;
+
+    const expectedDates = this.generateExpectedDates(meetingStart, frequency, repeatUntilDate);
+    const payloadStartDate = dto.startDate ? new Date(dto.startDate) : null;
+    const payloadEndDate = dto.endDate ? new Date(dto.endDate) : null;
+
+    for (const ed of expectedDates) {
+      if (this.isSameDay(ed, meetingStart)) continue;
+      if (ed < meetingStart) continue;
+
+      const childStart = payloadStartDate
+        ? this.applyTimeToDate(ed, payloadStartDate)
+        : new Date(ed);
+      const duration = payloadStartDate && payloadEndDate
+        ? payloadEndDate.getTime() - payloadStartDate.getTime()
+        : 3600000;
+      const childEnd = new Date(childStart.getTime() + duration);
+
+      const participantsToCreate = dto.participants ?? (meeting as any).participants ?? [];
+
+      await this.meetingsRepo.create({
+        name: dto.name ?? meeting.name,
+        purpose: dto.purpose ?? meeting.purpose,
+        location: dto.location ?? meeting.location,
+        tools: dto.tools ?? meeting.tools,
+        startDate: childStart,
+        endDate: childEnd,
+        agenda: dto.agenda ?? ((meeting.agenda as any) ?? []),
+        frequency,
+        company: { connect: { id: meeting.companyId } },
+        businessUnit: meeting.businessUnitId
+          ? { connect: { id: meeting.businessUnitId } }
+          : undefined,
+        parent: { connect: { id: meeting.id } },
+        creator: { connect: { id: actorId } },
+        participants: {
+          create: participantsToCreate.map((p: any) => ({
+            userId: p.userId,
+            role: p.role,
+            isRequired: p.isRequired,
+            createdBy: actorId,
+          })),
+        },
+      });
+    }
   }
 }
