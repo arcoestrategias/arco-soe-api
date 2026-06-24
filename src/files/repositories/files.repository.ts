@@ -49,6 +49,13 @@ export class FilesRepository {
     return rows.map((r) => new FileEntity(r));
   }
 
+  async inactivateById(id: string, userId: string) {
+    await this.prisma.file.update({
+      where: { id },
+      data: { isActive: false, updatedBy: userId },
+    });
+  }
+
   async inactivateByRef(
     moduleShortcode: string | null,
     referenceId: string,

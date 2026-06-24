@@ -80,4 +80,10 @@ export class FilesService {
     if (!f) throw new NotFoundException('Archivo no encontrado');
     return f;
   }
+
+  async remove(id: string, userId: string): Promise<void> {
+    const f = await this.findById(id);
+    await this.repo.inactivateById(id, userId);
+    // Soft delete: file stays on disk, just marked inactive
+  }
 }

@@ -3,6 +3,9 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
+  Param,
+  ParseUUIDPipe,
   Query,
   UseGuards,
   UseInterceptors,
@@ -182,5 +185,16 @@ export class FilesController {
       createdAt: r.createdAt,
     }));
     return { success: true, items };
+  }
+
+  // ELIMINAR (soft delete)
+  // DELETE /files/:id
+  @Delete(':id')
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UserId() userId: string,
+  ) {
+    await this.filesService.remove(id, userId);
+    return { success: true };
   }
 }

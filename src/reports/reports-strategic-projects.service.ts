@@ -46,6 +46,13 @@ function safe(v: any, fb = '—') {
   if ((v ?? '') === '' || v == null) return fb;
   return String(v).trim();
 }
+function getTaskResponsible(task: any): string {
+  if (!task.participants?.length) return '—';
+  return task.participants
+    .map((p: any) => p.positionName ?? p.userName ?? p.externalUserName ?? '')
+    .filter(Boolean)
+    .join(', ');
+}
 
 // ========= Helpers (logo) =========
 async function resolveLogoBuffer(
@@ -696,6 +703,8 @@ export class ReportsStrategicProjectsService {
       const bottomSafe = () =>
         doc.page.height - doc.page.margins.bottom - FOOTER_ZONE;
 
+      let totalFactorPctSum = 0;
+
       // Recorremos factores y sus tareas
       for (let i = 0; i < factors.length; i++) {
         const f = factors[i];
@@ -808,7 +817,7 @@ export class ReportsStrategicProjectsService {
           const ini = fmtDate(parseISO(t.fromAt));
           const fin = fmtDate(parseISO(t.untilAt));
           const ent = safe(t.result);
-          const resp = '—';
+          const resp = getTaskResponsible(t);
           const met = safe(t.methodology);
           const apo = safe(t.props);
           const inv = safe(t.budget);
@@ -926,95 +935,46 @@ export class ReportsStrategicProjectsService {
           tY2 += rowH;
         }
 
-        // Subtotal de factor al final (12 cols texto, 1 col valor)
-        const subtotalH = 20;
-        if (tY2 + subtotalH > bottomSafe()) {
-          doc.addPage({
-            size: 'A4',
-            layout: 'landscape',
-            margins: {
-              top: mm(14),
-              bottom: mm(14),
-              left: mm(12),
-              right: mm(12),
-            },
-          });
-          this.drawHeaderSkeleton(doc, contentW, logoImage);
-          moveBelowHeader();
-          tY2 = doc.y;
-          // reimprimir header
-          doc
-            .save()
-            .rect(tX2, tY2, contentW, headH2)
-            .fill(HEX.header)
-            .restore();
-          let rcx = tX2;
-          for (const col of columns) {
-            this.drawCenteredText(doc, col.title, rcx, tY2, col.w, headH2, {
-              bold: true,
-              color: HEX.white,
-              size: 7,
-              align: col.align,
-            });
-            rcx += col.w;
-          }
-          doc.rect(tX2, tY2, contentW, headH2).strokeColor(HEX.border).stroke();
-          tY2 += headH2;
-        }
-
-        const spanLeftW2 = columns
-          .slice(0, 12)
-          .reduce((acc, c) => acc + c.w, 0);
-        const spanRightW2 = contentW - spanLeftW2;
-
-        doc
-          .save()
-          .rect(tX2, tY2, spanLeftW2, subtotalH)
-          .fill(HEX.bgSoft)
-          .restore();
-        doc
-          .save()
-          .rect(tX2 + spanLeftW2, tY2, spanRightW2, subtotalH)
-          .fill(HEX.bgSoft)
-          .restore();
-        doc
-          .rect(tX2, tY2, contentW, subtotalH)
-          .strokeColor(HEX.border)
-          .stroke();
-        doc
-          .moveTo(tX2 + spanLeftW2, tY2)
-          .lineTo(tX2 + spanLeftW2, tY2 + subtotalH)
-          .strokeColor(HEX.border)
-          .stroke();
-
-        this.drawCenteredText(
-          doc,
-          '% Cumplimiento',
-          tX2 + 8,
-          tY2,
-          spanLeftW2 - 16,
-          subtotalH,
-          {
-            bold: true,
-            size: 9,
-            align: 'right',
-          },
-        );
-        this.drawCenteredText(
-          doc,
-          `${factorProgress}%`,
-          tX2 + spanLeftW2,
-          tY2,
-          spanRightW2,
-          subtotalH,
-          {
-            bold: true,
-            size: 9,
-            align: 'center',
-          },
-        );
-        tY2 += subtotalH;
+        totalFactorPctSum += factorProgress;
       }
+
+      // Fila de Avance total del proyecto (promedio de factores)
+      const totalPct = factors.length > 0
+        ? Number((totalFactorPctSum / factors.length).toFixed(2))
+        : 0;
+      const totalRowH = 22;
+      if (tY2 + totalRowH > bottomSafe()) {
+        doc.addPage({
+          size: 'A4', layout: 'landscape',
+          margins: { top: mm(14), bottom: mm(14), left: mm(12), right: mm(12) },
+        });
+        this.drawHeaderSkeleton(doc, contentW, logoImage);
+        moveBelowHeader();
+        tY2 = doc.y;
+        doc.save().rect(tX2, tY2, contentW, headH2).fill(HEX.header).restore();
+        let rcx = tX2;
+        for (const col of columns) {
+          this.drawCenteredText(doc, col.title, rcx, tY2, col.w, headH2, {
+            bold: true, color: HEX.white, size: 7, align: col.align,
+          });
+          rcx += col.w;
+        }
+        doc.rect(tX2, tY2, contentW, headH2).strokeColor(HEX.border).stroke();
+        tY2 += headH2;
+      }
+      const finalLeftW = columns.slice(0, 12).reduce((a, c) => a + c.w, 0);
+      const finalRightW = contentW - finalLeftW;
+      doc.save().rect(tX2, tY2, finalLeftW, totalRowH).fill(HEX.subheader).restore();
+      doc.save().rect(tX2 + finalLeftW, tY2, finalRightW, totalRowH).fill(HEX.subheader).restore();
+      doc.rect(tX2, tY2, contentW, totalRowH).strokeColor(HEX.border).stroke();
+      doc.moveTo(tX2 + finalLeftW, tY2).lineTo(tX2 + finalLeftW, tY2 + totalRowH).strokeColor(HEX.border).stroke();
+      this.drawCenteredText(doc, 'Avance total del proyecto', tX2 + 8, tY2, finalLeftW - 16, totalRowH, {
+        bold: true, size: 10, color: HEX.white, align: 'right',
+      });
+      this.drawCenteredText(doc, `${totalPct}%`, tX2 + finalLeftW, tY2, finalRightW, totalRowH, {
+        bold: true, size: 10, color: HEX.white, align: 'center',
+      });
+      tY2 += totalRowH;
 
       // === Firmas ===
       const drawSignatureRow = () => {

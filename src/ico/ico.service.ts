@@ -748,9 +748,11 @@ export class IcoService {
       const averageIco =
         measuredCount > 0 ? Number((sumIco / measuredCount).toFixed(2)) : 0;
 
+      const isFuture = ymIndex(year, month) > ymIndex(curY, curM);
+
       let lightNumeric: number | null = null;
       let lightColorHex = GRAY;
-      if (measuredCount > 0) {
+      if (measuredCount > 0 && !isFuture) {
         lightNumeric = getLightNumericByIco(averageIco);
         lightColorHex = SEMAPHORE_COLOR_BY_NUM[lightNumeric];
       }
