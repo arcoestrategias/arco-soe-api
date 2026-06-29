@@ -164,7 +164,7 @@ export class ObjectiveGoalRepository {
     }
   }
 
-  async updateMeasurementCount(id: string, count: number, userId: string) {
+  async updateMeasurementCount(id: string, count: number | null, userId: string) {
     try {
       return await this.prisma.objectiveGoal.update({
         where: { id },
@@ -288,6 +288,16 @@ export class ObjectiveGoalRepository {
     });
 
     return count; // cantidad realmente insertada
+  }
+
+  async findActiveByObjective(objectiveId: string) {
+    try {
+      return await this.prisma.objectiveGoal.findMany({
+        where: { objectiveId, isActive: true },
+      });
+    } catch (e) {
+      handleDatabaseErrors(e);
+    }
   }
 
   async findActiveMonthYearList(

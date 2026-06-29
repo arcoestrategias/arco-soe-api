@@ -423,6 +423,24 @@ export class ObjectiveService {
       monthsCount = normalizedMonths.length; // procesados en esta sync
     }
 
+    // ========== 4.5) Aplicar measurementMonths (qué meses tienen mediciones internas) ==========
+    const measMonths = (dto as any).measurementMonths;
+    const isEnabled = dto.indicator?.weeklyConfigEnabled === true;
+    const measCount = dto.indicator?.measurementCount ?? currentIndicator.measurementCount ?? null;
+
+    const updateMeasCountForGoal = async (goal: any) => {
+      const hasMeas = Array.isArray(measMonths) && measMonths.some((m: any) => m.month === goal.month && m.year === goal.year);
+      const count = isEnabled && hasMeas ? measCount : null;
+      if (isEnabled || count != null || goal.measurementCount !== undefined) {
+        await this.objectiveGoalRepo.updateMeasurementCount(goal.id, count, userId);
+      }
+    };
+    const allGoals = await this.objectiveGoalRepo.findActiveByObjective(dto.objectiveId);
+    for (const g of allGoals) {
+      await updateMeasCountForGoal(g);
+    }
+
+
     // ========== 5) GESTIÓN DE NOTIFICACIONES (Estrategia: Borrar y Recrear) ==========
     if (responsibleUserId && notificationScope?.companyId) {
       // 5.1) Borrar TODAS las notificaciones de metas pendientes para este objetivo.

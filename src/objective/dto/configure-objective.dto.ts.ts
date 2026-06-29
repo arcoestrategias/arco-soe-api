@@ -62,4 +62,10 @@ export class ConfigureObjectiveDto {
   @IsOptional()
   @IsBoolean()
   forceAll?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MonthYearDto)
+  measurementMonths?: MonthYearDto[];
 }
