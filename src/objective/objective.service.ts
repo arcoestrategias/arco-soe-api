@@ -17,6 +17,7 @@ import { IndicatorRepository } from 'src/indicator/repositories/indicator.reposi
 import { ObjectiveGoalRepository } from 'src/objective-goal/repositories/objective-goal.repository';
 import { ResponseObjectiveWithIndicatorDto } from './dto/response-objective-with-indicator.dto';
 import { ObjectiveGoalService } from 'src/objective-goal/objective-goal.service';
+import { ObjectiveGoalMeasurementService } from 'src/objective-goal/objective-goal-measurement.service';
 import { NotificationService } from 'src/notifications/notifications.service';
 import { UsersRepository } from 'src/users/repositories/users.repository';
 import { PERMISSIONS } from 'src/common/constants/permissions.constant';
@@ -30,6 +31,7 @@ export class ObjectiveService {
     private readonly indicatorRepo: IndicatorRepository,
     private readonly objectiveGoalRepo: ObjectiveGoalRepository,
     private readonly objectiveGoalService: ObjectiveGoalService,
+    private readonly measurementService: ObjectiveGoalMeasurementService,
     private readonly notificationService: NotificationService,
     private readonly usersRepository: UsersRepository,
   ) {}
@@ -342,6 +344,20 @@ export class ObjectiveService {
     };
 
     await this.indicatorRepo.update(indicatorId, indicatorPayload, userId);
+
+    // ========== 3.0.1) Recalcular mediciones si cambió método o cantidad ==========
+    const cmChanged = dto.indicator?.calculationMethod &&
+      dto.indicator.calculationMethod !== currentIndicator.calculationMethod;
+    const mcChanged = dto.indicator?.measurementCount != null &&
+      dto.indicator.measurementCount !== currentIndicator.measurementCount;
+    const forceAll = (dto as any).forceAll === true;
+    if (cmChanged || mcChanged || forceAll) {
+      const count = dto.indicator?.measurementCount ?? currentIndicator.measurementCount ?? null;
+      const method = dto.indicator?.calculationMethod ?? currentIndicator.calculationMethod ?? 'ACCUMULATIVE';
+      await this.measurementService.recalculateByIndicator(
+        indicatorId, method, count, userId, forceAll,
+      );
+    }
 
     // ========== 3.1) Resolver thresholds (rangos) para creaciones ==========
     const resolvedThresholds = {

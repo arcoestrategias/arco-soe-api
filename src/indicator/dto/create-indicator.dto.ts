@@ -6,6 +6,9 @@ import {
   IsUUID,
   IsBoolean,
   IsNumber,
+  IsInt,
+  Min,
+  Max,
   MaxLength,
   IsDate,
   IsIn,
@@ -84,4 +87,22 @@ export class CreateIndicatorDto {
   @Type(() => Number)
   @IsNumber()
   baseValue?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  weeklyConfigEnabled?: boolean;
+
+  @IsOptional()
+  @IsIn(['WEEKLY', 'CUSTOM'])
+  periodicity?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(2)
+  @Max(50)
+  measurementCount?: number;
+
+  @IsOptional()
+  @IsIn(['ACCUMULATIVE', 'AVERAGE', 'LAST_VALUE'])
+  calculationMethod?: string;
 }

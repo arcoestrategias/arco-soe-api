@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsBoolean,
   IsInt,
   IsNumber,
   IsOptional,
@@ -57,4 +58,8 @@ export class ConfigureObjectiveDto {
   @IsNumber()
   @Min(0)
   rangeInacceptable?: number | null;
+
+  @IsOptional()
+  @IsBoolean()
+  forceAll?: boolean;
 }

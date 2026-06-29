@@ -17,6 +17,7 @@ export class ObjectiveGoalEntity {
 
   readonly observation?: string | null;
   readonly action?: string | null;
+  readonly measurementCount?: number | null;
 
   readonly objectiveId: string;
   readonly isActive: boolean;
@@ -44,6 +45,7 @@ export class ObjectiveGoalEntity {
 
     this.observation = goal.observation;
     this.action = goal.action;
+    this.measurementCount = goal.measurementCount ?? null;
 
     this.objectiveId = goal.objectiveId;
     this.isActive = goal.isActive;

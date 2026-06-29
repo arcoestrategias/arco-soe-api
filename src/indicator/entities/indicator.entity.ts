@@ -18,6 +18,11 @@ export class IndicatorEntity {
   readonly periodStart?: Date | null;
   readonly periodEnd?: Date | null;
 
+  readonly weeklyConfigEnabled: boolean;
+  readonly periodicity: string | null;
+  readonly measurementCount: number | null;
+  readonly calculationMethod: string | null;
+
   readonly isActive: boolean;
   readonly createdBy?: string | null;
   readonly updatedBy?: string | null;
@@ -43,6 +48,11 @@ export class IndicatorEntity {
     this.baseValue = indicator.baseValue ?? 0;
     this.periodStart = indicator.periodStart;
     this.periodEnd = indicator.periodEnd;
+
+    this.weeklyConfigEnabled = indicator.weeklyConfigEnabled ?? false;
+    this.periodicity = indicator.periodicity ?? null;
+    this.measurementCount = indicator.measurementCount ?? null;
+    this.calculationMethod = indicator.calculationMethod ?? null;
 
     this.isActive = indicator.isActive;
     this.createdBy = indicator.createdBy ?? null;

@@ -164,6 +164,36 @@ export class ObjectiveGoalRepository {
     }
   }
 
+  async updateMeasurementCount(id: string, count: number, userId: string) {
+    try {
+      return await this.prisma.objectiveGoal.update({
+        where: { id },
+        data: { measurementCount: count, updatedBy: userId },
+      });
+    } catch (e) {
+      handleDatabaseErrors(e);
+    }
+  }
+
+  async findActiveByObjectiveAndMonthRange(
+    objectiveId: string, fromMonth: number, fromYear: number,
+  ) {
+    try {
+      return await this.prisma.objectiveGoal.findMany({
+        where: {
+          objectiveId,
+          isActive: true,
+          OR: [
+            { year: { gt: fromYear } },
+            { year: fromYear, month: { gte: fromMonth } },
+          ],
+        },
+      });
+    } catch (e) {
+      handleDatabaseErrors(e);
+    }
+  }
+
   async remove(id: string, userId: string): Promise<void> {
     try {
       await this.prisma.objectiveGoal.update({

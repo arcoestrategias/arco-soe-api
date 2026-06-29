@@ -457,13 +457,18 @@ model Indicator {
   isConfigured Boolean   @default(false)
   origin       String?   @default("MAN")
   tendence     String?   @default("POS")
-  frequency    String?   @default("MES")
+  frequency    String?   @default("MES") 
   measurement  String?   @default("POR")
   type         String?   @default("GES")
   reference    String?
   baseValue    Float?    @default(0)
   periodStart  DateTime?
   periodEnd    DateTime?
+
+  weeklyConfigEnabled  Boolean  @default(false)
+  periodicity          String?  // "WEEKLY" | "CUSTOM"
+  measurementCount     Int?
+  calculationMethod    String?  // "ACCUMULATIVE" | "AVERAGE" | "LAST_VALUE"
 
   // Inverso a objetivos (1 indicador puede usarse en varios)
   objectives Objective[]
@@ -498,6 +503,8 @@ model ObjectiveGoal {
   observation String? @db.Text
   action      String? @db.Text
 
+  measurementCount Int? // por-goal, null = usar el del indicator
+
   objectiveId String    @db.Uuid
   objective   Objective @relation(fields: [objectiveId], references: [id])
 
@@ -509,6 +516,32 @@ model ObjectiveGoal {
   updatedAt DateTime @updatedAt
 
   @@unique([objectiveId, month, year])
+
+  measurements ObjectiveGoalMeasurement[]
+}
+
+/// Medición interna dentro de un mes (para frecuencias con sub-períodos).
+model ObjectiveGoalMeasurement {
+  id String @id @default(uuid()) @db.Uuid
+
+  objectiveGoalId String @db.Uuid
+  objectiveGoal   ObjectiveGoal @relation(fields: [objectiveGoalId], references: [id])
+
+  index       Int       // 1, 2, 3... dentro del mes
+  result      Decimal?
+  measuredAt  DateTime  @default(now())
+  observation String?   @db.VarChar(300)
+  isIgnore    Boolean   @default(false)
+  isActive    Boolean   @default(true)
+
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([objectiveGoalId, isActive])
+  @@index([objectiveGoalId, index])
+  @@map("objective_goal_measurements")
 }
 
 /// Historial de metas (versionado soft).

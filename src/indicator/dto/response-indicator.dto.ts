@@ -17,6 +17,10 @@ export class ResponseIndicatorDto {
   periodStart: Date | null;
   periodEnd: Date | null;
   baseValue: number | null;
+  weeklyConfigEnabled: boolean;
+  periodicity: string | null;
+  measurementCount: number | null;
+  calculationMethod: string | null;
   isActive: boolean;
   createdBy: string | null;
   updatedBy: string | null;
@@ -40,6 +44,10 @@ export class ResponseIndicatorDto {
     this.periodStart = entity.periodStart ?? null;
     this.periodEnd = entity.periodEnd ?? null;
     this.baseValue = entity.baseValue ?? 0;
+    this.weeklyConfigEnabled = entity.weeklyConfigEnabled ?? false;
+    this.periodicity = entity.periodicity ?? null;
+    this.measurementCount = entity.measurementCount ?? null;
+    this.calculationMethod = entity.calculationMethod ?? null;
     this.isActive = entity.isActive;
     this.createdBy = entity.createdBy ?? null;
     this.updatedBy = entity.updatedBy ?? null;
