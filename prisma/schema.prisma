@@ -551,7 +551,6 @@ model ObjectiveGoalMeasurement {
 
   @@index([objectiveGoalId, isActive])
   @@index([objectiveGoalId, index])
-  @@map("objective_goal_measurements")
 }
 
 /// Historial de metas (versionado soft).
