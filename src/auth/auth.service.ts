@@ -47,7 +47,7 @@ export class AuthService {
     const user = await this.usersRepo.findByEmail(email);
     if (!user) {
       throw new UnauthorizedException(
-        'Usuario no encontrado. Contacte al administrador.'
+        'Usuario no encontrado. Contacte al administrador.',
       );
     }
 
@@ -59,7 +59,7 @@ export class AuthService {
     // 3. Verificar email confirmado
     if (!user.isEmailConfirmed) {
       throw new ForbiddenException(
-        'Debes confirmar tu cuenta para iniciar sesión.'
+        'Debes confirmar tu cuenta para iniciar sesión.',
       );
     }
 
@@ -96,6 +96,58 @@ export class AuthService {
     };
   }
 
+  async loginWithOutlook(outlookProfile: {
+    outlookId: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+  }): Promise<LoginResponse> {
+    const { outlookId, email } = outlookProfile;
+
+    // 1. Buscar usuario por email (debe existir - creado por admin)
+    const user = await this.usersRepo.findByEmail(email);
+    if (!user) {
+      throw new UnauthorizedException(
+        'Usuario no encontrado. Contacte al administrador.',
+      );
+    }
+
+    // 2. Si el usuario no tiene outlookId, asignarlo
+    if (!user.outlookId) {
+      await this.usersRepo.update(user.id, { outlookId } as any);
+    }
+
+    // 3. Verificar email confirmado
+    if (!user.isEmailConfirmed) {
+      throw new ForbiddenException(
+        'Debes confirmar tu cuenta para iniciar sesión.',
+      );
+    }
+
+    // 4. Verificar términos
+    const currentTerms = await this.termsService.getCurrentTerms();
+    const hasAcceptedTerms = await this.termsService.hasAcceptedCurrentTerms(
+      user.id,
+    );
+
+    const { accessToken, refreshToken } = this.generateTokens(user.id);
+
+    if (user.isPlatformAdmin) {
+      return { accessToken, refreshToken, needsTermsAcceptance: false };
+    }
+
+    if (currentTerms.id && !hasAcceptedTerms) {
+      return {
+        accessToken,
+        refreshToken,
+        needsTermsAcceptance: true,
+        terms: currentTerms,
+      };
+    }
+
+    return { accessToken, refreshToken, needsTermsAcceptance: false };
+  }
+
   async login(dto: LoginDto): Promise<LoginResponse> {
     const user = await this.usersRepo.findByEmail(dto.email);
     if (!user) throw new UnauthorizedException('Credenciales inválidas');
@@ -103,7 +155,7 @@ export class AuthService {
     // Verificar si el usuario tiene password
     if (!user.getPassword()) {
       throw new UnauthorizedException(
-        'Usuario no tiene contraseña configurada. Use el login con Google.'
+        'Usuario no tiene contraseña configurada. Use el login con Google.',
       );
     }
 

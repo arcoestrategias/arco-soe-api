@@ -3,27 +3,26 @@ import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { Response } from 'express';
 
-@Controller('auth/google')
-export class GoogleController {
+@Controller('auth/outlook')
+export class OutlookController {
   constructor(private authService: AuthService) {}
 
   @Get()
-  @UseGuards(AuthGuard('google'))
-  async googleAuth(@Req() req) {
-    // Inicia flujo OAuth - redirige a Google
+  @UseGuards(AuthGuard('microsoft'))
+  async outlookAuth(@Req() req) {
+    // Inicia flujo OAuth — redirige a Microsoft
   }
 
   @Get('callback')
-  @UseGuards(AuthGuard('google'))
-  async googleAuthRedirect(
+  @UseGuards(AuthGuard('microsoft'))
+  async outlookAuthRedirect(
     @Req() req,
     @Res({ passthrough: true }) res: Response,
   ) {
     try {
-      const result = await this.authService.loginWithGoogle(req.user);
+      const result = await this.authService.loginWithOutlook(req.user);
 
       const isProduction = process.env.NODE_ENV === 'production';
-
       const cookieOptions = {
         httpOnly: true,
         secure: isProduction,
@@ -31,9 +30,7 @@ export class GoogleController {
         maxAge: 1000 * 60 * 60 * 24,
       };
 
-      if (isProduction) {
-        cookieOptions['domain'] = '.soe.la';
-      }
+      if (isProduction) cookieOptions['domain'] = '.soe.la';
 
       res.cookie('access_token', result.accessToken, cookieOptions);
       res.cookie('refresh_token', result.refreshToken, {
@@ -52,7 +49,7 @@ export class GoogleController {
       const frontendUrl =
         process.env.PUBLIC_BASE_URL || 'http://localhost:3000';
       const message = encodeURIComponent(
-        (error as any)?.message ?? 'Error al iniciar sesión con Google',
+        (error as any)?.message ?? 'Error al iniciar sesión con Microsoft',
       );
       res
         .status(302)
