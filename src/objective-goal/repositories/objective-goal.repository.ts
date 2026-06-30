@@ -269,25 +269,57 @@ export class ObjectiveGoalRepository {
   ) {
     if (!months?.length) return 0;
 
-    const { count } = await this.prisma.objectiveGoal.createMany({
-      data: months.map((m) => ({
+    // 1) Reactivar goals inactivos existentes
+    const existingInactive = await this.prisma.objectiveGoal.findMany({
+      where: {
         objectiveId,
-        month: m.month,
-        year: m.year,
-        goalValue: goalValue ?? null,
-        baseValue: baseValue ?? goalValue ?? null,
-        rangeExceptional: opts?.rangeExceptional ?? null,
-        rangeInacceptable: opts?.rangeInacceptable ?? null,
-        realValue: null,
-
-        isActive: true,
-        createdBy: userId,
-        updatedBy: userId,
-      })),
-      skipDuplicates: true, // ← no pisa existentes
+        isActive: false,
+        OR: months.map((m) => ({ month: m.month, year: m.year })),
+      },
     });
 
-    return count; // cantidad realmente insertada
+    const inactiveKeys = new Set(existingInactive.map((g) => `${g.year}-${g.month}`));
+    let count = existingInactive.length;
+
+    for (const g of existingInactive) {
+      await this.prisma.objectiveGoal.update({
+        where: { id: g.id },
+        data: {
+          goalValue: goalValue ?? g.goalValue ?? null,
+          baseValue: baseValue ?? g.baseValue ?? goalValue ?? g.goalValue ?? null,
+          rangeExceptional: opts?.rangeExceptional ?? g.rangeExceptional ?? null,
+          rangeInacceptable: opts?.rangeInacceptable ?? g.rangeInacceptable ?? null,
+          measurementCount: g.measurementCount ?? null,
+          isActive: true,
+          updatedBy: userId,
+        },
+      });
+    }
+
+    // 2) Crear solo los meses que no existen (ni activos ni inactivos)
+    const toCreate = months.filter((m) => !inactiveKeys.has(`${m.year}-${m.month}`));
+    if (toCreate.length > 0) {
+      const { count: created } = await this.prisma.objectiveGoal.createMany({
+        data: toCreate.map((m) => ({
+          objectiveId,
+          month: m.month,
+          year: m.year,
+          goalValue: goalValue ?? null,
+          baseValue: baseValue ?? goalValue ?? null,
+          rangeExceptional: opts?.rangeExceptional ?? null,
+          rangeInacceptable: opts?.rangeInacceptable ?? null,
+          measurementCount: null,
+          realValue: null,
+          isActive: true,
+          createdBy: userId,
+          updatedBy: userId,
+        })),
+        skipDuplicates: true,
+      });
+      count += created;
+    }
+
+    return count;
   }
 
   async findActiveByObjective(objectiveId: string) {
@@ -358,8 +390,9 @@ export class ObjectiveGoalRepository {
           skipDuplicates: true,
         });
 
-        await tx.objectiveGoal.deleteMany({
-          where: { objectiveId, OR: orFilter },
+        await tx.objectiveGoal.updateMany({
+          where: { id: { in: toArchive.map((g) => g.id) } },
+          data: { isActive: false, updatedBy: userId },
         });
       }
     });
@@ -412,28 +445,72 @@ export class ObjectiveGoalRepository {
           skipDuplicates: true, // por si se reintenta
         });
 
-        // 3) Borrar todos los actuales para liberar unique (objectiveId,month,year)
-        await tx.objectiveGoal.deleteMany({ where: { objectiveId } });
+        // 3) Inactivar todos los actuales para liberar unique (objectiveId,month,year)
+        await tx.objectiveGoal.updateMany({
+          where: { objectiveId },
+          data: { isActive: false, updatedBy: userId },
+        });
       }
 
-      // 4) Crear los nuevos
+      // 4) Crear los nuevos (reactivar inactivos existentes)
       if (months?.length) {
-        await tx.objectiveGoal.createMany({
-          data: months.map((m) => ({
-            objectiveId,
-            month: m.month,
-            year: m.year,
-            goalValue: goalValue ?? null,
-            baseValue: baseValue ?? goalValue ?? null,
-            rangeExceptional: opts?.rangeExceptional ?? null,
-            rangeInacceptable: opts?.rangeInacceptable ?? null,
-            realValue: null,
-            isActive: true,
-            createdBy: userId,
-            updatedBy: userId,
-          })),
-          skipDuplicates: false, // ahora no debería haber choques
+        const existingInactive = await tx.objectiveGoal.findMany({
+          where: { objectiveId, isActive: false },
         });
+        const existingMap = new Map(
+          existingInactive.map((g) => [`${g.year}-${g.month}`, g]),
+        );
+
+        const toCreate: Array<{
+          objectiveId: string;
+          month: number;
+          year: number;
+          goalValue: number | null;
+          baseValue: number | null;
+          rangeExceptional: number | null;
+          rangeInacceptable: number | null;
+          realValue: null;
+          isActive: boolean;
+          createdBy: string;
+          updatedBy: string;
+        }> = [];
+
+        for (const m of months) {
+          const key = `${m.year}-${m.month}`;
+          const existing = existingMap.get(key);
+          if (existing) {
+            // Reactivar goal existente
+            await tx.objectiveGoal.update({
+              where: { id: existing.id },
+              data: {
+                goalValue: goalValue ?? existing.goalValue ?? null,
+                baseValue: baseValue ?? existing.baseValue ?? goalValue ?? existing.goalValue ?? null,
+          rangeExceptional: opts?.rangeExceptional ?? existing.rangeExceptional ?? null,
+          rangeInacceptable: opts?.rangeInacceptable ?? existing.rangeInacceptable ?? null,
+          isActive: true,
+          updatedBy: userId,
+        },
+      });
+    } else {
+            toCreate.push({
+              objectiveId,
+              month: m.month,
+              year: m.year,
+              goalValue: goalValue ?? null,
+              baseValue: baseValue ?? goalValue ?? null,
+              rangeExceptional: opts?.rangeExceptional ?? null,
+              rangeInacceptable: opts?.rangeInacceptable ?? null,
+              realValue: null,
+              isActive: true,
+              createdBy: userId,
+              updatedBy: userId,
+            });
+          }
+        }
+
+        if (toCreate.length > 0) {
+          await tx.objectiveGoal.createMany({ data: toCreate, skipDuplicates: false });
+        }
       }
     });
   }

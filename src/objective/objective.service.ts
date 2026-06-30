@@ -429,11 +429,19 @@ export class ObjectiveService {
     const measCount = dto.indicator?.measurementCount ?? currentIndicator.measurementCount ?? null;
 
     const updateMeasCountForGoal = async (goal: any) => {
-      const hasMeas = Array.isArray(measMonths) && measMonths.some((m: any) => m.month === goal.month && m.year === goal.year);
-      const count = isEnabled && hasMeas ? measCount : null;
-      if (isEnabled || count != null || goal.measurementCount !== undefined) {
-        await this.objectiveGoalRepo.updateMeasurementCount(goal.id, count, userId);
+      if (Array.isArray(measMonths)) {
+        // measurementMonths explícitamente enviado → sincronizar goals
+        const hasMeas = measMonths.some((m: any) => m.month === goal.month && m.year === goal.year);
+        await this.objectiveGoalRepo.updateMeasurementCount(
+          goal.id,
+          hasMeas ? measCount : null,
+          userId,
+        );
+      } else if (isEnabled) {
+        // weeklyConfigEnabled activo pero sin measurementMonths → limpiar todos
+        await this.objectiveGoalRepo.updateMeasurementCount(goal.id, null, userId);
       }
+      // Si no llegó ni measurementMonths ni weeklyConfigEnabled → no tocar
     };
     const allGoals = await this.objectiveGoalRepo.findActiveByObjective(dto.objectiveId);
     for (const g of allGoals) {
