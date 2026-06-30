@@ -346,6 +346,7 @@ export class ObjectiveService {
     await this.indicatorRepo.update(indicatorId, indicatorPayload, userId);
 
     // ========== 3.0.1) Recalcular mediciones si cambió método o cantidad ==========
+    const recalcMeasMonths = (dto as any).measurementMonths;
     const cmChanged = dto.indicator?.calculationMethod &&
       dto.indicator.calculationMethod !== currentIndicator.calculationMethod;
     const mcChanged = dto.indicator?.measurementCount != null &&
@@ -355,7 +356,7 @@ export class ObjectiveService {
       const count = dto.indicator?.measurementCount ?? currentIndicator.measurementCount ?? null;
       const method = dto.indicator?.calculationMethod ?? currentIndicator.calculationMethod ?? 'ACCUMULATIVE';
       await this.measurementService.recalculateByIndicator(
-        indicatorId, method, count, userId, forceAll,
+        indicatorId, method, count, userId, forceAll, recalcMeasMonths,
       );
     }
 

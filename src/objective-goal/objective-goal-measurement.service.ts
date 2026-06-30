@@ -164,6 +164,7 @@ export class ObjectiveGoalMeasurementService {
     measurementCount: number | null,
     userId: string,
     forceAll = false,
+    measMonths?: Array<{ month: number; year: number }>,
   ): Promise<void> {
     const whereClause: any = {
       objective: { indicatorId },
@@ -172,6 +173,13 @@ export class ObjectiveGoalMeasurementService {
     if (!forceAll) {
       // Si no es forceAll, solo actualizar goals SIN measurementCount personalizado
       whereClause.measurementCount = null;
+    }
+    if (Array.isArray(measMonths) && measMonths.length > 0) {
+      // Solo procesar los meses seleccionados en measurementMonths
+      whereClause.OR = measMonths.map((m) => ({
+        month: m.month,
+        year: m.year,
+      }));
     }
     const goals = await this.prisma.objectiveGoal.findMany({
       where: whereClause,
