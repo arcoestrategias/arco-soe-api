@@ -9,9 +9,16 @@ import { FilesModule } from 'src/files/files.module';
 import { MeetingsRepository } from './repositories/meetings.repository';
 import { PermissionValidatorService } from 'src/core/services/permission-validator.service';
 import { GoogleCalendarModule } from 'src/google-calendar/google-calendar.module';
+import { OutlookCalendarModule } from 'src/outlook-calendar/outlook-calendar.module';
 
 @Module({
-  imports: [UsersModule, PriorityModule, FilesModule, GoogleCalendarModule],
+  imports: [
+    UsersModule,
+    PriorityModule,
+    FilesModule,
+    GoogleCalendarModule,
+    OutlookCalendarModule,
+  ],
   controllers: [MeetingsController],
   providers: [
     PrismaService,

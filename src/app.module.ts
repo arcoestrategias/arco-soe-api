@@ -30,6 +30,7 @@ import { CommentsModule } from './comments/comments.module';
 import { ReportsModule } from './reports/reports.module';
 import { MeetingsModule } from './meetings/meetings.module';
 import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
+import { OutlookCalendarModule } from './outlook-calendar/outlook-calendar.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
     ReportsModule,
     MeetingsModule,
     GoogleCalendarModule,
+    OutlookCalendarModule,
   ],
   controllers: [],
 })

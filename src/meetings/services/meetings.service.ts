@@ -11,6 +11,7 @@ import { CreateMeetingDto } from '../dto/create-meeting.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PermissionValidatorService } from 'src/core/services/permission-validator.service';
 import { GoogleCalendarService } from 'src/google-calendar/google-calendar.service';
+import { OutlookCalendarService } from 'src/outlook-calendar/outlook-calendar.service';
 import { PERMISSIONS } from 'src/common/constants/permissions.constant';
 
 @Injectable()
@@ -20,6 +21,7 @@ export class MeetingsService {
     private readonly prisma: PrismaService,
     private readonly permissionValidator: PermissionValidatorService,
     private readonly googleCalendarService: GoogleCalendarService,
+    private readonly outlookCalendarService: OutlookCalendarService,
   ) {}
 
   async findCandidates(companyId: string) {
@@ -125,17 +127,14 @@ export class MeetingsService {
       },
     });
 
-    // Sincronizar con Google Calendar del creador (fire and forget)
-    this.syncToGoogleCalendar(actorId, meeting).catch(() => {});
+    this.syncToCalendars(actorId, meeting).catch(() => {});
 
     return meeting;
   }
 
   async update(meetingId: string, dto: UpdateMeetingDto, actorId: string) {
     const meeting = await this.meetingsRepo.findById(meetingId);
-    if (!meeting) {
-      throw new NotFoundException('Reunión no encontrada.');
-    }
+    if (!meeting) throw new NotFoundException('Reunión no encontrada.');
 
     if (meeting.status === MeetingStatus.CANCELLED) {
       throw new BadRequestException(
@@ -215,31 +214,45 @@ export class MeetingsService {
 
     const updatedMeeting = await this.meetingsRepo.findById(meetingId);
 
-    // Sincronizar actualización con Google Calendar
-    if ((updatedMeeting as any)?.googleCalendarId) {
-      const participantUsers = await this.prisma.user.findMany({
-        where: {
-          id: {
-            in:
-              (updatedMeeting as any).participants?.map((p: any) => p.userId) ??
-              [],
-          },
+    const participantUsers = await this.prisma.user.findMany({
+      where: {
+        id: {
+          in:
+            (updatedMeeting as any).participants?.map((p: any) => p.userId) ??
+            [],
         },
-        select: { email: true, firstName: true, lastName: true },
-      });
+      },
+      select: { email: true, firstName: true, lastName: true },
+    });
 
+    const calendarPayload = {
+      name: (updatedMeeting as any).name,
+      purpose: (updatedMeeting as any).purpose,
+      location: (updatedMeeting as any).location,
+      startDate: new Date((updatedMeeting as any).startDate),
+      endDate: new Date((updatedMeeting as any).endDate),
+      participants: participantUsers.map((u) => ({
+        email: u.email,
+        name: `${u.firstName} ${u.lastName}`,
+      })),
+    };
+
+    if ((updatedMeeting as any)?.googleCalendarId) {
       this.googleCalendarService
-        .updateEvent(actorId, (updatedMeeting as any).googleCalendarId, {
-          name: (updatedMeeting as any).name,
-          purpose: (updatedMeeting as any).purpose,
-          location: (updatedMeeting as any).location,
-          startDate: new Date((updatedMeeting as any).startDate),
-          endDate: new Date((updatedMeeting as any).endDate),
-          participants: participantUsers.map((u) => ({
-            email: u.email,
-            name: `${u.firstName} ${u.lastName}`,
-          })),
-        })
+        .updateEvent(
+          actorId,
+          (updatedMeeting as any).googleCalendarId,
+          calendarPayload,
+        )
+        .catch(() => {});
+    }
+    if ((updatedMeeting as any)?.outlookCalendarId) {
+      this.outlookCalendarService
+        .updateEvent(
+          actorId,
+          (updatedMeeting as any).outlookCalendarId,
+          calendarPayload,
+        )
         .catch(() => {});
     }
 
@@ -248,11 +261,6 @@ export class MeetingsService {
 
   async remove(meetingId: string, actorId: string, applyToGroup?: boolean) {
     const meeting = await this.meetingsRepo.findById(meetingId);
-    console.log(
-      '[GoogleCalendar] meeting.googleCalendarId:',
-      (meeting as any).googleCalendarId,
-    );
-
     if (!meeting) throw new NotFoundException('Reunión no encontrada');
 
     const isConvener = (meeting as any).participants?.some(
@@ -283,10 +291,14 @@ export class MeetingsService {
       );
     }
 
-    // Cancelar en Google Calendar si existe
     if ((meeting as any).googleCalendarId) {
       this.googleCalendarService
         .cancelEvent(actorId, (meeting as any).googleCalendarId)
+        .catch(() => {});
+    }
+    if ((meeting as any).outlookCalendarId) {
+      this.outlookCalendarService
+        .cancelEvent(actorId, (meeting as any).outlookCalendarId)
         .catch(() => {});
     }
 
@@ -296,16 +308,8 @@ export class MeetingsService {
     });
   }
 
-  // ── Google Calendar sync ───────────────────────────────────────────────────
-  private async syncToGoogleCalendar(actorId: string, meeting: any) {
-    console.log(
-      '[GoogleCalendar] syncToGoogleCalendar called for user:',
-      actorId,
-    );
-    const isConnected = await this.googleCalendarService.isConnected(actorId);
-    console.log('[GoogleCalendar] isConnected:', isConnected);
-    if (!isConnected) return;
-
+  // ── Calendar sync ─────────────────────────────────────────────────────────
+  private async syncToCalendars(actorId: string, meeting: any) {
     const participantUsers = await this.prisma.user.findMany({
       where: {
         id: { in: meeting.participants?.map((p: any) => p.userId) ?? [] },
@@ -313,18 +317,82 @@ export class MeetingsService {
       select: { email: true, firstName: true, lastName: true },
     });
 
-    await this.googleCalendarService.createEvent(actorId, {
+    const participants = participantUsers.map((u) => ({
+      email: u.email,
+      name: `${u.firstName} ${u.lastName}`,
+    }));
+
+    const payload = {
       id: meeting.id,
       name: meeting.name,
       purpose: meeting.purpose,
       location: meeting.location,
       startDate: new Date(meeting.startDate),
       endDate: new Date(meeting.endDate),
-      participants: participantUsers.map((u) => ({
-        email: u.email,
-        name: `${u.firstName} ${u.lastName}`,
-      })),
-    });
+      participants,
+    };
+
+    const googleConnected =
+      await this.googleCalendarService.isConnected(actorId);
+    if (googleConnected) {
+      await this.googleCalendarService
+        .createEvent(actorId, payload)
+        .catch(() => {});
+    }
+
+    const outlookConnected =
+      await this.outlookCalendarService.isConnected(actorId);
+    if (outlookConnected) {
+      await this.outlookCalendarService
+        .createEvent(actorId, payload)
+        .catch(() => {});
+    }
+  }
+
+  private async syncSiblingUpdate(
+    actorId: string,
+    child: any,
+    overrides: {
+      name?: string;
+      purpose?: string;
+      location?: string;
+      startDate?: Date;
+      endDate?: Date;
+    },
+    participants: { email: string; name: string }[],
+  ) {
+    const calendarPayload = {
+      name: overrides.name ?? child.name,
+      purpose: overrides.purpose ?? child.purpose,
+      location: overrides.location ?? child.location,
+      startDate: overrides.startDate ?? new Date(child.startDate),
+      endDate: overrides.endDate ?? new Date(child.endDate),
+      participants,
+    };
+
+    if (child.googleCalendarId) {
+      this.googleCalendarService
+        .updateEvent(actorId, child.googleCalendarId, calendarPayload)
+        .catch(() => {});
+    }
+    if (child.outlookCalendarId) {
+      this.outlookCalendarService
+        .updateEvent(actorId, child.outlookCalendarId, calendarPayload)
+        .catch(() => {});
+    }
+  }
+
+  private async syncSiblingCancel(actorId: string, child: any) {
+    if (child.googleCalendarId) {
+      this.googleCalendarService
+        .cancelEvent(actorId, child.googleCalendarId)
+        .catch(() => {});
+    }
+    if (child.outlookCalendarId) {
+      this.outlookCalendarService
+        .cancelEvent(actorId, child.outlookCalendarId)
+        .catch(() => {});
+    }
   }
 
   // ── Group helpers ──────────────────────────────────────────────────────────
@@ -345,6 +413,7 @@ export class MeetingsService {
         status: MeetingStatus.CANCELLED,
         updatedBy: actorId,
       });
+      await this.syncSiblingCancel(actorId, child);
     }
 
     const meetingMinutes = (meeting as any)._count?.minutes ?? 0;
@@ -353,6 +422,7 @@ export class MeetingsService {
         status: MeetingStatus.CANCELLED,
         updatedBy: actorId,
       });
+      await this.syncSiblingCancel(actorId, meeting);
     }
   }
 
@@ -437,9 +507,7 @@ export class MeetingsService {
     const parentId = (meeting.parentId ?? meeting.id) as string;
     const { parent, siblings } =
       await this.meetingsRepo.findParentAndSiblings(parentId);
-    if (!parent) {
-      throw new NotFoundException('Reunión padre no encontrada.');
-    }
+    if (!parent) throw new NotFoundException('Reunión padre no encontrada.');
 
     const rangeEnd = dto.repeatUntil
       ? this.parseLocalDate(dto.repeatUntil)
@@ -454,20 +522,34 @@ export class MeetingsService {
     const newFrequency = dto.frequency;
     const currentFrequency = meeting.frequency ?? 'ONCE';
     const frequencyChanged = newFrequency && newFrequency !== currentFrequency;
-
     const payloadStartDate = dto.startDate ? new Date(dto.startDate) : null;
     const payloadEndDate = dto.endDate ? new Date(dto.endDate) : null;
+
+    // Pre-cargar participantes para sync de calendarios
+    const participantIds =
+      dto.participants?.map((p: any) => p.userId) ??
+      (meeting as any).participants?.map((p: any) => p.userId) ??
+      [];
+    const participantUsers = await this.prisma.user
+      .findMany({
+        where: { id: { in: participantIds } },
+        select: { email: true, firstName: true, lastName: true },
+      })
+      .then((users) =>
+        users.map((u) => ({
+          email: u.email,
+          name: `${u.firstName} ${u.lastName}`,
+        })),
+      );
 
     if (frequencyChanged) {
       const meetingStart = new Date(meeting.startDate);
       const isChildEdit = !!meeting.parentId;
-
       const expectedDates = this.generateExpectedDates(
         meetingStart,
         newFrequency!,
         rangeEnd,
       );
-
       const isOnce = newFrequency === 'ONCE';
 
       for (const child of siblings) {
@@ -482,6 +564,7 @@ export class MeetingsService {
             status: MeetingStatus.CANCELLED,
             updatedBy: actorId,
           });
+          await this.syncSiblingCancel(actorId, child);
           continue;
         }
 
@@ -515,11 +598,24 @@ export class MeetingsService {
           }
           updatePayload.updatedBy = actorId;
           await this.meetingsRepo.update(child.id, updatePayload);
+          await this.syncSiblingUpdate(
+            actorId,
+            child,
+            {
+              name: updatePayload.name,
+              purpose: updatePayload.purpose,
+              location: updatePayload.location,
+              startDate: updatePayload.startDate,
+              endDate: updatePayload.endDate,
+            },
+            participantUsers,
+          );
         } else {
           await this.meetingsRepo.update(child.id, {
             status: MeetingStatus.CANCELLED,
             updatedBy: actorId,
           });
+          await this.syncSiblingCancel(actorId, child);
         }
       }
 
@@ -527,7 +623,6 @@ export class MeetingsService {
         const newParentId = isChildEdit ? meeting.id : parent.id;
         for (const ed of expectedDates) {
           if (this.isSameDay(ed, new Date(meeting.startDate))) continue;
-
           const alreadyExists = siblings.some((s: any) =>
             this.isSameDay(new Date(s.startDate), ed),
           );
@@ -542,7 +637,6 @@ export class MeetingsService {
               ? payloadEndDate.getTime() - payloadStartDate.getTime()
               : 3600000;
           const childEnd = new Date(childStart.getTime() + duration);
-
           const participantsToCreate =
             dto.participants ?? (meeting as any).participants ?? [];
 
@@ -610,6 +704,18 @@ export class MeetingsService {
         }
         updatePayload.updatedBy = actorId;
         await this.meetingsRepo.update(child.id, updatePayload);
+        await this.syncSiblingUpdate(
+          actorId,
+          child,
+          {
+            name: updatePayload.name,
+            purpose: updatePayload.purpose,
+            location: updatePayload.location,
+            startDate: updatePayload.startDate,
+            endDate: updatePayload.endDate,
+          },
+          participantUsers,
+        );
       }
 
       if (dto.repeatUntil && newFrequency) {
@@ -622,6 +728,7 @@ export class MeetingsService {
                 ),
               )
             : meetingStart;
+
         if (repeatUntilDate > maxSiblingDate) {
           const expectedDates = this.generateExpectedDates(
             meetingStart,
@@ -629,6 +736,7 @@ export class MeetingsService {
             repeatUntilDate,
           );
           const newParentId = meeting.parentId ? meeting.id : parent.id;
+
           for (const ed of expectedDates) {
             if (this.isSameDay(ed, meetingStart)) continue;
             const alreadyExists = siblings.some((s: any) =>
@@ -645,7 +753,6 @@ export class MeetingsService {
                 ? payloadEndDate.getTime() - payloadStartDate.getTime()
                 : 3600000;
             const childEnd = new Date(childStart.getTime() + duration);
-
             const participantsToCreate =
               dto.participants ?? (meeting as any).participants ?? [];
 
@@ -678,6 +785,7 @@ export class MeetingsService {
       }
     }
 
+    // Actualizar la reunión editada
     const meetingUpdate: any = { updatedBy: actorId };
     if (dto.frequency) meetingUpdate.frequency = dto.frequency;
     if (dto.name) meetingUpdate.name = dto.name;
@@ -705,7 +813,37 @@ export class MeetingsService {
       await this.meetingsRepo.update(meeting.id, meetingUpdate);
     }
 
-    return this.meetingsRepo.findById(meeting.id);
+    const updatedMeeting = await this.meetingsRepo.findById(meeting.id);
+
+    const calendarPayload = {
+      name: (updatedMeeting as any).name,
+      purpose: (updatedMeeting as any).purpose,
+      location: (updatedMeeting as any).location,
+      startDate: new Date((updatedMeeting as any).startDate),
+      endDate: new Date((updatedMeeting as any).endDate),
+      participants: participantUsers,
+    };
+
+    if ((updatedMeeting as any)?.googleCalendarId) {
+      this.googleCalendarService
+        .updateEvent(
+          actorId,
+          (updatedMeeting as any).googleCalendarId,
+          calendarPayload,
+        )
+        .catch(() => {});
+    }
+    if ((updatedMeeting as any)?.outlookCalendarId) {
+      this.outlookCalendarService
+        .updateEvent(
+          actorId,
+          (updatedMeeting as any).outlookCalendarId,
+          calendarPayload,
+        )
+        .catch(() => {});
+    }
+
+    return updatedMeeting;
   }
 
   private async createChildrenUntilRepeat(
@@ -753,7 +891,6 @@ export class MeetingsService {
           ? payloadEndDate.getTime() - payloadStartDate.getTime()
           : 3600000;
       const childEnd = new Date(childStart.getTime() + duration);
-
       const participantsToCreate =
         dto.participants ?? (meeting as any).participants ?? [];
 

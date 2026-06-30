@@ -41,6 +41,8 @@ export class MeetingsRepository {
         startDate: true,
         endDate: true,
         status: true,
+        googleCalendarId: true,
+        outlookCalendarId: true,
         _count: { select: { minutes: true } },
       },
     });
@@ -85,10 +87,7 @@ export class MeetingsRepository {
     });
   }
 
-  async findUserMeetingsWithMinutes(
-    userId: string,
-    companyId: string,
-  ) {
+  async findUserMeetingsWithMinutes(userId: string, companyId: string) {
     return this.prisma.meeting.findMany({
       where: {
         companyId,

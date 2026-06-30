@@ -241,6 +241,11 @@ model User {
   googleCalendarRefreshToken  String?   @db.Text
   googleCalendarTokenExpiresAt DateTime?
 
+  // Outlook Calendar
+  outlookCalendarAccessToken    String?   @db.Text
+  outlookCalendarRefreshToken   String?   @db.Text
+  outlookCalendarTokenExpiresAt DateTime?
+
   // Contexto multi-empresa
   userCompanies     UserCompany[]
   userBusinessUnits UserBusinessUnit[]
