@@ -213,11 +213,46 @@ export class MeetingsService {
       );
     }
 
-    return this.meetingsRepo.findById(meetingId);
+    const updatedMeeting = await this.meetingsRepo.findById(meetingId);
+
+    // Sincronizar actualización con Google Calendar
+    if ((updatedMeeting as any)?.googleCalendarId) {
+      const participantUsers = await this.prisma.user.findMany({
+        where: {
+          id: {
+            in:
+              (updatedMeeting as any).participants?.map((p: any) => p.userId) ??
+              [],
+          },
+        },
+        select: { email: true, firstName: true, lastName: true },
+      });
+
+      this.googleCalendarService
+        .updateEvent(actorId, (updatedMeeting as any).googleCalendarId, {
+          name: (updatedMeeting as any).name,
+          purpose: (updatedMeeting as any).purpose,
+          location: (updatedMeeting as any).location,
+          startDate: new Date((updatedMeeting as any).startDate),
+          endDate: new Date((updatedMeeting as any).endDate),
+          participants: participantUsers.map((u) => ({
+            email: u.email,
+            name: `${u.firstName} ${u.lastName}`,
+          })),
+        })
+        .catch(() => {});
+    }
+
+    return updatedMeeting;
   }
 
   async remove(meetingId: string, actorId: string, applyToGroup?: boolean) {
     const meeting = await this.meetingsRepo.findById(meetingId);
+    console.log(
+      '[GoogleCalendar] meeting.googleCalendarId:',
+      (meeting as any).googleCalendarId,
+    );
+
     if (!meeting) throw new NotFoundException('Reunión no encontrada');
 
     const isConvener = (meeting as any).participants?.some(

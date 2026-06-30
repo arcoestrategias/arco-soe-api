@@ -120,7 +120,9 @@ export class GoogleCalendarService {
 
       return event.data.id ?? null;
     } catch (error) {
-      this.logger.error(`[GoogleCalendar] Error creando evento: ${error.message}`);
+      this.logger.error(
+        `[GoogleCalendar] Error creando evento:  ${(error as any).message}`,
+      );
       return null;
     }
   }
@@ -136,8 +138,59 @@ export class GoogleCalendarService {
         calendarId: 'primary',
         eventId: googleCalendarId,
       });
+      console.log('[GoogleCalendar] Evento cancelado:', googleCalendarId);
     } catch (error) {
-      this.logger.error(`[GoogleCalendar] Error cancelando evento: ${error.message}`);
+      this.logger.error(
+        `[GoogleCalendar] Error cancelando evento: ${(error as any).message}`,
+      );
+      console.log('[GoogleCalendar] Error completo:', error);
+      console.log('[GoogleCalendar] Error completo:', error);
+    }
+  }
+
+  async updateEvent(
+    userId: string,
+    googleCalendarId: string,
+    meeting: {
+      name: string;
+      purpose?: string | null;
+      location?: string | null;
+      startDate: Date;
+      endDate: Date;
+      participants: { email: string; name: string }[];
+    },
+  ): Promise<void> {
+    const auth = await this.getOAuthClient(userId);
+    if (!auth) return;
+
+    try {
+      const calendar = google.calendar({ version: 'v3', auth });
+      await calendar.events.update({
+        calendarId: 'primary',
+        eventId: googleCalendarId,
+        requestBody: {
+          summary: meeting.name,
+          description: meeting.purpose ?? undefined,
+          location: meeting.location ?? undefined,
+          start: {
+            dateTime: meeting.startDate.toISOString(),
+            timeZone: 'America/Guayaquil',
+          },
+          end: {
+            dateTime: meeting.endDate.toISOString(),
+            timeZone: 'America/Guayaquil',
+          },
+          attendees: meeting.participants.map((p) => ({
+            email: p.email,
+            displayName: p.name,
+          })),
+        },
+      });
+      console.log('[GoogleCalendar] Evento actualizado:', googleCalendarId);
+    } catch (error) {
+      this.logger.error(
+        `[GoogleCalendar] Error actualizando evento: ${(error as any).message}`,
+      );
     }
   }
 
