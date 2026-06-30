@@ -15,16 +15,19 @@ export class GoogleController {
 
   @Get('callback')
   @UseGuards(AuthGuard('google'))
-  async googleAuthRedirect(@Req() req, @Res({ passthrough: true }) res: Response) {
+  async googleAuthRedirect(
+    @Req() req,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const result = await this.authService.loginWithGoogle(req.user);
 
     const isProduction = process.env.NODE_ENV === 'production';
-    
+
     // Configuración de cookies
     const cookieOptions = {
       httpOnly: true,
       secure: isProduction, // Solo HTTPS en producción
-      sameSite: isProduction ? 'none' as const : 'lax' as const,
+      sameSite: isProduction ? ('none' as const) : ('lax' as const),
       maxAge: 1000 * 60 * 60 * 24, // access_token: 1 día
     };
 
@@ -42,8 +45,8 @@ export class GoogleController {
 
     // Redirigir al frontend SIN tokens en URL
     const frontendUrl = process.env.PUBLIC_BASE_URL || 'http://localhost:3000';
-    const redirectUrl = `${frontendUrl}/login?auth=success&needsTermsAcceptance=${result.needsTermsAcceptance}`;
-    
+    const redirectUrl = `${frontendUrl}/login?auth=success&needsTermsAcceptance=${result.needsTermsAcceptance}&token=${result.accessToken}&refreshToken=${result.refreshToken}`;
+
     console.log('[Google OAuth] Redirecting to:', redirectUrl);
     res.status(302).redirect(redirectUrl);
   }

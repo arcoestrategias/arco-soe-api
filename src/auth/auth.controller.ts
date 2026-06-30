@@ -1,4 +1,5 @@
-import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Req, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { ForgotPasswordDto, LoginDto, ResetPasswordTokenDto } from './dto';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
@@ -17,7 +18,13 @@ export class AuthController {
 
   @Post('login')
   @SuccessMessage('Inicio de sesión exitoso')
-  async login(@Body() dto: LoginDto) {
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // Limpiar cookies previas de Google OAuth
+    res.clearCookie('access_token');
+    res.clearCookie('refresh_token');
     return this.authService.login(dto);
   }
 
