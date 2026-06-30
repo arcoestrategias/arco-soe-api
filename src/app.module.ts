@@ -29,6 +29,7 @@ import { LeversModule } from './levers/levers.module';
 import { CommentsModule } from './comments/comments.module';
 import { ReportsModule } from './reports/reports.module';
 import { MeetingsModule } from './meetings/meetings.module';
+import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { MeetingsModule } from './meetings/meetings.module';
     CommentsModule,
     ReportsModule,
     MeetingsModule,
+    GoogleCalendarModule,
   ],
   controllers: [],
 })

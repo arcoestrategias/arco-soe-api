@@ -236,6 +236,11 @@ model User {
   googleId  String? @unique @db.VarChar(100)
   outlookId String? @unique @db.VarChar(100)
 
+  // Google Calendar
+  googleCalendarAccessToken   String?   @db.Text
+  googleCalendarRefreshToken  String?   @db.Text
+  googleCalendarTokenExpiresAt DateTime?
+
   // Contexto multi-empresa
   userCompanies     UserCompany[]
   userBusinessUnits UserBusinessUnit[]
